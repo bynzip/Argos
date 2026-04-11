@@ -1,3 +1,116 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource/inter";
+
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  
+  --color-brand-blue: #2347a5;
+  --color-brand-orange: #ef5b2a;
+  --color-brand-yellow: #f3b61f;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html, body, #root {
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    color: #0f172a;
+    background:
+      radial-gradient(circle at 0% 0%, rgba(35,71,165,0.10), transparent 24%),
+      radial-gradient(circle at 100% 10%, rgba(243,182,31,0.13), transparent 18%),
+      radial-gradient(circle at 80% 100%, rgba(239,91,42,0.10), transparent 24%),
+      linear-gradient(180deg, #fffdf8 0%, #ffffff 52%, #fffaf1 100%);
+    background-attachment: fixed;
+    @apply antialiased font-sans;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: rgb(148 163 184);
+  }
+
+  ::selection {
+    background: rgba(35, 71, 165, 0.18);
+    color: #0f172a;
+  }
+}
+
+@layer components {
+  .app-shell {
+    @apply min-h-screen text-slate-900;
+  }
+
+  .surface-card {
+    @apply rounded-3xl border border-slate-200/80 bg-white/95 shadow-[0_24px_80px_rgba(35,71,165,0.08)] backdrop-blur-xl;
+  }
+
+  .surface-panel {
+    @apply rounded-2xl border border-slate-200/80 bg-white shadow-[0_12px_28px_rgba(15,23,42,0.05)];
+  }
+
+  .soft-icon {
+    @apply rounded-2xl border border-amber-100 bg-amber-50 text-orange-500;
+  }
+
+  .accent-pill {
+    @apply inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-orange-700;
+  }
+
+  .muted-copy {
+    @apply text-slate-500;
+  }
+
+  .primary-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(90deg,#2347a5_0%,#ef5b2a_54%,#f3b61f_100%)] px-6 py-3 font-semibold text-white shadow-[0_18px_38px_rgba(239,91,42,0.18)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_42px_rgba(243,182,31,0.22)] active:translate-y-0 disabled:opacity-50 disabled:hover:translate-y-0;
+  }
+
+  .secondary-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-3 font-semibold text-slate-700 shadow-sm transition duration-200 hover:border-amber-200 hover:text-[#2347a5] disabled:opacity-50;
+  }
+
+  .field-input {
+    @apply min-w-0 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-800 outline-none shadow-sm transition placeholder:text-slate-400 focus:border-[#2347a5] focus:ring-4 focus:ring-blue-100;
+  }
+
+  .field-label {
+    @apply block text-sm font-semibold leading-6 text-slate-700 mb-2;
+  }
+
+  .data-table {
+    @apply min-w-full text-sm text-slate-700;
+  }
+
+  .data-table thead th {
+    @apply bg-slate-50/80 text-slate-500 px-6 py-4 text-left font-semibold uppercase tracking-wider text-xs;
+  }
+
+  .data-table tbody tr {
+    @apply border-t border-slate-100 transition;
+  }
+
+  .data-table tbody td {
+    @apply px-6 py-4 whitespace-nowrap;
+  }
+
+  .data-table tbody tr:hover {
+    @apply bg-amber-50/40;
+  }
+}

@@ -56,7 +56,9 @@ INSTALLED_APPS = [
     'apps.core',
     'apps.users',
     'apps.customers',
-    'apps.inventory',
+    'apps.products',
+    'apps.tickets',
+    'apps.finance',
 ]
 
 MIDDLEWARE = [
@@ -188,6 +190,7 @@ SPECTACULAR_SETTINGS = {
 
 # CORS settings
 CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:5173').split(',')
+CORS_ALLOW_CREDENTIALS = True
 
 # Jazzmin Configuration
 JAZZMIN_SETTINGS = {

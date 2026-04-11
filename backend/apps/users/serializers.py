@@ -1,27 +1,46 @@
 from rest_framework import serializers
-from .models import User
-from apps.core.models import SubArea
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from .models import User, Role, Permission
 
 class UserSerializer(serializers.ModelSerializer):
-    subarea_name = serializers.ReadOnlyField(source='subarea.name')
-    area_name = serializers.ReadOnlyField(source='subarea.area.name')
-
+    role = serializers.SerializerMethodField()
+    permissions = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
-        fields = (
-            'id', 'username', 'first_name', 'last_name', 'email', 
-            'subarea', 'subarea_name', 'area_name', 'active_tickets_count',
-            'is_staff', 'is_active', 'date_joined'
-        )
-        read_only_fields = ('id', 'date_joined', 'active_tickets_count')
+        fields = ('id', 'username', 'email', 'nombre', 'is_active', 'subarea', 'active_ticket_count', 'role', 'permissions')
+        
+    def get_role(self, obj):
+        # Tomar el primer rol para simplificar el MVP, aunque el modelo soporta varios
+        user_role = obj.user_roles.first()
+        return user_role.role.nombre if user_role else None
 
-class UserSimpleSerializer(serializers.ModelSerializer):
-    """Simple serializer for selection lists"""
-    full_name = serializers.SerializerMethodField()
+    def get_permissions(self, obj):
+        # Si es superusuario, no necesita la lista explícita, pero podemos enviarla
+        if obj.is_superuser:
+            return ["all"]
+            
+        perms = set()
+        # Obtener permisos de los roles
+        for user_role in obj.user_roles.select_related('role'):
+            for role_perm in user_role.role.role_permissions.select_related('permission'):
+                perms.add(role_perm.permission.code)
+                
+        # Obtener permisos directos del usuario (incluyendo los denegados)
+        for user_perm in obj.user_permissions.select_related('permission'):
+            if user_perm.is_denied:
+                perms.discard(user_perm.permission.code)
+            else:
+                perms.add(user_perm.permission.code)
+                
+        return list(perms)
 
-    class Meta:
-        model = User
-        fields = ('id', 'full_name', 'username')
-
-    def get_full_name(self, obj):
-        return f"{obj.first_name} {obj.last_name}"
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        
+        # Agregar datos del usuario al token
+        user_data = UserSerializer(self.user).data
+        data['user'] = user_data
+        
+        return data

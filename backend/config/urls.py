@@ -2,13 +2,15 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.shortcuts import redirect
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-)
+
+from apps.users.views import CustomTokenObtainPairView, CustomTokenRefreshView, LogoutView, UserMeView
 
 urlpatterns = [
+    # Root redirect to Admin
+    path('', lambda request: redirect('admin/', permanent=False)),
+    
     path('admin/', admin.site.urls),
     
     # API Documentation
@@ -17,14 +19,16 @@ urlpatterns = [
     path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
     
     # Auth Endpoints
-    path('api/auth/login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/auth/login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/auth/refresh/', CustomTokenRefreshView.as_view(), name='token_refresh'),
+    path('api/auth/logout/', LogoutView.as_view(), name='token_logout'),
+    path('api/auth/me/', UserMeView.as_view(), name='user_me'),
     
     # Local Apps Endpoints
     path('api/users/', include('apps.users.urls')),
     path('api/core/', include('apps.core.urls')),
     path('api/customers/', include('apps.customers.urls')),
-    path('api/inventory/', include('apps.inventory.urls')),
+    path('api/products/', include('apps.products.urls')),
 ]
 
 if settings.DEBUG:
