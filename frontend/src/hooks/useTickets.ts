@@ -75,3 +75,21 @@ export const useTicketTransition = () => {
     },
   });
 };
+
+export const useUpdateTicketAmounts = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, monto_estimado, total, motivo }: { id: string, monto_estimado?: string, total?: string, motivo?: string }) => {
+      const response = await axios.patch(`/tickets/${id}/update_amounts/`, {
+        monto_estimado,
+        total,
+        motivo,
+      });
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      queryClient.invalidateQueries({ queryKey: ['tickets', variables.id] });
+    },
+  });
+};

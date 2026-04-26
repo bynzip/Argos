@@ -15,14 +15,7 @@ import TicketFormPage from '../pages/tickets/TicketFormPage';
 import TicketDetailPage from '../pages/tickets/TicketDetailPage';
 import TechnicianQueuePage from '../pages/tickets/TechnicianQueuePage';
 import CajaPage from '../pages/finance/CajaPage';
-
-// Componente temporal para el Dashboard
-const Dashboard = () => (
-  <div>
-    <h1 className="text-2xl font-bold text-gray-900">Dashboard Argos MVP</h1>
-    <p className="mt-2 text-gray-600">Bienvenido al sistema.</p>
-  </div>
-);
+import DashboardPage from '../pages/dashboard/DashboardPage';
 
 // Componente para proteger rutas
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
@@ -65,7 +58,7 @@ export const router = createBrowserRouter([
     children: [
       {
         path: '',
-        element: <Dashboard />,
+        element: <DashboardPage />,
       },
       {
         path: 'users',

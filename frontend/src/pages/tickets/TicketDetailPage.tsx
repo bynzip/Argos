@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useTicket, useTicketTransition } from '../../hooks/useTickets';
+import { useTicket, useTicketTransition, useUpdateTicketAmounts } from '../../hooks/useTickets';
 import { useAuthStore } from '../../store/authStore';
 import { TicketStatusBadge } from '../../components/ui/TicketStatusBadge';
 import { PriorityBadge } from '../../components/ui/PriorityBadge';
@@ -39,10 +39,16 @@ const TicketDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const { data: ticket, isLoading, refetch } = useTicket(id || '');
   const transitionMutation = useTicketTransition();
+  const updateAmountsMutation = useUpdateTicketAmounts();
   const { user } = useAuthStore();
   const [motivo, setMotivo] = useState('');
   const [showMotivoInput, setShowMotivoInput] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  
+  // States for updating amounts
+  const [showAmountsModal, setShowAmountsModal] = useState(false);
+  const [montoEstimadoInput, setMontoEstimadoInput] = useState('');
+  const [totalInput, setTotalInput] = useState('');
 
   // Poll for real-time balance updates if we are on this page
   useEffect(() => {
@@ -57,6 +63,7 @@ const TicketDetailPage = () => {
   
   const isRecep = user?.role === 'Recepcionista' || user?.is_superuser;
   const isTech = user?.role === 'Técnico' || user?.is_superuser;
+  const isAdmin = user?.is_superuser || user?.role === 'Administrador';
   
   const canTransition = (nextStatus: string) => {
     if (nextStatus === 'DELIVERED' || nextStatus === 'CLOSED') return isRecep;
@@ -81,10 +88,26 @@ const TicketDetailPage = () => {
     });
   };
 
+  const openAmountsModal = () => {
+    setMontoEstimadoInput(ticket.monto_estimado || '');
+    setTotalInput(ticket.total || '0.00');
+    setShowAmountsModal(true);
+  };
+
+  const handleUpdateAmounts = () => {
+    updateAmountsMutation.mutate({
+      id: ticket.id,
+      monto_estimado: montoEstimadoInput || undefined,
+      total: totalInput || undefined,
+      motivo: 'Actualización manual de montos'
+    }, {
+      onSuccess: () => {
+        setShowAmountsModal(false);
+      }
+    });
+  };
+
   // Derive balance
-  // Since we haven't exposed `saldo_pendiente` as a top-level field in TicketDetailSerializer,
-  // we compute it summing up receipts we got (we'd need to include it in the serializer or compute here).
-  // Assuming total and payments logic:
   const pagosConfirmados = ticket.receipts ? 
     ticket.receipts.filter((r: any) => r.estado === 'CONFIRMED').reduce((acc: number, curr: any) => acc + parseFloat(curr.amount), 0) : 0;
   
@@ -201,7 +224,15 @@ const TicketDetailPage = () => {
         {/* Columna Lateral */}
         <div className="space-y-6">
           {/* Info Financiera Básica */}
-          <div className="bg-amber-50 shadow rounded-lg p-6 border border-amber-200">
+          <div className="bg-amber-50 shadow rounded-lg p-6 border border-amber-200 relative">
+            {(isAdmin || isTech) && !['DELIVERED', 'CLOSED'].includes(ticket.estado) && (
+              <button 
+                onClick={openAmountsModal}
+                className="absolute top-4 right-4 text-xs font-medium text-amber-700 bg-amber-200 px-2 py-1 rounded hover:bg-amber-300"
+              >
+                Actualizar
+              </button>
+            )}
             <h2 className="text-lg font-medium text-amber-900 border-b border-amber-200 pb-2 mb-4">Saldo del Ticket</h2>
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
@@ -293,6 +324,7 @@ const TicketDetailPage = () => {
         </div>
       </div>
 
+      {/* Payment Modal */}
       {showPaymentModal && (
         <PaymentModal 
           ticketId={ticket.id} 
@@ -302,6 +334,50 @@ const TicketDetailPage = () => {
             refetch();
           }} 
         />
+      )}
+
+      {/* Update Amounts Modal */}
+      {showAmountsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h2 className="text-lg font-bold text-gray-900">Actualizar Montos</h2>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Monto Estimado (Opcional)</label>
+                <input 
+                  type="number" step="0.01"
+                  value={montoEstimadoInput} onChange={e => setMontoEstimadoInput(e.target.value)}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Total Final (S/)</label>
+                <input 
+                  type="number" step="0.01"
+                  value={totalInput} onChange={e => setTotalInput(e.target.value)}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                />
+              </div>
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  onClick={() => setShowAmountsModal(false)}
+                  className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleUpdateAmounts}
+                  disabled={updateAmountsMutation.isPending}
+                  className="px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-md hover:bg-amber-700"
+                >
+                  Guardar Montos
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

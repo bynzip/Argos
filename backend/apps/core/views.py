@@ -1,18 +1,8 @@
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, permissions, status, mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Area, SubArea, CompanyProfile
-from .serializers import AreaSerializer, SubAreaSerializer, CompanyProfileSerializer
-
-class AreaViewSet(viewsets.ModelViewSet):
-    queryset = Area.objects.all()
-    serializer_class = AreaSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-class SubAreaViewSet(viewsets.ModelViewSet):
-    queryset = SubArea.objects.all().select_related('area')
-    serializer_class = SubAreaSerializer
-    permission_classes = [permissions.IsAuthenticated]
+from .models import CompanyProfile, Notification
+from .serializers import CompanyProfileSerializer, NotificationSerializer
 
 class CompanyProfileViewSet(viewsets.ModelViewSet):
     queryset = CompanyProfile.objects.all()
@@ -20,15 +10,11 @@ class CompanyProfileViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
-        # We only have one profile, return it or create a shell if none exists
         obj, created = CompanyProfile.objects.get_or_create(
             defaults={
                 'business_name': 'Argos ERP',
-                'legal_name': 'Argos S.A.C.',
                 'ruc': '12345678901',
-                'address': 'Calle Real 123, Huancayo',
                 'phone': '064-123456',
-                'whatsapp': '987654321',
                 'email': 'contacto@argos.com'
             }
         )
@@ -40,21 +26,66 @@ class CompanyProfileViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(obj)
         return Response(serializer.data)
 
+class NotificationViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
+    serializer_class = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = Notification.objects.filter(user=self.request.user)
+        is_unread = self.request.query_params.get('no_leidas', None)
+        if is_unread == 'true':
+            qs = qs.filter(is_read=False)
+        return qs
+
+    @action(detail=True, methods=['post'])
+    def mark_read(self, request, pk=None):
+        notification = self.get_object()
+        notification.is_read = True
+        notification.save(update_fields=['is_read'])
+        return Response(NotificationSerializer(notification).data)
+
+    @action(detail=False, methods=['post'])
+    def mark_all_read(self, request):
+        Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+        return Response({'detail': 'Todas las notificaciones marcadas como leídas'})
+
 class DashboardViewSet(viewsets.ViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def list(self, request):
-        # Placeholder for real dashboard metrics
-        # We import here to avoid circular dependencies if any
         from apps.customers.models import Customer
-        from apps.inventory.models import Product
+        from apps.products.models import Product
+        from apps.tickets.models import Ticket
         
-        return Response({
-            "metrics": {
-                "active_tickets": 0, # To be implemented in Capa 2
+        role = request.user.role_users.first().role.nombre if request.user.role_users.exists() else 'Desconocido'
+        
+        # Base response
+        data = {
+            "role": role,
+            "metrics": {},
+            "recent_activity": []
+        }
+
+        # Add specific metrics based on role
+        if role == 'Administrador' or request.user.is_superuser:
+            data['metrics'] = {
+                "active_tickets": Ticket.objects.exclude(estado__in=['DELIVERED', 'CLOSED', 'REJECTED']).count(),
                 "customers_count": Customer.objects.count(),
                 "products_count": Product.objects.count(),
-                "low_stock_alerts": 0, # To be implemented with Inventory Logic
-            },
-            "recent_activity": []
-        })
+            }
+        elif role == 'Recepcionista':
+            data['metrics'] = {
+                "ready_tickets": Ticket.objects.filter(estado__in=['READY', 'STORAGE']).count(),
+            }
+        elif role == 'Técnico':
+            data['metrics'] = {
+                "my_active_tickets": Ticket.objects.filter(assigned_to=request.user).exclude(estado__in=['DELIVERED', 'CLOSED', 'REJECTED']).count(),
+            }
+        elif role == 'Almacenero':
+            # Find products below minimum stock
+            low_stock = Product.objects.filter(stocks__cantidad__lte=models.F('stock_minimo')).distinct().count()
+            data['metrics'] = {
+                "low_stock_alerts": low_stock,
+            }
+
+        return Response(data)

@@ -11,6 +11,7 @@ from .serializers import (
     TicketListSerializer, TicketDetailSerializer, TicketEvidenceSerializer
 )
 from .services import create_ticket, transition_ticket, assign_ticket
+from .services.ticket_service import update_ticket_amounts
 from apps.customers.models import Customer, Device
 
 class TicketViewSet(viewsets.ModelViewSet):
@@ -119,6 +120,25 @@ class TicketViewSet(viewsets.ModelViewSet):
             from apps.users.models import User
             technician = User.objects.get(id=user_id) if user_id else None
             ticket = assign_ticket(ticket, technician, request.user)
+            return Response(TicketDetailSerializer(ticket).data)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['patch'])
+    def update_amounts(self, request, pk=None):
+        ticket = self.get_object()
+        monto_estimado = request.data.get('monto_estimado')
+        total = request.data.get('total')
+        motivo = request.data.get('motivo', 'Actualización de montos')
+        
+        try:
+            ticket = update_ticket_amounts(
+                ticket=ticket,
+                user=request.user,
+                monto_estimado=monto_estimado,
+                total=total,
+                motivo=motivo
+            )
             return Response(TicketDetailSerializer(ticket).data)
         except Exception as e:
             return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
