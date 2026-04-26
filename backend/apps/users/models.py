@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
 from django.utils import timezone
+from apps.customers.models import SoftDeleteManager, AllObjectsManager
 
 class Area(models.Model):
     nombre = models.CharField(max_length=100)
@@ -60,7 +61,7 @@ class Permission(models.Model):
         return self.name
 
 
-class UserManager(BaseUserManager):
+class UserManager(BaseUserManager, SoftDeleteManager):
     def create_user(self, email, username, password=None, **extra_fields):
         if not email:
             raise ValueError("El email es obligatorio")
@@ -98,6 +99,7 @@ class User(AbstractBaseUser):
     updated_at = models.DateTimeField(auto_now=True)
 
     objects = UserManager()
+    all_objects = AllObjectsManager()
 
     USERNAME_FIELD = 'username'
     REQUIRED_FIELDS = ['email', 'nombre']
@@ -107,6 +109,19 @@ class User(AbstractBaseUser):
 
     def __str__(self):
         return self.username
+
+    def delete(self, using=None, keep_parents=False):
+        self.deleted_at = timezone.now()
+        self.is_active = False
+        self.save(update_fields=['deleted_at', 'is_active'])
+
+    def hard_delete(self, using=None, keep_parents=False):
+        super().delete(using=using, keep_parents=keep_parents)
+
+    def restore(self):
+        self.deleted_at = None
+        self.is_active = True
+        self.save(update_fields=['deleted_at', 'is_active'])
 
     def has_perm(self, perm, obj=None):
         return self.is_superuser

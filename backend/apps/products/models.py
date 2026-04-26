@@ -1,4 +1,5 @@
 from django.db import models
+from apps.customers.models import SoftDeleteModel
 
 class Category(models.Model):
     nombre = models.CharField(max_length=100, unique=True)
@@ -22,7 +23,7 @@ class Brand(models.Model):
     def __str__(self):
         return self.nombre
 
-class Warehouse(models.Model):
+class Warehouse(SoftDeleteModel):
     nombre = models.CharField(max_length=100, unique=True)
     ubicacion = models.CharField(max_length=200, blank=True)
 
@@ -32,7 +33,7 @@ class Warehouse(models.Model):
     def __str__(self):
         return self.nombre
 
-class Product(models.Model):
+class Product(SoftDeleteModel):
     codigo = models.CharField(max_length=50, unique=True) # Generado por sistema (ej: PROD-0001)
     nombre = models.CharField(max_length=200)
     descripcion = models.TextField(blank=True)

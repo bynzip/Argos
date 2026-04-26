@@ -1,6 +1,6 @@
 from django.contrib import admin
 from import_export.admin import ImportExportModelAdmin
-from .models import Area, SubArea, CompanyProfile
+from .models import CompanyProfile
 
 class BaseAdmin(ImportExportModelAdmin):
     """
@@ -9,17 +9,6 @@ class BaseAdmin(ImportExportModelAdmin):
     def has_delete_permission(self, request, obj=None):
         # Disable physical delete button in the UI
         return False
-
-@admin.register(Area)
-class AreaAdmin(BaseAdmin):
-    list_display = ('name', 'is_active', 'created_at')
-    search_fields = ('name',)
-
-@admin.register(SubArea)
-class SubAreaAdmin(BaseAdmin):
-    list_display = ('name', 'area', 'current_load', 'is_active')
-    list_filter = ('area', 'is_active')
-    search_fields = ('name',)
 
 @admin.register(CompanyProfile)
 class CompanyProfileAdmin(BaseAdmin):
