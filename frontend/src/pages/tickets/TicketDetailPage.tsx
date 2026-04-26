@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useTicket, useTicketTransition } from '../../hooks/useTickets';
 import { useAuthStore } from '../../store/authStore';
 import { TicketStatusBadge } from '../../components/ui/TicketStatusBadge';
 import { PriorityBadge } from '../../components/ui/PriorityBadge';
+import { PaymentModal } from '../../components/finance/PaymentModal';
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   'INTAKE': ['DIAGNOSTIC'],
@@ -36,20 +37,24 @@ const statusLabels: Record<string, string> = {
 
 const TicketDetailPage = () => {
   const { id } = useParams<{ id: string }>();
-  const { data: ticket, isLoading } = useTicket(id || '');
+  const { data: ticket, isLoading, refetch } = useTicket(id || '');
   const transitionMutation = useTicketTransition();
   const { user } = useAuthStore();
   const [motivo, setMotivo] = useState('');
   const [showMotivoInput, setShowMotivoInput] = useState<string | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+
+  // Poll for real-time balance updates if we are on this page
+  useEffect(() => {
+    const interval = setInterval(() => refetch(), 10000);
+    return () => clearInterval(interval);
+  }, [refetch]);
 
   if (isLoading) return <div className="p-6">Cargando ticket...</div>;
   if (!ticket) return <div className="p-6">Ticket no encontrado</div>;
 
   const allowedNextStatuses = VALID_TRANSITIONS[ticket.estado] || [];
   
-  // Lógica simplificada de permisos para UI:
-  // Recepcionista (o Admin) puede transicionar INTAKE->DIAGNOSTIC, READY->DELIVERED->CLOSED
-  // Técnico (o Admin) puede transicionar DIAGNOSTIC->...->READY
   const isRecep = user?.role === 'Recepcionista' || user?.is_superuser;
   const isTech = user?.role === 'Técnico' || user?.is_superuser;
   
@@ -69,9 +74,22 @@ const TicketDetailPage = () => {
       onSuccess: () => {
         setShowMotivoInput(null);
         setMotivo('');
+      },
+      onError: (error: any) => {
+        alert(error.response?.data?.detail || "Error al transicionar");
       }
     });
   };
+
+  // Derive balance
+  // Since we haven't exposed `saldo_pendiente` as a top-level field in TicketDetailSerializer,
+  // we compute it summing up receipts we got (we'd need to include it in the serializer or compute here).
+  // Assuming total and payments logic:
+  const pagosConfirmados = ticket.receipts ? 
+    ticket.receipts.filter((r: any) => r.estado === 'CONFIRMED').reduce((acc: number, curr: any) => acc + parseFloat(curr.amount), 0) : 0;
+  
+  const total = parseFloat(ticket.total);
+  const saldoPendiente = total - pagosConfirmados;
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -87,50 +105,60 @@ const TicketDetailPage = () => {
         </div>
         
         {/* Acciones de Transición */}
-        {allowedNextStatuses.length > 0 && (
-          <div className="mt-4 md:mt-0 flex flex-wrap gap-2">
-            {allowedNextStatuses.map(status => {
-              if (!canTransition(status)) return null;
-              
-              if (showMotivoInput === status) {
-                return (
-                  <div key={status} className="flex gap-2 items-center">
-                    <input 
-                      type="text" 
-                      value={motivo} 
-                      onChange={e => setMotivo(e.target.value)} 
-                      placeholder="Motivo..."
-                      className="border rounded px-2 py-1 text-sm"
-                    />
-                    <button 
-                      onClick={() => handleTransition(status)}
-                      className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-                    >
-                      Confirmar
-                    </button>
-                    <button 
-                      onClick={() => setShowMotivoInput(null)}
-                      className="px-3 py-1 bg-gray-200 text-gray-800 rounded text-sm hover:bg-gray-300"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                );
-              }
-              
+        <div className="mt-4 md:mt-0 flex flex-wrap gap-2">
+          {isRecep && saldoPendiente > 0 && !['DELIVERED', 'CLOSED'].includes(ticket.estado) && (
+            <button
+              onClick={() => setShowPaymentModal(true)}
+              className="px-4 py-2 bg-amber-100 text-amber-800 border border-amber-300 rounded-md text-sm font-medium hover:bg-amber-200"
+            >
+              Registrar Cobro
+            </button>
+          )}
+          
+          {allowedNextStatuses.map(status => {
+            if (!canTransition(status)) return null;
+            
+            // RN-01: No mostrar botón "Entregar" si hay saldo
+            if (status === 'DELIVERED' && saldoPendiente > 0) return null;
+            
+            if (showMotivoInput === status) {
               return (
-                <button
-                  key={status}
-                  onClick={() => handleTransition(status)}
-                  disabled={transitionMutation.isPending}
-                  className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-md text-sm font-medium hover:bg-blue-100"
-                >
-                  Mover a {statusLabels[status]}
-                </button>
+                <div key={status} className="flex gap-2 items-center">
+                  <input 
+                    type="text" 
+                    value={motivo} 
+                    onChange={e => setMotivo(e.target.value)} 
+                    placeholder="Motivo..."
+                    className="border rounded px-2 py-1 text-sm"
+                  />
+                  <button 
+                    onClick={() => handleTransition(status)}
+                    className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                  >
+                    Confirmar
+                  </button>
+                  <button 
+                    onClick={() => setShowMotivoInput(null)}
+                    className="px-3 py-1 bg-gray-200 text-gray-800 rounded text-sm hover:bg-gray-300"
+                  >
+                    Cancelar
+                  </button>
+                </div>
               );
-            })}
-          </div>
-        )}
+            }
+            
+            return (
+              <button
+                key={status}
+                onClick={() => handleTransition(status)}
+                disabled={transitionMutation.isPending}
+                className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-md text-sm font-medium hover:bg-blue-100"
+              >
+                Mover a {statusLabels[status]}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -172,6 +200,32 @@ const TicketDetailPage = () => {
 
         {/* Columna Lateral */}
         <div className="space-y-6">
+          {/* Info Financiera Básica */}
+          <div className="bg-amber-50 shadow rounded-lg p-6 border border-amber-200">
+            <h2 className="text-lg font-medium text-amber-900 border-b border-amber-200 pb-2 mb-4">Saldo del Ticket</h2>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-amber-800">Total a pagar:</span>
+                <span className="font-medium text-amber-900">S/ {total.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-amber-800">Pagado:</span>
+                <span className="font-medium text-green-700">S/ {pagosConfirmados.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-base font-bold pt-2 border-t border-amber-200">
+                <span className="text-amber-900">Saldo Pendiente:</span>
+                <span className={saldoPendiente > 0 ? "text-red-600" : "text-green-600"}>
+                  S/ {saldoPendiente.toFixed(2)}
+                </span>
+              </div>
+              {saldoPendiente > 0 && (
+                <p className="text-xs text-amber-700 mt-2 text-center bg-amber-100 py-1 rounded">
+                  No se puede entregar si hay saldo.
+                </p>
+              )}
+            </div>
+          </div>
+
           <div className="bg-white shadow rounded-lg p-6">
             <h2 className="text-lg font-medium border-b pb-2 mb-4">Cliente y Equipo</h2>
             <div className="space-y-3">
@@ -238,6 +292,17 @@ const TicketDetailPage = () => {
           </div>
         </div>
       </div>
+
+      {showPaymentModal && (
+        <PaymentModal 
+          ticketId={ticket.id} 
+          saldoPendiente={saldoPendiente} 
+          onClose={() => {
+            setShowPaymentModal(false);
+            refetch();
+          }} 
+        />
+      )}
     </div>
   );
 };

@@ -73,6 +73,14 @@ class Ticket(SoftDeleteModel):
     def __str__(self):
         return self.folio
 
+    @property
+    def saldo_pendiente(self):
+        from apps.finance.models import Receipt
+        pagos_confirmados = self.receipts.filter(estado=Receipt.ReceiptStatus.CONFIRMED).aggregate(
+            total=models.Sum('amount')
+        )['total'] or 0
+        return self.total - pagos_confirmados
+
 class TicketAccessory(models.Model):
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='accessories')
     nombre = models.CharField(max_length=150)

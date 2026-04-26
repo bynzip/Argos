@@ -55,11 +55,9 @@ def transition_ticket(ticket, new_status, user, motivo=None):
             raise ValidationError(f"No se permite transicionar de {current_status} a {new_status}")
             
         if new_status == Ticket.TicketStatus.DELIVERED:
-            # TODO: Consider adding logic later for actual receipt checking once finance models are fully hooked
-            if ticket.total > 0: # Simplificado para MVP sin módulo de caja completo aún
-                # En un sistema completo: saldo = ticket.total - sum(recibos.monto)
-                # Por ahora, simulamos
-                pass
+            # RN-01: Un ticket no puede entregarse con saldo pendiente
+            if ticket.saldo_pendiente > 0:
+                raise ValidationError(f"No se puede entregar el equipo. Hay un saldo pendiente de S/ {ticket.saldo_pendiente}.")
                 
         ticket.estado = new_status
         ticket.save(update_fields=['estado', 'updated_at'])

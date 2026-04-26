@@ -14,6 +14,7 @@ import TicketListPage from '../pages/tickets/TicketListPage';
 import TicketFormPage from '../pages/tickets/TicketFormPage';
 import TicketDetailPage from '../pages/tickets/TicketDetailPage';
 import TechnicianQueuePage from '../pages/tickets/TechnicianQueuePage';
+import CajaPage from '../pages/finance/CajaPage';
 
 // Componente temporal para el Dashboard
 const Dashboard = () => (
@@ -93,6 +94,12 @@ export const router = createBrowserRouter([
           { path: 'new', element: <TicketFormPage /> },
           { path: 'queue', element: <TechnicianQueuePage /> },
           { path: ':id', element: <TicketDetailPage /> },
+        ]
+      },
+      {
+        path: 'finance',
+        children: [
+          { path: '', element: <CajaPage /> },
         ]
       },
     ],
