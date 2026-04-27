@@ -11,6 +11,7 @@ export interface Customer {
   correo_electronico?: string;
   etiqueta: 'NUEVO' | 'REGULAR' | 'FRECUENTE' | 'VIP' | 'MOROSO' | 'ESPECIAL';
   is_active: boolean;
+  devices?: any[];
 }
 
 export interface CustomerDetail extends Customer {
@@ -20,6 +21,7 @@ export interface CustomerDetail extends Customer {
   notas?: string;
   created_at: string;
   devices: any[]; // Se tipará después cuando hagamos los dispositivos
+  tickets?: any[];
 }
 
 // Búsqueda y listado

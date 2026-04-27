@@ -57,7 +57,7 @@ class DashboardViewSet(viewsets.ViewSet):
         from apps.products.models import Product
         from apps.tickets.models import Ticket
         
-        role = request.user.role_users.first().role.nombre if request.user.role_users.exists() else 'Desconocido'
+        role = request.user.user_roles.first().role.nombre if request.user.user_roles.exists() else 'Desconocido'
         
         # Base response
         data = {

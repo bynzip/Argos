@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { useTickets, Ticket } from '../../hooks/useTickets';
 import { DataTable } from '../../components/ui/DataTable';
@@ -7,13 +7,23 @@ import { TicketStatusBadge } from '../../components/ui/TicketStatusBadge';
 import { PriorityBadge } from '../../components/ui/PriorityBadge';
 
 const TicketListPage = () => {
-  const [search, setSearch] = useState('');
+  const [searchParams] = useSearchParams();
+  const initialSearch = searchParams.get('search') || '';
+  const [search, setSearch] = useState(initialSearch);
+  
+  // Update state if URL search param changes
+  useEffect(() => {
+    if (searchParams.get('search')) {
+      setSearch(searchParams.get('search') || '');
+    }
+  }, [searchParams]);
+
   const { data: tickets, isLoading } = useTickets({ search });
 
   const columns = [
     {
       header: 'Folio',
-      accessor: (ticket: Ticket) => (
+      cell: (ticket: Ticket) => (
         <Link to={`/tickets/${ticket.id}`} className="text-blue-600 hover:text-blue-900 font-medium">
           {ticket.folio}
         </Link>
@@ -21,27 +31,27 @@ const TicketListPage = () => {
     },
     {
       header: 'Cliente',
-      accessor: (ticket: Ticket) => ticket.customer?.nombre || '-',
+      cell: (ticket: Ticket) => ticket.customer?.nombre || '-',
     },
     {
       header: 'Dispositivo',
-      accessor: (ticket: Ticket) => ticket.device ? `${ticket.device.marca} ${ticket.device.modelo}` : '-',
+      cell: (ticket: Ticket) => ticket.device ? `${ticket.device.marca} ${ticket.device.modelo}` : '-',
     },
     {
       header: 'Técnico',
-      accessor: (ticket: Ticket) => ticket.assigned_to?.nombre || 'Sin asignar',
+      cell: (ticket: Ticket) => ticket.assigned_to?.nombre || 'Sin asignar',
     },
     {
       header: 'Prioridad',
-      accessor: (ticket: Ticket) => <PriorityBadge priority={ticket.prioridad} />,
+      cell: (ticket: Ticket) => <PriorityBadge priority={ticket.prioridad} />,
     },
     {
       header: 'Estado',
-      accessor: (ticket: Ticket) => <TicketStatusBadge status={ticket.estado} />,
+      cell: (ticket: Ticket) => <TicketStatusBadge status={ticket.estado} />,
     },
     {
       header: 'Fecha',
-      accessor: (ticket: Ticket) => new Date(ticket.created_at).toLocaleDateString(),
+      cell: (ticket: Ticket) => new Date(ticket.created_at).toLocaleDateString(),
     },
   ];
 
@@ -56,7 +66,7 @@ const TicketListPage = () => {
         </div>
         <Link
           to="/tickets/new"
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 cursor-pointer"
         >
           <Plus className="-ml-1 mr-2 h-5 w-5" />
           Nuevo Ticket
@@ -67,9 +77,11 @@ const TicketListPage = () => {
         <DataTable
           columns={columns}
           data={tickets || []}
+          keyExtractor={(ticket) => ticket.id}
           isLoading={isLoading}
           onSearch={setSearch}
           searchPlaceholder="Buscar por folio, cliente o dispositivo..."
+          initialSearchValue={initialSearch}
         />
       </div>
     </div>

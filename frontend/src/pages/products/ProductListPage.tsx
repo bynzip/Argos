@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useProducts, Product } from '../../hooks/useProducts';
+import { useAuthStore } from '../../store/authStore';
 import { DataTable, Column } from '../../components/ui/DataTable';
 import { Plus, Package, AlertTriangle, Eye } from 'lucide-react';
 
@@ -8,6 +9,10 @@ export default function ProductListPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  
+  // Almacenero o Admin tienen permiso para ver costo
+  const canViewCost = user?.role === 'Administrador' || user?.role === 'Almacenero' || user?.is_superuser;
   
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
@@ -16,7 +21,7 @@ export default function ProductListPage() {
 
   const { data: products = [], isLoading } = useProducts({ search: debouncedSearch });
 
-  const columns: Column<Product>[] = [
+  const baseColumns: Column<Product>[] = [
     {
       header: 'Código/Producto',
       cell: (item) => (
@@ -25,7 +30,9 @@ export default function ProductListPage() {
             <Package size={20} />
           </div>
           <div className="flex flex-col">
-            <span className="font-bold text-slate-900">{item.nombre}</span>
+            <Link to={`/inventory/${item.id}`} className="font-bold text-slate-900 hover:underline cursor-pointer">
+              {item.nombre}
+            </Link>
             <span className="text-xs font-bold text-brand-blue uppercase tracking-wider">{item.codigo}</span>
           </div>
         </div>
@@ -61,6 +68,21 @@ export default function ProductListPage() {
         </span>
       ),
     },
+  ];
+
+  // Add Cost Price if user has permission
+  if (canViewCost) {
+    baseColumns.push({
+      header: 'Precio Costo',
+      cell: (item) => (
+        <span className="font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100 whitespace-nowrap">
+          S/ {item.precio_costo ? parseFloat(item.precio_costo).toLocaleString(undefined, { minimumFractionDigits: 2 }) : 'N/D'}
+        </span>
+      ),
+    });
+  }
+
+  const actionColumns: Column<Product>[] = [
     {
       header: 'Estado',
       cell: (item) => (
@@ -78,7 +100,7 @@ export default function ProductListPage() {
       cell: (item) => (
         <button 
           onClick={() => navigate(`/inventory/${item.id}`)}
-          className="text-slate-400 hover:text-brand-blue transition-colors p-2 rounded-xl hover:bg-blue-50"
+          className="text-slate-400 hover:text-brand-blue transition-colors p-2 rounded-xl hover:bg-blue-50 cursor-pointer"
           title="Ver detalle"
         >
           <Eye size={20} />
@@ -86,6 +108,8 @@ export default function ProductListPage() {
       ),
     },
   ];
+
+  const columns = [...baseColumns, ...actionColumns];
 
   return (
     <div className="space-y-8">
@@ -108,7 +132,7 @@ export default function ProductListPage() {
         actions={
           <button 
             onClick={() => navigate('/inventory/new')}
-            className="primary-button text-sm"
+            className="primary-button text-sm cursor-pointer"
           >
             <Plus size={18} />
             <span className="hidden sm:inline">Nuevo Producto</span>

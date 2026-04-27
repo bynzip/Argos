@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import { useTickets, Ticket, useTicketTransition } from '../../hooks/useTickets';
 import { useAuthStore } from '../../store/authStore';

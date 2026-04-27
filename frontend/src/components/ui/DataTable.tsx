@@ -14,6 +14,7 @@ interface DataTableProps<T> {
   isLoading?: boolean;
   onSearch?: (term: string) => void;
   searchPlaceholder?: string;
+  initialSearchValue?: string;
   actions?: React.ReactNode;
 }
 
@@ -24,6 +25,7 @@ export function DataTable<T>({
   isLoading = false,
   onSearch,
   searchPlaceholder = 'Buscar...',
+  initialSearchValue = '',
   actions,
 }: DataTableProps<T>) {
   return (
@@ -39,6 +41,7 @@ export function DataTable<T>({
               <input
                 type="text"
                 onChange={(e) => onSearch(e.target.value)}
+                defaultValue={initialSearchValue}
                 className="field-input w-full pl-12"
                 placeholder={searchPlaceholder}
               />

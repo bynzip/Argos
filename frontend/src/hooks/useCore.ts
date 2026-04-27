@@ -18,7 +18,7 @@ export const useDashboard = () => {
   return useQuery({
     queryKey: ['dashboard'],
     queryFn: async () => {
-      const response = await axios.get('/core/dashboard/');
+      const response = await axios.get('/api/core/dashboard/');
       return response.data as DashboardData;
     },
     refetchInterval: 60000, // Refetch every 1 minute
@@ -29,7 +29,7 @@ export const useNotifications = (no_leidas: boolean = false) => {
   return useQuery({
     queryKey: ['notificaciones', { no_leidas }],
     queryFn: async () => {
-      const response = await axios.get('/core/notificaciones/', {
+      const response = await axios.get('/api/core/notificaciones/', {
         params: { no_leidas: no_leidas ? 'true' : 'false' }
       });
       return response.data as Notification[];
@@ -42,7 +42,7 @@ export const useMarkNotificationRead = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: number) => {
-      const response = await axios.post(`/core/notificaciones/${id}/mark_read/`);
+      const response = await axios.post(`/api/core/notificaciones/${id}/mark_read/`);
       return response.data;
     },
     onSuccess: () => {
@@ -55,7 +55,7 @@ export const useMarkAllNotificationsRead = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      const response = await axios.post('/core/notificaciones/mark_all_read/');
+      const response = await axios.post('/api/core/notificaciones/mark_all_read/');
       return response.data;
     },
     onSuccess: () => {

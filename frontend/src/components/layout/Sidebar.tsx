@@ -4,7 +4,6 @@ import {
   Users, 
   Home, 
   Settings, 
-  Briefcase, 
   Package, 
   Ticket, 
   DollarSign,
@@ -34,7 +33,6 @@ export default function Sidebar() {
     { name: 'Clientes', path: '/customers', icon: <Users size={20} />, permissionRequired: 'customers' },
     { name: 'Inventario', path: '/inventory', icon: <Package size={20} />, permissionRequired: 'inventory' },
     { name: 'Finanzas', path: '/finance', icon: <DollarSign size={20} />, permissionRequired: 'finance' },
-    { name: 'RRHH', path: '/hr', icon: <Briefcase size={20} />, permissionRequired: 'hr' },
     { name: 'Usuarios', path: '/users', icon: <Settings size={20} />, permissionRequired: 'users' },
   ];
 

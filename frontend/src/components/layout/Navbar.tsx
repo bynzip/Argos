@@ -17,7 +17,7 @@ export default function Navbar() {
 
   const handleLogout = async () => {
     try {
-      await api.post('/auth/logout/');
+      await api.post('/api/auth/logout/');
     } catch (e) {
       console.error('Error logging out on server', e);
     } finally {

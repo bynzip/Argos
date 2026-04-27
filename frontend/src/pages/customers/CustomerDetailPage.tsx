@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useCustomer } from '../../hooks/useCustomers';
-import { ArrowLeft, Edit, Smartphone, AlertCircle, Plus } from 'lucide-react';
+import { ArrowLeft, Edit, Smartphone, AlertCircle, Plus, Ticket } from 'lucide-react';
 import AddDeviceModal from '../../components/customers/AddDeviceModal';
+import { TicketStatusBadge } from '../../components/ui/TicketStatusBadge';
 
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -41,33 +42,40 @@ export default function CustomerDetailPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="max-w-6xl mx-auto space-y-8 p-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/customers')}
-            className="p-3 rounded-2xl hover:bg-slate-200 border border-transparent hover:border-slate-300 text-slate-500 transition-all bg-white shadow-sm"
+            className="p-2 rounded-xl hover:bg-slate-200 border border-transparent hover:border-slate-300 text-slate-500 transition-all bg-white shadow-sm"
           >
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">{customer.nombre}</h1>
-            <p className="muted-copy mt-1 font-medium">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">{customer.nombre}</h1>
+            <p className="text-slate-500 mt-1 text-sm font-medium">
               {customer.tipo_cliente === 'PERSONA' ? 'DNI: ' : 'RUC: '} {customer.identificador}
             </p>
           </div>
         </div>
-        <button className="secondary-button text-sm">
-          <Edit size={16} />
-          Editar Cliente
-        </button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Link to={`/tickets/new?customer_id=${customer.id}`} className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 flex items-center justify-center flex-1 sm:flex-none">
+            <Plus size={16} className="mr-2" /> Nuevo Ticket
+          </Link>
+          <Link 
+            to={`/customers/edit/${customer.id}`}
+            className="px-4 py-2 bg-white text-slate-700 border border-slate-300 rounded-md text-sm font-medium hover:bg-slate-50 flex items-center justify-center flex-1 sm:flex-none"
+          >
+            <Edit size={16} className="mr-2" /> Editar
+          </Link>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Información Principal */}
         <div className="lg:col-span-1 space-y-6">
-          <div className="surface-card p-6">
-            <h2 className="text-lg font-bold text-slate-900 mb-4">Detalles de Contacto</h2>
+          <div className="bg-white rounded-lg shadow border border-slate-200 p-6">
+            <h2 className="text-lg font-bold text-slate-900 mb-4 border-b pb-2">Detalles de Contacto</h2>
             <dl className="space-y-4 text-sm">
               <div className="flex flex-col gap-1">
                 <dt className="font-semibold text-slate-500">Teléfono</dt>
@@ -75,7 +83,7 @@ export default function CustomerDetailPage() {
               </div>
               <div className="flex flex-col gap-1">
                 <dt className="font-semibold text-slate-500">Correo Electrónico</dt>
-                <dd className="font-medium text-slate-900">{customer.correo_electronico || '-'}</dd>
+                <dd className="font-medium text-slate-900 break-all">{customer.correo_electronico || '-'}</dd>
               </div>
               <div className="flex flex-col gap-1">
                 <dt className="font-semibold text-slate-500">Dirección</dt>
@@ -97,61 +105,92 @@ export default function CustomerDetailPage() {
               )}
             </dl>
           </div>
-        </div>
 
-        {/* Dispositivos e Historial */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="surface-panel overflow-hidden">
-            <div className="border-b border-slate-100 px-6 py-5 flex justify-between items-center bg-slate-50/50">
+          <div className="bg-white rounded-lg shadow border border-slate-200 p-6">
+            <div className="flex justify-between items-center border-b pb-2 mb-4">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <div className="soft-icon p-2 shrink-0">
-                  <Smartphone size={18} className="text-orange-600" />
-                </div>
-                Equipos Registrados
+                <Smartphone size={18} className="text-orange-600" />
+                Equipos
               </h2>
               <button 
                 onClick={() => setIsAddDeviceOpen(true)}
-                className="primary-button text-xs px-4 py-2"
+                className="text-blue-600 hover:text-blue-800 p-1"
+                title="Añadir Equipo"
               >
-                <Plus size={16} />
-                Añadir Equipo
+                <Plus size={18} />
               </button>
             </div>
             
-            <div className="p-0">
-              {customer.devices && customer.devices.length > 0 ? (
-                <ul className="divide-y divide-slate-100">
-                  {customer.devices.map((device: any) => (
-                    <li key={device.id} className="flex justify-between items-center gap-x-6 p-6 hover:bg-slate-50/50 transition-colors">
-                      <div className="flex min-w-0 gap-x-4 items-center">
-                        <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white border border-slate-200 text-slate-400 shadow-sm shrink-0">
-                          <Smartphone size={24} />
-                        </div>
-                        <div className="min-w-0 flex-auto">
-                          <p className="text-base font-bold text-slate-900">
-                            {device.tipo_equipo} {device.marca} {device.modelo}
-                          </p>
-                          <p className="mt-1 truncate text-sm font-medium text-slate-500">
-                            N° Serie: {device.numero_serie || 'No especificado'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="hidden sm:flex sm:flex-col sm:items-end">
-                        <button className="text-sm font-bold text-brand-blue hover:text-brand-orange transition-colors">
-                          Ver historial
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="text-center py-12">
-                  <AlertCircle className="mx-auto h-10 w-10 text-slate-300 mb-4" />
-                  <p className="text-sm font-semibold text-slate-600">No hay dispositivos registrados.</p>
-                  <p className="text-xs text-slate-400 mt-1">Registra un equipo para empezar a crear tickets.</p>
-                </div>
-              )}
-            </div>
+            {customer.devices && customer.devices.length > 0 ? (
+              <ul className="space-y-4">
+                {customer.devices.map((device: any) => (
+                  <li key={device.id} className="flex flex-col gap-1 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                    <p className="text-sm font-bold text-slate-900">
+                      {device.tipo_equipo} {device.marca} {device.modelo}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      SN: {device.numero_serie || 'No especificado'}
+                    </p>
+                    <Link to={`/tickets?search=${device.numero_serie || device.modelo}`} className="text-xs font-semibold text-blue-600 hover:underline mt-1 inline-flex items-center">
+                      <Ticket size={12} className="mr-1" /> Ver tickets de este equipo
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-center py-6">
+                <p className="text-sm text-slate-500">No hay dispositivos registrados.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Historial de Tickets */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white rounded-lg shadow border border-slate-200 p-6">
+            <h2 className="text-lg font-bold text-slate-900 mb-4 border-b pb-2">Historial de Tickets</h2>
+            
+            {customer.tickets && customer.tickets.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200">
+                      <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Folio / Fecha</th>
+                      <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Equipo</th>
+                      <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Estado</th>
+                      <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase text-right">Total (S/)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {customer.tickets.map((ticket: any) => (
+                      <tr key={ticket.id} className="hover:bg-slate-50">
+                        <td className="py-3 px-4">
+                          <Link to={`/tickets/${ticket.id}`} className="text-sm font-bold text-blue-600 hover:underline block">
+                            {ticket.folio}
+                          </Link>
+                          <span className="text-xs text-slate-500">{new Date(ticket.created_at).toLocaleDateString()}</span>
+                        </td>
+                        <td className="py-3 px-4 text-sm text-slate-700">
+                          {ticket.device ? `${ticket.device.marca} ${ticket.device.modelo}` : 'Sin equipo'}
+                        </td>
+                        <td className="py-3 px-4">
+                          <TicketStatusBadge status={ticket.estado} />
+                        </td>
+                        <td className="py-3 px-4 text-sm font-medium text-slate-900 text-right">
+                          {parseFloat(ticket.total).toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <AlertCircle className="mx-auto h-10 w-10 text-slate-300 mb-4" />
+                <p className="text-sm font-semibold text-slate-600">No hay tickets registrados.</p>
+                <p className="text-xs text-slate-400 mt-1">Este cliente aún no ha ingresado equipos a reparación.</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -21,7 +21,7 @@ export const useCajaStatus = () => {
     queryKey: ['caja'],
     queryFn: async () => {
       try {
-        const response = await axios.get('/finance/caja/');
+        const response = await axios.get('/api/finance/caja/');
         return response.data as CashClosure;
       } catch (error: any) {
         if (error.response && error.response.status === 404) {
@@ -38,7 +38,7 @@ export const useAbrirCaja = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (openingAmount: number) => {
-      const response = await axios.post('/finance/caja/abrir/', { opening_amount: openingAmount });
+      const response = await axios.post('/api/finance/caja/abrir/', { opening_amount: openingAmount });
       return response.data;
     },
     onSuccess: () => {
@@ -51,7 +51,7 @@ export const useCerrarCaja = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ declaredAmount, notes }: { declaredAmount: number, notes?: string }) => {
-      const response = await axios.post('/finance/caja/cerrar/', { declared_amount: declaredAmount, notes });
+      const response = await axios.post('/api/finance/caja/cerrar/', { declared_amount: declaredAmount, notes });
       return response.data;
     },
     onSuccess: () => {
@@ -64,7 +64,7 @@ export const useRegistrarPago = (ticketId: string) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: FormData) => {
-      const response = await axios.post(`/finance/tickets/${ticketId}/pagos/`, data, {
+      const response = await axios.post(`/api/finance/tickets/${ticketId}/pagos/`, data, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
