@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useCajaStatus, useAbrirCaja, useCerrarCaja } from '../../hooks/useFinance';
 import { useCajaStore } from '../../store/cajaStore';
-import { DollarSign, Lock, Unlock, AlertTriangle } from 'lucide-react';
+import { Lock, Unlock, AlertTriangle } from 'lucide-react';
 
 const CajaPage = () => {
   const { data: caja, isLoading } = useCajaStatus();

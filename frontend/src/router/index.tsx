@@ -6,6 +6,7 @@ import MainLayout from '../components/layout/MainLayout';
 import UserListPage from '../pages/users/UserListPage';
 import CustomerListPage from '../pages/customers/CustomerListPage';
 import CustomerFormPage from '../pages/customers/CustomerFormPage';
+import CustomerEditPage from '../pages/customers/CustomerEditPage';
 import CustomerDetailPage from '../pages/customers/CustomerDetailPage';
 import ProductListPage from '../pages/products/ProductListPage';
 import ProductFormPage from '../pages/products/ProductFormPage';
@@ -69,6 +70,7 @@ export const router = createBrowserRouter([
         children: [
           { path: '', element: <CustomerListPage /> },
           { path: 'new', element: <CustomerFormPage /> },
+          { path: 'edit/:id', element: <CustomerEditPage /> },
           { path: ':id', element: <CustomerDetailPage /> },
         ]
       },

@@ -25,7 +25,7 @@ export const useTickets = (params?: Record<string, any>) => {
   return useQuery({
     queryKey: ['tickets', params],
     queryFn: async () => {
-      const response = await axios.get('/tickets/', { params });
+      const response = await axios.get('/api/tickets/', { params });
       return response.data;
     }
   });
@@ -35,7 +35,7 @@ export const useTicket = (id: string) => {
   return useQuery({
     queryKey: ['tickets', id],
     queryFn: async () => {
-      const response = await axios.get(`/tickets/${id}/`);
+      const response = await axios.get(`/api/tickets/${id}/`);
       return response.data;
     },
     enabled: !!id,
@@ -46,7 +46,7 @@ export const useCreateTicket = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: FormData) => {
-      const response = await axios.post('/tickets/', data, {
+      const response = await axios.post('/api/tickets/', data, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -63,7 +63,7 @@ export const useTicketTransition = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, newStatus, motivo }: { id: string, newStatus: string, motivo?: string }) => {
-      const response = await axios.post(`/tickets/${id}/transition/`, {
+      const response = await axios.post(`/api/tickets/${id}/transition/`, {
         new_status: newStatus,
         motivo: motivo || '',
       });
@@ -80,7 +80,7 @@ export const useUpdateTicketAmounts = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, monto_estimado, total, motivo }: { id: string, monto_estimado?: string, total?: string, motivo?: string }) => {
-      const response = await axios.patch(`/tickets/${id}/update_amounts/`, {
+      const response = await axios.patch(`/api/tickets/${id}/update_amounts/`, {
         monto_estimado,
         total,
         motivo,

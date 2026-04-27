@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Customer, Device
+# Removed TicketListSerializer import here to avoid circular imports
 
 class DeviceSerializer(serializers.ModelSerializer):
     class Meta:
@@ -19,6 +20,7 @@ class CustomerListSerializer(serializers.ModelSerializer):
 class CustomerDetailSerializer(serializers.ModelSerializer):
     """Serializer pesado para el detalle del cliente (incluye dispositivos y futuro historial)."""
     devices = DeviceSerializer(many=True, read_only=True)
+    tickets = serializers.SerializerMethodField()
     
     class Meta:
         model = Customer
@@ -26,9 +28,14 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
             'id', 'tipo_cliente', 'identificador', 'nombre', 
             'telefono', 'correo_electronico', 'direccion', 
             'etiqueta', 'etiqueta_anterior', 'veces_moroso', 
-            'notas', 'is_active', 'devices', 'created_at'
+            'notas', 'is_active', 'devices', 'tickets', 'created_at'
         )
         read_only_fields = ('id', 'veces_moroso', 'etiqueta_anterior', 'created_at')
+        
+    def get_tickets(self, obj):
+        from apps.tickets.serializers import TicketListSerializer
+        tickets = obj.tickets.all().order_by('-created_at')
+        return TicketListSerializer(tickets, many=True).data
         
     def validate_identificador(self, value):
         """Valida unicidad del identificador excluyendo los registros con soft delete (manejado parcialmente por el UniqueConstraint de BD, pero se agrega a nivel serializer para dar un mensaje más amigable)."""

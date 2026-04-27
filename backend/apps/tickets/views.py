@@ -19,7 +19,7 @@ class TicketViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     
-    search_fields = ['folio', 'customer__nombre', 'device__modelo']
+    search_fields = ['folio', 'customer__nombre', 'customer__identificador', 'device__modelo', 'device__marca', 'device__numero_serie']
     filterset_fields = ['estado', 'prioridad', 'assigned_to', 'subarea']
     ordering_fields = ['created_at', 'prioridad']
 

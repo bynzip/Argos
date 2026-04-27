@@ -1,4 +1,3 @@
-import React from 'react';
 import { useDashboard } from '../../hooks/useCore';
 import { useAuthStore } from '../../store/authStore';
 import { Users, Ticket, Package, AlertTriangle, CheckCircle, Clock } from 'lucide-react';

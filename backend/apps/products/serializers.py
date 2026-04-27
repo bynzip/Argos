@@ -41,6 +41,18 @@ class ProductSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ('id', 'codigo', 'created_at')
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        
+        # RN-15: Los precios de costo son invisibles para recepcionistas y técnicos
+        if request and request.user.is_authenticated and not request.user.is_superuser:
+            role = request.user.user_roles.first().role.nombre if request.user.user_roles.exists() else ''
+            if role not in ['Administrador', 'Almacenero']:
+                data.pop('precio_costo', None)
+                
+        return data
+
     def get_total_stock(self, obj):
         # Preferir el valor calculado por la base de datos (anotado en el ViewSet)
         if hasattr(obj, 'total_stock_db'):
