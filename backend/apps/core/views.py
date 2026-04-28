@@ -1,6 +1,7 @@
 from rest_framework import viewsets, permissions, status, mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.db import models
 from .models import CompanyProfile, Notification
 from .serializers import CompanyProfileSerializer, NotificationSerializer
 
@@ -57,7 +58,8 @@ class DashboardViewSet(viewsets.ViewSet):
         from apps.products.models import Product
         from apps.tickets.models import Ticket
         
-        role = request.user.user_roles.first().role.nombre if request.user.user_roles.exists() else 'Desconocido'
+        user_role = request.user.user_roles.select_related('role').first()
+        role = user_role.role.nombre if user_role else 'Desconocido'
         
         # Base response
         data = {

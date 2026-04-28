@@ -26,7 +26,7 @@ export const useTickets = (params?: Record<string, any>) => {
     queryKey: ['tickets', params],
     queryFn: async () => {
       const response = await axios.get('/api/tickets/', { params });
-      return response.data;
+      return response.data.results ?? response.data;
     }
   });
 };

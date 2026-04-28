@@ -1,6 +1,6 @@
 from django.db import models
 from django.utils import timezone
-from apps.users.models import User
+from django.conf import settings
 
 class FolioCounter(models.Model):
     document_type = models.CharField(max_length=10, default='TKT')
@@ -37,7 +37,7 @@ class CompanyProfile(models.Model):
         db_table = 'company_profile'
 
 class Notification(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')
     message = models.TextField()
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)

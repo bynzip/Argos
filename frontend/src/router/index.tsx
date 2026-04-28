@@ -10,6 +10,7 @@ import CustomerEditPage from '../pages/customers/CustomerEditPage';
 import CustomerDetailPage from '../pages/customers/CustomerDetailPage';
 import ProductListPage from '../pages/products/ProductListPage';
 import ProductFormPage from '../pages/products/ProductFormPage';
+import ProductEditPage from '../pages/products/ProductEditPage';
 import ProductDetailPage from '../pages/products/ProductDetailPage';
 import TicketListPage from '../pages/tickets/TicketListPage';
 import TicketFormPage from '../pages/tickets/TicketFormPage';
@@ -79,6 +80,7 @@ export const router = createBrowserRouter([
         children: [
           { path: '', element: <ProductListPage /> },
           { path: 'new', element: <ProductFormPage /> },
+          { path: 'edit/:id', element: <ProductEditPage /> },
           { path: ':id', element: <ProductDetailPage /> },
         ]
       },

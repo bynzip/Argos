@@ -2,17 +2,28 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from apps.users.permissions import RolePermission
 from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import Customer, Device
 from .serializers import CustomerListSerializer, CustomerDetailSerializer, DeviceSerializer
+from .services import register_device
 
 class CustomerViewSet(viewsets.ModelViewSet):
     """
     CRUD de Clientes con Soft Delete y Búsqueda Avanzada.
     """
     queryset = Customer.objects.all().order_by('-created_at')
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RolePermission]
+    required_permissions = {
+        'list': ['customers.view_list'],
+        'retrieve': ['customers.view_detail'],
+        'create': ['customers.create'],
+        'update': ['customers.edit'],
+        'partial_update': ['customers.edit'],
+        'destroy': ['customers.deactivate'],
+        'devices': ['devices.view_list', 'devices.create'],
+    }
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     
     # Búsqueda en tiempo real (por DNI/RUC, nombre, teléfono o correo)
@@ -53,9 +64,9 @@ class CustomerViewSet(viewsets.ModelViewSet):
             # Crear un nuevo dispositivo
             serializer = DeviceSerializer(data=request.data)
             if serializer.is_valid():
-                # Forzar que el dispositivo se asocie al cliente actual de la URL
-                serializer.save(customer=customer)
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
+                device = register_device(customer, serializer.validated_data)
+                result_serializer = DeviceSerializer(device)
+                return Response(result_serializer.data, status=status.HTTP_201_CREATED)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -66,7 +77,14 @@ class DeviceViewSet(viewsets.ModelViewSet):
     """
     queryset = Device.objects.all().order_by('-created_at')
     serializer_class = DeviceSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RolePermission]
+    required_permissions = {
+        'list': ['devices.view_list'],
+        'retrieve': ['devices.view_list'],
+        'update': ['devices.edit'],
+        'partial_update': ['devices.edit'],
+        'destroy': ['devices.edit'],
+    }
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     search_fields = ['marca', 'modelo', 'numero_serie']
     filterset_fields = ['tipo_equipo', 'is_active']

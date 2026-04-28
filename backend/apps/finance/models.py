@@ -1,19 +1,20 @@
 from django.db import models
-from apps.users.models import User
+from django.conf import settings
 from apps.tickets.models import Ticket
+from django.utils import timezone
 
 class CashClosure(models.Model):
     class Status(models.TextChoices):
         OPEN = 'OPEN', 'Abierta'
         CLOSED = 'CLOSED', 'Cerrada'
 
-    user = models.ForeignKey(User, on_delete=models.RESTRICT, related_name='cash_closures')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.RESTRICT, related_name='cash_closures')
     estado = models.CharField(max_length=10, choices=Status.choices, default=Status.OPEN)
     opening_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     expected_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     declared_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     difference = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    opened_at = models.DateTimeField(auto_now_add=True)
+    opened_at = models.DateTimeField(default=timezone.now)
     closed_at = models.DateTimeField(null=True, blank=True)
     closing_notes = models.TextField(null=True, blank=True)
 
@@ -65,8 +66,8 @@ class Receipt(models.Model):
     estado = models.CharField(max_length=20, choices=ReceiptStatus.choices, default=ReceiptStatus.REGISTERED)
     
     conciliado_banco = models.BooleanField(default=False)
-    registrado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='registered_receipts')
-    confirmado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='confirmed_receipts')
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='registered_receipts')
+    confirmado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='confirmed_receipts')
     confirmado_el = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -89,7 +90,7 @@ class PaymentVoucher(models.Model):
     archivo = models.FileField(upload_to='tickets/vouchers/%Y/%m/%d/', max_length=500)
     nombre_archivo = models.CharField(max_length=255)
     file_hash = models.CharField(max_length=64, unique=True)
-    subido_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    subido_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -112,8 +113,8 @@ class PaymentReversal(models.Model):
     receipt = models.ForeignKey(Receipt, on_delete=models.RESTRICT, related_name='reversals')
     tipo_reversa = models.CharField(max_length=20, choices=ReversalType.choices)
     motivo = models.TextField()
-    solicitado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='requested_reversals')
-    aprobado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_reversals')
+    solicitado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='requested_reversals')
+    aprobado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_reversals')
     estado = models.CharField(max_length=20, choices=ReversalStatus.choices, default=ReversalStatus.PENDING)
     aprobado_el = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -147,7 +148,7 @@ class PaymentScheduleReprogramacion(models.Model):
     fecha_anterior = models.DateField()
     fecha_nueva = models.DateField()
     motivo = models.TextField()
-    reprogramado_por = models.ForeignKey(User, on_delete=models.PROTECT)
+    reprogramado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -177,8 +178,8 @@ class Discount(models.Model):
     respuesta = models.DecimalField(max_digits=12, decimal_places=2) # El porcentaje o monto
     motivo = models.TextField()
     estado = models.CharField(max_length=20, choices=DiscountStatus.choices, default=DiscountStatus.PENDING)
-    solicitado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='requested_discounts')
-    decidido_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='decided_discounts')
+    solicitado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='requested_discounts')
+    decidido_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='decided_discounts')
     decidido_el = models.DateTimeField(null=True, blank=True)
     notas_admin = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

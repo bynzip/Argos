@@ -61,7 +61,10 @@ class Permission(models.Model):
         return self.name
 
 
-class UserManager(BaseUserManager, SoftDeleteManager):
+class UserManager(BaseUserManager):
+    def get_queryset(self):
+        return super().get_queryset().filter(deleted_at__isnull=True)
+
     def create_user(self, email, username, password=None, **extra_fields):
         if not email:
             raise ValueError("El email es obligatorio")

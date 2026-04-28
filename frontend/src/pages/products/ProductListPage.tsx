@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useProducts, Product } from '../../hooks/useProducts';
 import { useAuthStore } from '../../store/authStore';
 import { DataTable, Column } from '../../components/ui/DataTable';
-import { Plus, Package, AlertTriangle, Eye } from 'lucide-react';
+import { Plus, Package, AlertTriangle, Eye, Edit } from 'lucide-react';
 
 export default function ProductListPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -11,8 +11,10 @@ export default function ProductListPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   
+  const isAdmin = user?.role === 'Administrador' || user?.is_superuser;
+  const isAlmacenero = user?.role === 'Almacenero';
   // Almacenero o Admin tienen permiso para ver costo
-  const canViewCost = user?.role === 'Administrador' || user?.role === 'Almacenero' || user?.is_superuser;
+  const canViewCost = isAdmin || isAlmacenero;
   
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
@@ -98,13 +100,24 @@ export default function ProductListPage() {
     {
       header: 'Acciones',
       cell: (item) => (
-        <button 
-          onClick={() => navigate(`/inventory/${item.id}`)}
-          className="text-slate-400 hover:text-brand-blue transition-colors p-2 rounded-xl hover:bg-blue-50 cursor-pointer"
-          title="Ver detalle"
-        >
-          <Eye size={20} />
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => navigate(`/inventory/${item.id}`)}
+            className="text-slate-400 hover:text-brand-blue transition-colors p-2 rounded-xl hover:bg-blue-50"
+            title="Ver detalle"
+          >
+            <Eye size={20} />
+          </button>
+          {(isAdmin || isAlmacenero) && (
+            <button 
+              onClick={() => navigate(`/inventory/edit/${item.id}`)}
+              className="text-slate-400 hover:text-amber-600 transition-colors p-2 rounded-xl hover:bg-amber-50"
+              title="Editar producto"
+            >
+              <Edit size={20} />
+            </button>
+          )}
+        </div>
       ),
     },
   ];

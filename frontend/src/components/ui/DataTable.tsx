@@ -28,6 +28,9 @@ export function DataTable<T>({
   initialSearchValue = '',
   actions,
 }: DataTableProps<T>) {
+  // Manejo robusto para paginación global (si llega { count, results } en vez del array directo)
+  const actualData = Array.isArray(data) ? data : (data as any)?.results || [];
+
   return (
     <div className="space-y-4">
       {/* Toolbar */}
@@ -59,7 +62,7 @@ export function DataTable<T>({
           <div className="flex justify-center p-12">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-blue border-t-transparent"></div>
           </div>
-        ) : data.length === 0 ? (
+        ) : actualData.length === 0 ? (
           <div className="p-12 text-center text-slate-500 font-medium">
             No se encontraron resultados.
           </div>
@@ -74,7 +77,7 @@ export function DataTable<T>({
                 </tr>
               </thead>
               <tbody>
-                {data.map((item) => (
+                {actualData.map((item: any) => (
                   <tr key={keyExtractor(item)}>
                     {columns.map((col, i) => (
                       <td key={i}>

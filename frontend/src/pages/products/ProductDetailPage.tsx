@@ -1,18 +1,15 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useProducts } from '../../hooks/useProducts';
+import { useProduct } from '../../hooks/useProducts';
 import { useAuthStore } from '../../store/authStore';
 import { ArrowLeft, Edit, Package, Hash, Tag, Info, AlertTriangle } from 'lucide-react';
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { data: product, isLoading } = useProduct(id || null);
   const { user } = useAuthStore();
-  const productId = id ? parseInt(id, 10) : null;
   
   const canViewCost = user?.role === 'Administrador' || user?.role === 'Almacenero' || user?.is_superuser;
-  
-  const { data: products = [], isLoading } = useProducts();
-  const product = products.find(p => p.id === productId);
 
   if (isLoading) {
     return (
@@ -56,13 +53,15 @@ export default function ProductDetailPage() {
             </div>
           </div>
         </div>
-        <button 
-          onClick={() => alert("Funcionalidad de edición de producto estará disponible en breve.")}
-          className="px-4 py-2 bg-white text-slate-700 border border-slate-300 rounded-md text-sm font-medium hover:bg-slate-50 flex items-center justify-center flex-1 sm:flex-none cursor-pointer"
-        >
-          <Edit size={16} className="mr-2" />
-          Editar Producto
-        </button>
+        {(canViewCost) && (
+          <button 
+            onClick={() => navigate(`/inventory/edit/${product.id}`)}
+            className="px-4 py-2 bg-white text-slate-700 border border-slate-300 rounded-md text-sm font-medium hover:bg-slate-50 flex items-center justify-center flex-1 sm:flex-none cursor-pointer"
+          >
+            <Edit size={16} className="mr-2" />
+            Editar Producto
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

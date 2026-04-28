@@ -4,7 +4,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useCreateTicket } from '../../hooks/useTickets';
-import { useCustomers } from '../../hooks/useCustomers';
+import { useCustomers, useCustomer } from '../../hooks/useCustomers';
 import { MultiImageUpload } from '../../components/ui/MultiImageUpload';
 import { Plus, Trash2 } from 'lucide-react';
 
@@ -44,8 +44,12 @@ const TicketFormPage = () => {
   });
 
   const selectedCustomerId = watch("customer_id");
-  const selectedCustomer = customers?.find(c => c.id.toString() === selectedCustomerId);
-  const devices = selectedCustomer?.devices || [];
+  // Fetch detailed customer info to get devices
+  const { data: selectedCustomerDetail } = useCustomer(
+    selectedCustomerId ? parseInt(selectedCustomerId) : null
+  );
+  
+  const devices = selectedCustomerDetail?.devices || [];
 
   const onSubmit = async (data: FormData) => {
     const formData = new FormData();

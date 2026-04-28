@@ -7,18 +7,23 @@ import { TicketStatusBadge } from '../../components/ui/TicketStatusBadge';
 import { PriorityBadge } from '../../components/ui/PriorityBadge';
 
 const TicketListPage = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialSearch = searchParams.get('search') || '';
+  const initialState = searchParams.get('estado') || '';
   const [search, setSearch] = useState(initialSearch);
+  const [estadoFilter, setEstadoFilter] = useState(initialState);
   
   // Update state if URL search param changes
   useEffect(() => {
-    if (searchParams.get('search')) {
+    if (searchParams.has('search')) {
       setSearch(searchParams.get('search') || '');
+    }
+    if (searchParams.has('estado')) {
+      setEstadoFilter(searchParams.get('estado') || '');
     }
   }, [searchParams]);
 
-  const { data: tickets, isLoading } = useTickets({ search });
+  const { data: tickets, isLoading } = useTickets({ search, estado: estadoFilter });
 
   const columns = [
     {
@@ -79,9 +84,44 @@ const TicketListPage = () => {
           data={tickets || []}
           keyExtractor={(ticket) => ticket.id}
           isLoading={isLoading}
-          onSearch={setSearch}
+          onSearch={(val) => {
+            setSearch(val);
+            setSearchParams(prev => {
+              if (val) prev.set('search', val);
+              else prev.delete('search');
+              return prev;
+            });
+          }}
           searchPlaceholder="Buscar por folio, cliente o dispositivo..."
           initialSearchValue={initialSearch}
+          actions={
+            <select
+              value={estadoFilter}
+              onChange={(e) => {
+                setEstadoFilter(e.target.value);
+                setSearchParams(prev => {
+                  if (e.target.value) prev.set('estado', e.target.value);
+                  else prev.delete('estado');
+                  return prev;
+                });
+              }}
+              className="field-input text-sm py-2"
+            >
+              <option value="">Todos los Estados</option>
+              <option value="INTAKE">Ingreso</option>
+              <option value="DIAGNOSTIC">Diagnóstico</option>
+              <option value="QUOTED">Cotizado</option>
+              <option value="APPROVED">Aprobado</option>
+              <option value="WAITING_PARTS">En espera repuesto</option>
+              <option value="IN_REPAIR">En reparación</option>
+              <option value="IN_TESTING">En pruebas</option>
+              <option value="READY">Listo</option>
+              <option value="DELIVERED">Entregado</option>
+              <option value="CLOSED">Cerrado</option>
+              <option value="REJECTED">Rechazado</option>
+              <option value="STORAGE">Cochera</option>
+            </select>
+          }
         />
       </div>
     </div>

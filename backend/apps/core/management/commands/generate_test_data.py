@@ -14,7 +14,7 @@ from apps.tickets.models import Ticket, TicketTransition
 from apps.finance.models import CashClosure, Receipt
 from apps.core.utils import generate_folio
 
-fake = Faker('es_MX')
+fake = Faker('es_PE')
 
 class Command(BaseCommand):
     help = 'Genera datos de prueba realistas para probar el sistema (Clientes, Productos, Tickets, Pagos)'
@@ -188,6 +188,7 @@ class Command(BaseCommand):
                     folio=generate_folio('RC'),
                     ticket=ticket,
                     cash_closure=self.get_or_create_dummy_closure(recepcionista, past_date),
+                    tipo_recibo=Receipt.ReceiptType.PAYMENT,
                     metodo_pago='TRANSFER',
                     amount=total,
                     estado='CONFIRMED',

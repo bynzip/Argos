@@ -17,7 +17,7 @@ export default function UserListPage() {
     queryKey: ['users'],
     queryFn: async () => {
       const response = await api.get('/api/users/');
-      return response.data;
+      return response.data.results ?? response.data;
     },
   });
 

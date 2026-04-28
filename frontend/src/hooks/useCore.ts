@@ -32,7 +32,7 @@ export const useNotifications = (no_leidas: boolean = false) => {
       const response = await axios.get('/api/core/notificaciones/', {
         params: { no_leidas: no_leidas ? 'true' : 'false' }
       });
-      return response.data as Notification[];
+      return (response.data.results ?? response.data) as Notification[];
     },
     refetchInterval: 30000, // Poll every 30 seconds
   });

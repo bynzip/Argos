@@ -30,7 +30,7 @@ export const useCustomers = (params?: { search?: string; etiqueta?: string; is_a
     queryKey: ['customers', params],
     queryFn: async () => {
       const response = await api.get('/api/customers/', { params });
-      return response.data;
+      return response.data.results ?? response.data;
     },
   });
 };

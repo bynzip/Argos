@@ -34,7 +34,7 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
         
     def get_tickets(self, obj):
         from apps.tickets.serializers import TicketListSerializer
-        tickets = obj.tickets.all().order_by('-created_at')
+        tickets = obj.tickets.select_related('customer', 'device', 'assigned_to').order_by('-created_at')
         return TicketListSerializer(tickets, many=True).data
         
     def validate_identificador(self, value):

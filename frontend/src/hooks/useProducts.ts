@@ -33,7 +33,7 @@ export const useProducts = (params?: any) => {
     queryKey: ['products', params],
     queryFn: async () => {
       const response = await api.get('/api/products/', { params });
-      return response.data;
+      return response.data.results ?? response.data;
     },
   });
 };
@@ -43,7 +43,7 @@ export const useCategories = () => {
     queryKey: ['categories'],
     queryFn: async () => {
       const response = await api.get('/api/products/categories/');
-      return response.data;
+      return response.data.results ?? response.data;
     },
   });
 };
@@ -53,7 +53,7 @@ export const useBrands = () => {
     queryKey: ['brands'],
     queryFn: async () => {
       const response = await api.get('/api/products/brands/');
-      return response.data;
+      return response.data.results ?? response.data;
     },
   });
 };
@@ -67,6 +67,33 @@ export const useCreateProduct = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+};
+
+export const useProduct = (id: number | string | null) => {
+  return useQuery<Product>({
+    queryKey: ['products', id],
+    queryFn: async () => {
+      if (!id) throw new Error('ID required');
+      const response = await api.get(`/api/products/${id}/`);
+      return response.data;
+    },
+    enabled: !!id,
+  });
+};
+
+export const useUpdateProduct = (id: number | string) => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (data: Partial<Product>) => {
+      const response = await api.patch(`/api/products/${id}/`, data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['products', id] });
     },
   });
 };

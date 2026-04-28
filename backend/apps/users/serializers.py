@@ -8,7 +8,7 @@ class UserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'nombre', 'is_active', 'subarea', 'active_ticket_count', 'role', 'permissions')
+        fields = ('id', 'username', 'email', 'nombre', 'is_active', 'subarea', 'active_ticket_count', 'role', 'permissions', 'is_superuser')
         
     def get_role(self, obj):
         # Tomar el primer rol para simplificar el MVP, aunque el modelo soporta varios

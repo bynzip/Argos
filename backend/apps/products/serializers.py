@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Category, Brand, Warehouse, Product, StockItem
 from apps.core.models import FolioCounter
+from .services import create_product
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -62,23 +63,5 @@ class ProductSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         initial_stock = validated_data.pop('initial_stock', 0)
-        
-        # Autogeneración de folio único para el producto
-        if not validated_data.get('codigo'):
-            validated_data['codigo'] = FolioCounter.get_next_folio('PROD')
-        
-        product = super().create(validated_data)
-
-        # Si hay stock inicial, lo asignamos al almacén principal
-        if initial_stock > 0:
-            warehouse, _ = Warehouse.objects.get_or_create(
-                nombre="Almacén Principal",
-                defaults={"ubicacion": "Sede Central"}
-            )
-            StockItem.objects.create(
-                product=product,
-                warehouse=warehouse,
-                cantidad=initial_stock
-            )
-            
+        product = create_product(validated_data, initial_stock)
         return product

@@ -7,6 +7,7 @@ import { Plus, Eye } from 'lucide-react';
 export default function CustomerListPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [etiquetaFilter, setEtiquetaFilter] = useState('');
   const navigate = useNavigate();
   
   useEffect(() => {
@@ -14,7 +15,7 @@ export default function CustomerListPage() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const { data: customers = [], isLoading } = useCustomers({ search: debouncedSearch });
+  const { data: customers = [], isLoading } = useCustomers({ search: debouncedSearch, etiqueta: etiquetaFilter });
 
   const getLabelColor = (etiqueta: string) => {
     const colors: Record<string, string> = {
@@ -90,13 +91,28 @@ export default function CustomerListPage() {
         onSearch={setSearchTerm}
         searchPlaceholder="Buscar por DNI, RUC, nombre o teléfono..."
         actions={
-          <button 
-            onClick={() => navigate('/customers/new')}
-            className="primary-button text-sm"
-          >
-            <Plus size={18} />
-            <span className="hidden sm:inline">Nuevo Cliente</span>
-          </button>
+          <div className="flex gap-2 items-center">
+            <select
+              value={etiquetaFilter}
+              onChange={(e) => setEtiquetaFilter(e.target.value)}
+              className="field-input text-sm py-2"
+            >
+              <option value="">Todas las Etiquetas</option>
+              <option value="NUEVO">Nuevo</option>
+              <option value="REGULAR">Regular</option>
+              <option value="FRECUENTE">Frecuente</option>
+              <option value="VIP">VIP</option>
+              <option value="MOROSO">Moroso</option>
+              <option value="ESPECIAL">Especial</option>
+            </select>
+            <button 
+              onClick={() => navigate('/customers/new')}
+              className="primary-button text-sm"
+            >
+              <Plus size={18} />
+              <span className="hidden sm:inline">Nuevo Cliente</span>
+            </button>
+          </div>
         }
       />
     </div>

@@ -1,16 +1,24 @@
 import { useDashboard } from '../../hooks/useCore';
+import { useTickets, Ticket } from '../../hooks/useTickets';
 import { useAuthStore } from '../../store/authStore';
-import { Users, Ticket, Package, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { Users, Ticket as TicketIcon, Package, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { TicketStatusBadge } from '../../components/ui/TicketStatusBadge';
+import { PriorityBadge } from '../../components/ui/PriorityBadge';
 
 const DashboardPage = () => {
   const { data, isLoading } = useDashboard();
   const { user } = useAuthStore();
+  const isAdmin = data?.role === 'Administrador' || user?.is_superuser;
+  const isRecep = data?.role === 'Recepcionista' || isAdmin;
+
+  // Solo traemos los últimos 5 tickets si es Admin o Recep
+  const { data: recentTickets } = useTickets(
+    isRecep ? { ordering: '-created_at', limit: 5 } : undefined
+  );
 
   if (isLoading) return <div className="p-6">Cargando métricas...</div>;
   if (!data) return <div className="p-6">No hay datos disponibles</div>;
-
-  const isAdmin = data.role === 'Administrador' || user?.is_superuser;
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -26,7 +34,7 @@ const DashboardPage = () => {
           <div className="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-blue-100 text-blue-600 mr-4">
-                <Ticket className="h-6 w-6" />
+                <TicketIcon className="h-6 w-6" />
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-500">Tickets Activos</p>
@@ -115,6 +123,41 @@ const DashboardPage = () => {
         )}
 
       </div>
+
+      {/* Actividad Reciente */}
+      {isRecep && recentTickets && recentTickets.length > 0 && (
+        <div className="mt-8 bg-white rounded-lg shadow overflow-hidden">
+          <div className="p-6 border-b border-gray-200">
+            <h2 className="text-lg font-bold text-gray-900">Actividad Reciente (Últimos Tickets)</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Folio</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prioridad</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {(recentTickets as Ticket[]).slice(0, 5).map((ticket) => (
+                  <tr key={ticket.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                      <Link to={`/tickets/${ticket.id}`}>{ticket.folio}</Link>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{ticket.customer?.nombre || '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap"><TicketStatusBadge status={ticket.estado} /></td>
+                    <td className="px-6 py-4 whitespace-nowrap"><PriorityBadge priority={ticket.prioridad} /></td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(ticket.created_at).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

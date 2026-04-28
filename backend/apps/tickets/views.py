@@ -3,6 +3,7 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from apps.users.permissions import RolePermission
 from django_filters.rest_framework import DjangoFilterBackend
 from django.core.exceptions import ValidationError
 
@@ -16,7 +17,19 @@ from apps.customers.models import Customer, Device
 
 class TicketViewSet(viewsets.ModelViewSet):
     queryset = Ticket.objects.all().order_by('-created_at')
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RolePermission]
+    
+    required_permissions = {
+        'list': ['tickets.view_list', 'tickets.view_own'],
+        'retrieve': ['tickets.view_detail', 'tickets.view_readonly'],
+        'create': ['tickets.create'],
+        'update': ['tickets.transition_technical', 'tickets.transition_reception'],
+        'partial_update': ['tickets.transition_technical', 'tickets.transition_reception'],
+        'destroy': [], # soft delete not allowed usually, but let's leave it restricted
+        'transition': ['tickets.transition_technical', 'tickets.transition_reception'],
+        'assign': ['tickets.assign_technician'],
+        'update_amounts': ['tickets.transition_technical', 'tickets.transition_reception'],
+    }
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     
     search_fields = ['folio', 'customer__nombre', 'customer__identificador', 'device__modelo', 'device__marca', 'device__numero_serie']
@@ -99,30 +112,22 @@ class TicketViewSet(viewsets.ModelViewSet):
         if not new_status:
             return Response({'detail': 'new_status es obligatorio'}, status=status.HTTP_400_BAD_REQUEST)
             
-        try:
-            ticket = transition_ticket(
-                ticket=ticket,
-                new_status=new_status,
-                user=request.user,
-                motivo=motivo
-            )
-            return Response(TicketDetailSerializer(ticket).data)
-        except ValidationError as e:
-            # Django's ValidationError converts to a string representation that may be unwieldy, 
-            # let's just return the first message or the string.
-            return Response({'detail': e.message if hasattr(e, 'message') else str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        ticket = transition_ticket(
+            ticket=ticket,
+            new_status=new_status,
+            user=request.user,
+            motivo=motivo
+        )
+        return Response(TicketDetailSerializer(ticket).data)
         
     @action(detail=True, methods=['patch'])
     def assign(self, request, pk=None):
         ticket = self.get_object()
         user_id = request.data.get('user_id')
-        try:
-            from apps.users.models import User
-            technician = User.objects.get(id=user_id) if user_id else None
-            ticket = assign_ticket(ticket, technician, request.user)
-            return Response(TicketDetailSerializer(ticket).data)
-        except Exception as e:
-            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        from apps.users.models import User
+        technician = User.objects.get(id=user_id) if user_id else None
+        ticket = assign_ticket(ticket, technician, request.user)
+        return Response(TicketDetailSerializer(ticket).data)
 
     @action(detail=True, methods=['patch'])
     def update_amounts(self, request, pk=None):
@@ -131,14 +136,11 @@ class TicketViewSet(viewsets.ModelViewSet):
         total = request.data.get('total')
         motivo = request.data.get('motivo', 'Actualización de montos')
         
-        try:
-            ticket = update_ticket_amounts(
-                ticket=ticket,
-                user=request.user,
-                monto_estimado=monto_estimado,
-                total=total,
-                motivo=motivo
-            )
-            return Response(TicketDetailSerializer(ticket).data)
-        except Exception as e:
-            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        ticket = update_ticket_amounts(
+            ticket=ticket,
+            user=request.user,
+            monto_estimado=monto_estimado,
+            total=total,
+            motivo=motivo
+        )
+        return Response(TicketDetailSerializer(ticket).data)
