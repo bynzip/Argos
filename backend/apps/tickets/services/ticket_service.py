@@ -85,12 +85,4 @@ def update_ticket_amounts(ticket, user, monto_estimado=None, total=None, motivo=
         if len(update_fields) > 1:
             ticket.save(update_fields=update_fields)
             
-            # Log this as a transition for audit trail (keeping state same)
-            TicketTransition.objects.create(
-                ticket=ticket,
-                estado_anterior=ticket.estado,
-                estado_nuevo=ticket.estado,
-                cambiado_por=user,
-                motivo=motivo
-            )
         return ticket

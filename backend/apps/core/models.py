@@ -4,7 +4,7 @@ from django.conf import settings
 
 class FolioCounter(models.Model):
     document_type = models.CharField(max_length=10, default='TKT')
-    year = models.IntegerField(default=2024)
+    year = models.IntegerField(default=0)
     last_number = models.IntegerField(default=0)
 
     class Meta:

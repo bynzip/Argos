@@ -14,7 +14,7 @@ const DashboardPage = () => {
 
   // Solo traemos los últimos 5 tickets si es Admin o Recep
   const { data: recentTickets } = useTickets(
-    isRecep ? { ordering: '-created_at', limit: 5 } : undefined
+    isRecep ? { ordering: '-created_at', page_size: 5 } : undefined
   );
 
   if (isLoading) return <div className="p-6">Cargando métricas...</div>;

@@ -16,10 +16,12 @@ export const AuthInit = ({ children }: { children: React.ReactNode }) => {
         const response = await api.post('/api/auth/refresh/');
         const newAccessToken = response.data.access;
         
-        // Hacemos set temporal del token para poder hacer la peticion /me
-        useAuthStore.getState().setAuth({} as any, newAccessToken);
-        
-        const meResponse = await api.get('/api/auth/me/');
+        // Obtenemos info del usuario inyectando el token directamente
+        const meResponse = await api.get('/api/auth/me/', {
+          headers: {
+            Authorization: `Bearer ${newAccessToken}`
+          }
+        });
         setAuth(meResponse.data, newAccessToken);
       } catch (error) {
         clearAuth();

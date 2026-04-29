@@ -16,16 +16,32 @@ from .services.ticket_service import update_ticket_amounts
 from apps.customers.models import Customer, Device
 
 class TicketViewSet(viewsets.ModelViewSet):
-    queryset = Ticket.objects.all().order_by('-created_at')
     permission_classes = [IsAuthenticated, RolePermission]
     
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return Ticket.objects.all().order_by('-created_at')
+        
+        # Obtener permisos del usuario usando el helper de RolePermission
+        perm_checker = RolePermission()
+        user_perms = perm_checker._get_user_perms(user)
+        
+        if 'tickets.view_list' in user_perms:
+            return Ticket.objects.all().order_by('-created_at')
+        
+        if 'tickets.view_own' in user_perms:
+            return Ticket.objects.filter(assigned_to=user).order_by('-created_at')
+            
+        return Ticket.objects.none()
+
     required_permissions = {
         'list': ['tickets.view_list', 'tickets.view_own'],
         'retrieve': ['tickets.view_detail', 'tickets.view_readonly'],
         'create': ['tickets.create'],
         'update': ['tickets.transition_technical', 'tickets.transition_reception'],
         'partial_update': ['tickets.transition_technical', 'tickets.transition_reception'],
-        'destroy': [], # soft delete not allowed usually, but let's leave it restricted
+        'destroy': ['tickets.view_list'], # Protegemos el borrado solo para recepción/admin
         'transition': ['tickets.transition_technical', 'tickets.transition_reception'],
         'assign': ['tickets.assign_technician'],
         'update_amounts': ['tickets.transition_technical', 'tickets.transition_reception'],
