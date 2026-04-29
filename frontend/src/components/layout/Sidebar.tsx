@@ -7,13 +7,13 @@ import {
   Package, 
   Ticket, 
   DollarSign,
-  UserCircle2
+  Bell
 } from 'lucide-react';
 
 type ModuleConfig = {
   name: string;
   path: string;
-  icon: React.ReactNode;
+  icon: React.ElementType;
   permissionRequired?: string;
 };
 
@@ -23,66 +23,86 @@ export default function Sidebar() {
 
   const hasPermission = (permission?: string) => {
     if (!permission) return true;
+    if (user?.is_superuser) return true;
+    // Simplificando lógica de permisos para el MVP basado en el rol o el array de permisos si existe
     if (user?.permissions?.includes('all')) return true;
-    return user?.permissions?.some(p => p.startsWith(permission));
+    return user?.permissions?.some(p => p.startsWith(permission)) || user?.role === 'Administrador';
   };
 
   const menuItems: ModuleConfig[] = [
-    { name: 'Dashboard', path: '/', icon: <Home size={20} /> },
-    { name: 'Tickets', path: '/tickets', icon: <Ticket size={20} />, permissionRequired: 'tickets' },
-    { name: 'Clientes', path: '/customers', icon: <Users size={20} />, permissionRequired: 'customers' },
-    { name: 'Inventario', path: '/inventory', icon: <Package size={20} />, permissionRequired: 'inventory' },
-    { name: 'Finanzas', path: '/finance', icon: <DollarSign size={20} />, permissionRequired: 'finance' },
-    { name: 'Usuarios', path: '/users', icon: <Settings size={20} />, permissionRequired: 'users' },
+    { name: 'Dashboard', path: '/', icon: Home },
+    { name: 'Tickets', path: '/tickets', icon: Ticket, permissionRequired: 'tickets' },
+    { name: 'Clientes', path: '/customers', icon: Users, permissionRequired: 'customers' },
+    { name: 'Inventario', path: '/inventory', icon: Package, permissionRequired: 'inventory' },
+    { name: 'Finanzas', path: '/finance', icon: DollarSign, permissionRequired: 'finance' },
+    { name: 'Usuarios', path: '/users', icon: Settings, permissionRequired: 'users' },
   ];
 
+  // Helper para las iniciales del usuario
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
   return (
-    <aside className="surface-card w-[260px] flex-col flex h-[calc(100vh-2rem)] overflow-y-auto p-4 shrink-0">
-      {/* Perfil top panel con gradiente simplificado */}
-      <div className="rounded-3xl bg-[radial-gradient(circle_at_top_left,rgba(243,182,31,0.18),transparent_24%),linear-gradient(135deg,#2347a5_0%,#2c5fd0_70%,#356fef_100%)] p-5 text-white shadow-[0_24px_60px_rgba(35,71,165,0.24)]">
-        <div className="flex flex-col items-center justify-center gap-3 text-center py-2">
-          <div className="font-black text-2xl tracking-widest bg-white text-[#2347a5] px-3 py-1.5 rounded-xl shadow-sm">
-            ARGOS
-          </div>
-          <div className="rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-blue-50 mt-2">
-            Sede Principal
-          </div>
+    <aside className="w-[240px] bg-white border-right border-[var(--gray-200)] flex flex-col h-screen shrink-0 shadow-[2px_0_8px_rgba(0,0,0,0.04)] z-20">
+      {/* Logo Section */}
+      <div className="h-[64px] px-4 flex items-center gap-3 border-bottom border-[var(--gray-100)]">
+        <div className="w-9 h-9 rounded-lg bg-[var(--gradient-brand)] flex items-center justify-center text-white font-extrabold text-sm shadow-sm">
+          AR
+        </div>
+        <div className="flex flex-col">
+          <span className="text-[16px] font-bold text-[var(--gray-800)] leading-tight">Argos</span>
+          <span className="text-[11px] font-medium text-[var(--gray-400)] uppercase tracking-[0.08em]">Sede Principal</span>
         </div>
       </div>
 
-      <nav className="mt-6 space-y-2 flex-1">
+      {/* Navigation */}
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {menuItems.map((item) => {
           if (!hasPermission(item.permissionRequired)) return null;
 
           const isActive = location.pathname === item.path || 
                           (item.path !== '/' && location.pathname.startsWith(item.path));
+          
+          const Icon = item.icon;
 
           return (
             <Link
               key={item.name}
               to={item.path}
-              className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition ${
-                isActive
-                  ? 'border-blue-200 bg-gradient-to-r from-[#2347a5] to-blue-500 font-bold text-white shadow-[0_18px_34px_rgba(35,71,165,0.18)]'
-                  : 'border-slate-200/50 bg-white text-slate-600 hover:border-amber-200 hover:text-[#2347a5]'
-              }`}
+              className={`
+                flex items-center gap-3 h-10 px-3 rounded-lg transition-all duration-150
+                ${isActive 
+                  ? 'bg-[var(--color-info-bg)] text-[var(--color-brand-blue)] font-semibold border-l-4 border-[var(--color-brand-blue)] rounded-l-none' 
+                  : 'text-[var(--gray-600)] hover:bg-[var(--gray-100)] hover:text-[var(--gray-800)]'
+                }
+              `}
             >
-              {item.icon}
-              {item.name}
+              <Icon size={18} className={isActive ? 'text-[var(--color-brand-blue)]' : 'text-[var(--gray-400)]'} />
+              <span className="text-[14px]">{item.name}</span>
             </Link>
           );
         })}
       </nav>
 
-      {/* Info panel bottom */}
-      <div className="mt-4 surface-panel p-4 text-sm text-slate-500">
+      {/* User Section */}
+      <div className="p-4 border-t border-[var(--gray-200)] bg-[var(--gray-50)]">
         <div className="flex items-center gap-3">
-          <div className="soft-icon p-3 shrink-0">
-            <UserCircle2 className="h-5 w-5" />
+          <div className="w-8 h-8 rounded-full bg-[var(--gradient-brand)] flex items-center justify-center text-white text-[11px] font-bold shadow-sm">
+            {user ? getInitials(user.nombre) : '??'}
           </div>
-          <div>
-            <div className="font-semibold text-slate-900">Argos MVP</div>
-            <div className="text-xs">Interfaz corporativa.</div>
+          <div className="flex flex-col min-w-0">
+            <span className="text-[13px] font-semibold text-[var(--gray-700)] truncate">
+              {user?.nombre || 'Usuario'}
+            </span>
+            <span className="text-[11px] text-[var(--gray-400)] font-medium truncate">
+              {user?.role || 'Personal'}
+            </span>
           </div>
         </div>
       </div>

@@ -1,7 +1,11 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useProduct } from '../../hooks/useProducts';
 import { useAuthStore } from '../../store/authStore';
-import { ArrowLeft, Edit, Package, Hash, Tag, Info, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Edit, Package, Hash, Tag, Info, AlertTriangle, Boxes, BadgeDollarSign } from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { Button } from '../../components/ui/Button';
+import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
+import { cn } from '../../lib/utils';
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -13,141 +17,180 @@ export default function ProductDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center p-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-blue border-t-transparent"></div>
+      <div className="flex justify-center p-20">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--color-brand-blue)] border-t-transparent"></div>
       </div>
     );
   }
 
   if (!product) {
     return (
-      <div className="p-8 text-center text-red-600 font-semibold text-lg">
+      <div className="p-20 text-center text-[var(--color-danger)] font-bold text-lg">
         El producto no existe o fue eliminado.
       </div>
     );
   }
 
+  const isLowStock = product.total_stock <= product.stock_minimo;
+
   return (
-    <div className="max-w-5xl mx-auto space-y-8 p-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/inventory')}
-            className="p-2 rounded-xl hover:bg-slate-200 border border-transparent hover:border-slate-300 text-slate-500 transition-all bg-white shadow-sm cursor-pointer"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div className="flex items-center gap-4">
-            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-blue-50 text-brand-blue shadow-inner border border-blue-100">
-              <Package size={28} />
+    <div className="p-8 max-w-[1400px] mx-auto">
+      {/* Header & Navigation */}
+      <div className="mb-6">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => navigate('/inventory')}
+          className="mb-4 text-[var(--gray-500)]"
+        >
+          <ArrowLeft size={16} className="mr-2" />
+          Volver al inventario
+        </Button>
+        <PageHeader 
+          title={product.nombre}
+          subtitle={`Categoría: ${product.category_name} — Marca: ${product.brand_name}`}
+          actions={
+            <div className="flex gap-2">
+              <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-[13px] font-bold bg-[var(--color-info-bg)] text-[var(--color-brand-blue)] border border-[var(--color-info-border)] uppercase tracking-widest">
+                {product.codigo}
+              </span>
+              {canViewCost && (
+                <Link to={`/inventory/edit/${product.id}`}>
+                  <Button variant="secondary">
+                    <Edit size={16} className="mr-2" />
+                    Editar Producto
+                  </Button>
+                </Link>
+              )}
             </div>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900">{product.nombre}</h1>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-sm font-bold text-brand-blue uppercase tracking-widest bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100">
-                  {product.codigo}
-                </span>
-                <span className="text-slate-300">•</span>
-                <span className="text-sm font-medium text-slate-500">{product.category_name}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        {(canViewCost) && (
-          <button 
-            onClick={() => navigate(`/inventory/edit/${product.id}`)}
-            className="px-4 py-2 bg-white text-slate-700 border border-slate-300 rounded-md text-sm font-medium hover:bg-slate-50 flex items-center justify-center flex-1 sm:flex-none cursor-pointer"
-          >
-            <Edit size={16} className="mr-2" />
-            Editar Producto
-          </button>
-        )}
+          }
+        />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Panel Izquierdo: Precios y Stock */}
-        <div className="lg:col-span-1 space-y-6">
-          <div className="bg-white rounded-lg shadow border border-slate-200 p-6 border-l-4 border-l-brand-blue">
-            <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-              <Info size={18} className="text-brand-blue" />
-              Estado de Inventario
-            </h2>
-            
-            <div className="space-y-6">
-              <div>
-                <dt className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Existencia Total</dt>
-                <dd className="flex items-baseline gap-2">
-                  <span className={`text-5xl font-black ${product.total_stock <= product.stock_minimo ? 'text-red-600' : 'text-slate-900'}`}>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Left Column: Stock & Prices */}
+        <div className="lg:col-span-4 space-y-8">
+          
+          {/* Stock Card */}
+          <Card className={cn("border-l-4", isLowStock ? "border-l-[var(--color-danger)]" : "border-l-[var(--color-brand-blue)]")}>
+            <CardHeader className="py-4 border-b border-[var(--gray-100)]">
+              <CardTitle className="text-[13px] text-[var(--gray-400)] uppercase tracking-wider flex items-center gap-2">
+                <Boxes size={14} /> Control de Inventario
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-8 space-y-8">
+              <div className="text-center">
+                <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-widest block mb-2">Existencia Total</span>
+                <div className="flex items-baseline justify-center gap-2">
+                  <span className={cn(
+                    "text-6xl font-black leading-none",
+                    isLowStock ? "text-[var(--color-danger)]" : "text-[var(--gray-800)]"
+                  )}>
                     {product.total_stock}
                   </span>
-                  <span className="text-slate-400 font-bold text-lg">Unidades</span>
-                </dd>
-                {product.total_stock <= product.stock_minimo && (
-                  <div className="mt-3 flex items-center gap-2 text-red-600 bg-red-50 p-2 rounded-xl border border-red-100">
-                    <AlertTriangle size={16} />
+                  <span className="text-[var(--gray-400)] font-bold text-xl uppercase">und</span>
+                </div>
+                
+                {isLowStock && (
+                  <div className="mt-6 flex items-center justify-center gap-2 text-[var(--color-danger)] bg-[var(--color-danger-bg)] p-3 rounded-xl border border-[var(--color-danger-border)]">
+                    <AlertTriangle size={18} />
                     <span className="text-xs font-bold uppercase tracking-tight">Stock Crítico (Mín: {product.stock_minimo})</span>
                   </div>
                 )}
               </div>
 
-              <div className="pt-6 border-t border-slate-100">
-                <dt className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3">Precios</dt>
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Precio Venta</span>
-                    <span className="text-2xl font-black text-slate-900 leading-none">S/ {parseFloat(product.precio_venta).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <div className="pt-8 border-t border-[var(--gray-100)]">
+                <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-widest block mb-4">Estructura de Precios</span>
+                <div className="space-y-4">
+                  <div className="bg-[var(--gray-50)] p-5 rounded-2xl border border-[var(--gray-100)] flex justify-between items-center">
+                    <div>
+                      <span className="text-[10px] font-bold text-[var(--gray-400)] uppercase block mb-1">Precio de Venta</span>
+                      <span className="text-2xl font-black text-[var(--gray-900)] leading-none">
+                        S/ {parseFloat(product.precio_venta).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <BadgeDollarSign size={24} className="text-[var(--color-success)] opacity-20" />
                   </div>
+                  
                   {canViewCost && product.precio_costo && (
-                    <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100">
-                      <span className="text-[10px] font-bold text-orange-400 uppercase block mb-1">Precio Costo</span>
-                      <span className="text-2xl font-black text-orange-700 leading-none">S/ {parseFloat(product.precio_costo).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    <div className="bg-[var(--color-warning-bg)] p-5 rounded-2xl border border-[var(--color-warning-border)] flex justify-between items-center">
+                      <div>
+                        <span className="text-[10px] font-bold text-[var(--color-warning)] uppercase block mb-1">Precio de Costo</span>
+                        <span className="text-2xl font-black text-[var(--color-warning)] leading-none">
+                          S/ {parseFloat(product.precio_costo).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <Info size={24} className="text-[var(--color-warning)] opacity-20" />
                     </div>
                   )}
                 </div>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Panel Derecho: Detalles y Ubicaciones */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-lg shadow border border-slate-200 p-8">
-            <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
-              <Hash size={20} className="text-brand-blue" />
-              Especificaciones Técnicas
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm">
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-1">Marca</label>
-                  <p className="text-base font-bold text-slate-800 flex items-center gap-2">
-                    <Tag size={14} className="text-brand-orange" />
-                    {product.brand_name}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-1">Descripción</label>
-                  <p className="text-slate-600 leading-relaxed italic">
-                    {product.descripcion || 'Sin descripción adicional registrada.'}
-                  </p>
-                </div>
-              </div>
+        {/* Right Column: Details & Tech Info */}
+        <div className="lg:col-span-8 space-y-8">
+          <Card>
+            <CardHeader className="py-4 bg-[var(--gray-50)] border-b border-[var(--gray-100)]">
+              <CardTitle className="text-[14px] font-bold text-[var(--gray-800)] uppercase tracking-tight flex items-center gap-2">
+                <Hash size={16} /> Especificaciones y Detalles
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                <div className="space-y-8">
+                  <div>
+                    <label className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-widest block mb-2">Marca del Producto</label>
+                    <div className="flex items-center gap-2">
+                      <Tag size={16} className="text-[var(--color-brand-orange)]" />
+                      <span className="text-lg font-bold text-[var(--gray-800)]">{product.brand_name}</span>
+                    </div>
+                  </div>
 
-              <div className="space-y-4">
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">Ubicación en Almacén</label>
-                  {/* Aquí iría el mapeo de stock_items si hubiera más almacenes */}
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-700">Almacén Principal</span>
-                    <span className="bg-white px-3 py-1 rounded-lg border border-slate-200 font-black text-brand-blue">
-                      {product.total_stock} und.
-                    </span>
+                  <div>
+                    <label className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-widest block mb-2">Descripción General</label>
+                    <p className="text-[var(--gray-600)] leading-relaxed text-sm bg-[var(--gray-50)] p-4 rounded-xl border border-[var(--gray-100)] italic">
+                      {product.descripcion || 'Sin descripción adicional registrada para este producto.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-8">
+                  <div className="bg-[var(--gray-50)] p-6 rounded-2xl border border-[var(--gray-100)]">
+                    <label className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-widest block mb-4">Distribución en Almacén</label>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-[var(--gray-200)] shadow-sm">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-[var(--color-brand-blue)]"></div>
+                          <span className="text-sm font-bold text-[var(--gray-700)]">Almacén Principal</span>
+                        </div>
+                        <span className="text-sm font-black text-[var(--color-brand-blue)]">
+                          {product.total_stock} unidades
+                        </span>
+                      </div>
+                      
+                      {/* Placeholder for future warehouse distribution */}
+                      <div className="flex items-center justify-between p-3 opacity-40 grayscale">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-[var(--gray-300)]"></div>
+                          <span className="text-sm font-medium text-[var(--gray-500)]">Showroom / Vitrina</span>
+                        </div>
+                        <span className="text-sm font-bold text-[var(--gray-500)]">0 unidades</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-widest block mb-2">Última Actualización</label>
+                    <p className="text-xs text-[var(--gray-500)] font-medium">
+                      Control de inventario sincronizado: {new Date().toLocaleDateString()}
+                    </p>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

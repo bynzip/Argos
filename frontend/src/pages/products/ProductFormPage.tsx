@@ -3,7 +3,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useCreateProduct, useCategories, useBrands } from '../../hooks/useProducts';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, Package, BadgeDollarSign, Info } from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Label } from '../../components/ui/Label';
+import { Select } from '../../components/ui/Select';
+import { Textarea } from '../../components/ui/Textarea';
 
 const productSchema = z.object({
   nombre: z.string().min(2, 'El nombre es obligatorio'),
@@ -55,118 +61,139 @@ export default function ProductFormPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/inventory')}
-            className="p-3 rounded-2xl hover:bg-slate-200 border border-transparent hover:border-slate-300 text-slate-500 transition-all bg-white shadow-sm"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">Nuevo Producto</h1>
-            <p className="muted-copy mt-1 font-medium">Registra un nuevo item en el catálogo</p>
-          </div>
-        </div>
+    <div className="p-8 max-w-[1000px] mx-auto">
+      <div className="mb-8">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => navigate('/inventory')}
+          className="mb-4 text-[var(--gray-500)]"
+        >
+          <ArrowLeft size={16} className="mr-2" />
+          Volver al inventario
+        </Button>
+        <PageHeader 
+          title="Nuevo Producto"
+          subtitle="Registra un nuevo item en el catálogo del taller."
+        />
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <div className="surface-card p-8">
-          <div className="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-6">
-            
-            <div className="sm:col-span-6">
-              <label htmlFor="nombre" className="field-label">Nombre del Producto *</label>
-              <input
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+        <div className="form-card">
+          <div className="form-section-title flex items-center gap-2">
+            <Package size={16} /> Identificación del Producto
+          </div>
+          
+          <div className="form-grid-2">
+            <div className="form-field form-grid-full">
+              <Label required>Nombre del Producto / Repuesto</Label>
+              <Input
                 type="text"
-                id="nombre"
+                placeholder="Ej. Batería compatible Dell Latitude E7440"
+                error={!!errors.nombre}
                 {...register('nombre')}
-                className="field-input w-full"
-                placeholder="Ej. Kit de Mantenimiento HP G8"
               />
-              {errors.nombre && <p className="mt-2 text-sm text-red-500 font-medium">{errors.nombre.message}</p>}
+              {errors.nombre && <span className="form-error">{errors.nombre.message}</span>}
             </div>
 
-            <div className="sm:col-span-3">
-              <label htmlFor="category" className="field-label">Categoría *</label>
-              <select id="category" {...register('category')} className="field-input w-full">
-                <option value="">Seleccionar...</option>
+            <div className="form-field">
+              <Label required>Categoría</Label>
+              <Select {...register('category')} error={!!errors.category}>
+                <option value="">Seleccione categoría...</option>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-              </select>
-              {errors.category && <p className="mt-2 text-sm text-red-500 font-medium">{errors.category.message}</p>}
+              </Select>
+              {errors.category && <span className="form-error">{errors.category.message}</span>}
             </div>
 
-            <div className="sm:col-span-3">
-              <label htmlFor="brand" className="field-label">Marca *</label>
-              <select id="brand" {...register('brand')} className="field-input w-full">
-                <option value="">Seleccionar...</option>
+            <div className="form-field">
+              <Label required>Marca</Label>
+              <Select {...register('brand')} error={!!errors.brand}>
+                <option value="">Seleccione marca...</option>
                 {brands.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
-              </select>
-              {errors.brand && <p className="mt-2 text-sm text-red-500 font-medium">{errors.brand.message}</p>}
+              </Select>
+              {errors.brand && <span className="form-error">{errors.brand.message}</span>}
+            </div>
+          </div>
+
+          <div className="form-section-title mt-12 flex items-center gap-2">
+            <BadgeDollarSign size={16} /> Precios e Inventario Inicial
+          </div>
+
+          <div className="form-grid-3">
+            <div className="form-field">
+              <Label required>Precio Costo (S/)</Label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--gray-400)] font-bold">S/</span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  className="pl-9"
+                  {...register('precio_costo')}
+                />
+              </div>
             </div>
 
-            <div className="sm:col-span-2">
-              <label htmlFor="precio_costo" className="field-label">Precio Costo (S/) *</label>
-              <input
-                type="number"
-                step="0.01"
-                id="precio_costo"
-                {...register('precio_costo')}
-                className="field-input w-full"
-              />
+            <div className="form-field">
+              <Label required>Precio Venta (S/)</Label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--gray-400)] font-bold">S/</span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  className="pl-9 font-bold"
+                  {...register('precio_venta')}
+                />
+              </div>
             </div>
 
-            <div className="sm:col-span-2">
-              <label htmlFor="precio_venta" className="field-label">Precio Venta (S/) *</label>
-              <input
+            <div className="form-field">
+              <Label required>Stock Inicial</Label>
+              <Input
                 type="number"
-                step="0.01"
-                id="precio_venta"
-                {...register('precio_venta')}
-                className="field-input w-full"
-              />
-            </div>
-
-            <div className="sm:col-span-2">
-              <label htmlFor="initial_stock" className="field-label">Stock Inicial</label>
-              <input
-                type="number"
-                id="initial_stock"
                 {...register('initial_stock', { valueAsNumber: true })}
-                className="field-input w-full"
               />
             </div>
 
-            <div className="sm:col-span-2">
-              <label htmlFor="stock_minimo" className="field-label">Stock Mínimo</label>
-              <input
+            <div className="form-field">
+              <Label required>Stock Mínimo</Label>
+              <Input
                 type="number"
-                id="stock_minimo"
                 {...register('stock_minimo', { valueAsNumber: true })}
-                className="field-input w-full"
-              />
-            </div>
-
-            <div className="sm:col-span-6">
-              <label htmlFor="descripcion" className="field-label">Descripción</label>
-              <textarea
-                id="descripcion"
-                rows={3}
-                {...register('descripcion')}
-                className="field-input w-full"
               />
             </div>
           </div>
+
+          <div className="form-section-title mt-12 flex items-center gap-2">
+            <Info size={16} /> Detalles Adicionales
+          </div>
+
+          <div className="form-field form-grid-full">
+            <Label>Descripción técnica / Notas</Label>
+            <Textarea
+              rows={4}
+              placeholder="Especificaciones, compatibilidad o notas sobre el repuesto..."
+              {...register('descripcion')}
+            />
+          </div>
         </div>
 
-        <div className="flex items-center justify-end gap-x-4">
-          <button type="button" onClick={() => navigate('/inventory')} className="secondary-button text-sm">
+        <div className="flex items-center justify-end gap-3 pt-4">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => navigate('/inventory')}
+          >
             Cancelar
-          </button>
-          <button type="submit" disabled={isSubmitting} className="primary-button text-sm">
-            <Save size={18} />
-            {isSubmitting ? 'Guardando...' : 'Guardar Producto'}
-          </button>
+          </Button>
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            variant="primary"
+            className="px-10 h-11"
+          >
+            <Save size={18} className="mr-2" />
+            {isSubmitting ? 'Guardando...' : '💾 Guardar Producto'}
+          </Button>
         </div>
       </form>
     </div>

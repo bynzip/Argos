@@ -40,16 +40,16 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <div className="surface-card w-full max-w-md p-10 sm:p-12">
+    <div className="flex min-h-screen items-center justify-center p-4 bg-[var(--surface-page)]">
+      <div className="form-card w-full max-w-md p-10 sm:p-12 shadow-[var(--shadow-lg)]">
         <div className="text-center">
-          <div className="mx-auto mb-6 grid h-16 w-16 place-items-center rounded-2xl bg-[linear-gradient(135deg,#2347a5_0%,#356fef_100%)] text-white shadow-[0_12px_24px_rgba(35,71,165,0.2)]">
-            <span className="text-2xl font-black tracking-wider">A</span>
+          <div className="mx-auto mb-6 grid h-16 w-16 place-items-center rounded-2xl bg-[var(--gradient-brand)] text-white shadow-[0_12px_24px_rgba(35,71,165,0.2)]">
+            <span className="text-2xl font-black tracking-wider">AR</span>
           </div>
-          <h2 className="text-3xl font-bold tracking-tight text-slate-900">
+          <h2 className="text-3xl font-bold tracking-tight text-[var(--gray-800)]">
             Bienvenido a Argos
           </h2>
-          <p className="muted-copy mt-2 text-sm">
+          <p className="mt-2 text-sm text-[var(--gray-500)]">
             Ingresa tus credenciales para acceder al sistema
           </p>
         </div>
@@ -57,37 +57,37 @@ export default function LoginPage() {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-5">
             <div>
-              <label htmlFor="username" className="field-label">Usuario</label>
+              <label htmlFor="username" className="form-label">Usuario</label>
               <input
                 id="username"
                 type="text"
                 {...register('username')}
-                className="field-input w-full"
+                className="form-input w-full"
                 placeholder="Ej. admin"
               />
               {errors.username && (
-                <p className="mt-2 text-sm text-red-500 font-medium">{errors.username.message}</p>
+                <p className="mt-2 text-xs text-[var(--color-danger)] font-medium">{errors.username.message}</p>
               )}
             </div>
             
             <div>
-              <label htmlFor="password" className="field-label">Contraseña</label>
+              <label htmlFor="password" className="form-label">Contraseña</label>
               <input
                 id="password"
                 type="password"
                 {...register('password')}
-                className="field-input w-full"
+                className="form-input w-full"
                 placeholder="••••••••"
               />
               {errors.password && (
-                <p className="mt-2 text-sm text-red-500 font-medium">{errors.password.message}</p>
+                <p className="mt-2 text-xs text-[var(--color-danger)] font-medium">{errors.password.message}</p>
               )}
             </div>
           </div>
 
           {error && (
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
-              <h3 className="text-sm font-semibold text-red-800 text-center">{error}</h3>
+            <div className="rounded-xl border border-[var(--color-danger-border)] bg-[var(--color-danger-bg)] p-4">
+              <h3 className="text-sm font-semibold text-[var(--color-danger)] text-center">{error}</h3>
             </div>
           )}
 
@@ -95,7 +95,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="primary-button w-full"
+              className="btn-primary w-full h-11"
             >
               {isSubmitting ? 'Iniciando sesión...' : 'Ingresar al sistema'}
             </button>

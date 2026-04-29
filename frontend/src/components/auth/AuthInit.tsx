@@ -35,10 +35,10 @@ export const AuthInit = ({ children }: { children: React.ReactNode }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--surface-page)]">
         <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
-          <p className="text-sm font-medium text-slate-500">Cargando sesión...</p>
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-[var(--color-brand-blue)] border-t-transparent"></div>
+          <p className="text-sm font-medium text-[var(--gray-500)]">Cargando sesión...</p>
         </div>
       </div>
     );

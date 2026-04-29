@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCustomers, Customer } from '../../hooks/useCustomers';
-import { DataTable, Column } from '../../components/ui/DataTable';
+import { DataTable } from '../../components/ui/DataTable';
 import { Plus, Eye } from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { Button } from '../../components/ui/Button';
+import { Select } from '../../components/ui/Select';
+import { cn } from '../../lib/utils';
 
 export default function CustomerListPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -17,25 +21,27 @@ export default function CustomerListPage() {
 
   const { data: customers = [], isLoading } = useCustomers({ search: debouncedSearch, etiqueta: etiquetaFilter });
 
-  const getLabelColor = (etiqueta: string) => {
-    const colors: Record<string, string> = {
-      NUEVO: 'bg-blue-100 text-blue-800 border-blue-200',
-      REGULAR: 'bg-green-100 text-green-800 border-green-200',
-      FRECUENTE: 'bg-purple-100 text-purple-800 border-purple-200',
-      VIP: 'bg-amber-100 text-amber-800 border-amber-200',
-      MOROSO: 'bg-red-100 text-red-800 border-red-200',
-      ESPECIAL: 'bg-orange-100 text-orange-800 border-orange-200',
+  const getLabelClass = (etiqueta: string) => {
+    const classes: Record<string, string> = {
+      NUEVO: 'bg-[#EFF3FF] text-[#2347A5] border-[#BFCFFF]',
+      REGULAR: 'bg-[#F0FDF4] text-[#16A34A] border-[#BBF7D0]',
+      FRECUENTE: 'bg-[#F5F3FF] text-[#7C3AED] border-[#DDD6FE]',
+      VIP: 'bg-[#FFFBEB] text-[#D97706] border-[#FDE68A]',
+      MOROSO: 'bg-[#FEF2F2] text-[#DC2626] border-[#FECACA]',
+      ESPECIAL: 'bg-[#FFF7ED] text-[#C2410C] border-[#FDBA74]',
     };
-    return colors[etiqueta] || 'bg-slate-100 text-slate-800 border-slate-200';
+    return classes[etiqueta] || 'bg-[var(--gray-50)] text-[var(--gray-500)] border-[var(--gray-200)]';
   };
 
-  const columns: Column<Customer>[] = [
+  const columns = [
     {
       header: 'Cliente',
-      cell: (item) => (
+      cell: (item: Customer) => (
         <div className="flex flex-col cursor-pointer" onClick={() => navigate(`/customers/${item.id}`)}>
-          <span className="font-bold text-slate-900 hover:text-brand-blue transition-colors">{item.nombre}</span>
-          <span className="text-xs text-slate-500 font-medium mt-0.5">
+          <span className="font-semibold text-[var(--gray-800)] hover:text-[var(--color-brand-blue)] transition-colors">
+            {item.nombre}
+          </span>
+          <span className="text-[12px] text-[var(--gray-400)] font-medium">
             {item.tipo_cliente === 'PERSONA' ? 'DNI: ' : 'RUC: '}{item.identificador}
           </span>
         </div>
@@ -43,45 +49,53 @@ export default function CustomerListPage() {
     },
     {
       header: 'Contacto',
-      cell: (item) => (
-        <div className="flex flex-col text-sm text-slate-600 font-medium">
-          <span>{item.telefono || 'Sin teléfono'}</span>
-          <span className="text-xs text-slate-400 mt-0.5">{item.correo_electronico || ''}</span>
+      cell: (item: Customer) => (
+        <div className="flex flex-col text-[13px]">
+          <span className="text-[var(--gray-700)] font-medium">{item.telefono || 'Sin teléfono'}</span>
+          <span className="text-[var(--gray-400)]">{item.correo_electronico || ''}</span>
         </div>
       ),
     },
     {
       header: 'Etiqueta',
-      cell: (item) => (
-        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold border shadow-sm ${getLabelColor(item.etiqueta)}`}>
+      cell: (item: Customer) => (
+        <span className={cn(
+          "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold border",
+          getLabelClass(item.etiqueta)
+        )}>
           {item.etiqueta}
         </span>
       ),
     },
     {
-      header: 'Acciones',
-      cell: (item) => (
-        <button 
-          onClick={() => navigate(`/customers/${item.id}`)}
-          className="text-slate-400 hover:text-brand-blue transition-colors p-2 rounded-xl hover:bg-blue-50"
-          title="Ver detalle"
-        >
-          <Eye size={20} />
-        </button>
+      header: '',
+      cell: (item: Customer) => (
+        <div className="flex justify-end">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8 text-[var(--gray-400)] hover:text-[var(--color-brand-blue)]"
+            onClick={() => navigate(`/customers/${item.id}`)}
+          >
+            <Eye size={16} />
+          </Button>
+        </div>
       ),
     },
   ];
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Directorio de Clientes</h1>
-          <p className="muted-copy mt-2 font-medium">
-            Gestiona los clientes, sus datos de contacto y sus dispositivos.
-          </p>
-        </div>
-      </div>
+    <div className="p-8 max-w-[1600px] mx-auto">
+      <PageHeader 
+        title="Directorio de Clientes"
+        subtitle="Gestiona los clientes, sus datos de contacto y sus dispositivos."
+        actions={
+          <Button variant="primary" onClick={() => navigate('/customers/new')}>
+            <Plus size={18} />
+            <span>Nuevo Cliente</span>
+          </Button>
+        }
+      />
 
       <DataTable
         data={customers}
@@ -90,12 +104,12 @@ export default function CustomerListPage() {
         isLoading={isLoading}
         onSearch={setSearchTerm}
         searchPlaceholder="Buscar por DNI, RUC, nombre o teléfono..."
-        actions={
-          <div className="flex gap-2 items-center">
-            <select
+        filters={
+          <div className="w-[180px]">
+            <Select
               value={etiquetaFilter}
               onChange={(e) => setEtiquetaFilter(e.target.value)}
-              className="field-input text-sm py-2"
+              className="h-9 text-[13px]"
             >
               <option value="">Todas las Etiquetas</option>
               <option value="NUEVO">Nuevo</option>
@@ -104,14 +118,7 @@ export default function CustomerListPage() {
               <option value="VIP">VIP</option>
               <option value="MOROSO">Moroso</option>
               <option value="ESPECIAL">Especial</option>
-            </select>
-            <button 
-              onClick={() => navigate('/customers/new')}
-              className="primary-button text-sm"
-            >
-              <Plus size={18} />
-              <span className="hidden sm:inline">Nuevo Cliente</span>
-            </button>
+            </Select>
           </div>
         }
       />

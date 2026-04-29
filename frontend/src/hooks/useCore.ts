@@ -10,7 +10,8 @@ export interface Notification {
 
 export interface DashboardData {
   role: string;
-  metrics: Record<string, number>;
+  metrics: Record<string, any>;
+  charts: Record<string, Record<string, number>>;
   recent_activity: any[];
 }
 

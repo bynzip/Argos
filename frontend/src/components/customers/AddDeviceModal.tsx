@@ -40,78 +40,78 @@ export default function AddDeviceModal({ customerId, onClose }: AddDeviceModalPr
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-      <div className="surface-card w-full max-w-lg shadow-2xl animate-in fade-in zoom-in duration-200">
-        <div className="flex items-center justify-between border-b border-slate-100 p-6 bg-slate-50/50 rounded-t-3xl">
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Smartphone className="text-brand-blue" size={24} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,22,35,0.45)] backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl w-full max-w-lg shadow-[var(--shadow-modal)] animate-in fade-in zoom-in duration-200 overflow-hidden">
+        <div className="flex items-center justify-between border-b border-[var(--gray-200)] p-5 bg-white">
+          <h2 className="text-[17px] font-bold text-[var(--gray-800)] flex items-center gap-2">
+            <Smartphone className="text-[var(--color-brand-blue)]" size={20} />
             Registrar Nuevo Equipo
           </h2>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-xl text-slate-400 transition-colors">
-            <X size={20} />
+          <button onClick={onClose} className="w-8 h-8 rounded-lg bg-[var(--gray-100)] text-[var(--gray-500)] hover:bg-[var(--gray-200)] hover:text-[var(--gray-700)] transition-colors flex items-center justify-center">
+            <X size={18} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="p-8 space-y-5">
+        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-5">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2 sm:col-span-1">
-              <label className="field-label">Tipo de Equipo *</label>
+              <label className="form-label">Tipo de Equipo *</label>
               <input 
                 {...register('tipo_equipo')} 
-                className="field-input w-full" 
+                className="form-input w-full" 
                 placeholder="Ej. Laptop, PC, Celular"
               />
-              {errors.tipo_equipo && <p className="mt-1 text-xs text-red-500 font-medium">{errors.tipo_equipo.message}</p>}
+              {errors.tipo_equipo && <p className="mt-1 text-xs text-[var(--color-danger)] font-medium">{errors.tipo_equipo.message}</p>}
             </div>
             
             <div className="col-span-2 sm:col-span-1">
-              <label className="field-label">Marca *</label>
+              <label className="form-label">Marca *</label>
               <input 
                 {...register('marca')} 
-                className="field-input w-full" 
+                className="form-input w-full" 
                 placeholder="Ej. Lenovo, Samsung"
               />
-              {errors.marca && <p className="mt-1 text-xs text-red-500 font-medium">{errors.marca.message}</p>}
+              {errors.marca && <p className="mt-1 text-xs text-[var(--color-danger)] font-medium">{errors.marca.message}</p>}
             </div>
 
             <div className="col-span-2">
-              <label className="field-label">Modelo *</label>
+              <label className="form-label">Modelo *</label>
               <input 
                 {...register('modelo')} 
-                className="field-input w-full" 
+                className="form-input w-full" 
                 placeholder="Ej. ThinkPad T480, Galaxy S23"
               />
-              {errors.modelo && <p className="mt-1 text-xs text-red-500 font-medium">{errors.modelo.message}</p>}
+              {errors.modelo && <p className="mt-1 text-xs text-[var(--color-danger)] font-medium">{errors.modelo.message}</p>}
             </div>
 
             <div className="col-span-2">
-              <label className="field-label">Número de Serie</label>
+              <label className="form-label">Número de Serie</label>
               <input 
                 {...register('numero_serie')} 
-                className="field-input w-full" 
+                className="form-input w-full" 
                 placeholder="S/N o Service Tag"
               />
             </div>
 
             <div className="col-span-2">
-              <label className="field-label">Notas del equipo</label>
+              <label className="form-label">Notas del equipo</label>
               <textarea 
                 {...register('notas')} 
                 rows={2} 
-                className="field-input w-full" 
+                className="form-input w-full p-3 h-auto" 
                 placeholder="Ej. Color gris, teclado en inglés..."
               />
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
-            <button type="button" onClick={onClose} className="secondary-button text-sm py-2">
+          <div className="flex justify-end gap-3 pt-4 border-t border-[var(--gray-100)]">
+            <button type="button" onClick={onClose} className="btn-secondary text-sm">
               Cancelar
             </button>
             <button 
               type="submit" 
               disabled={isSubmitting} 
-              className="primary-button text-sm py-2 px-8"
+              className="btn-primary text-sm"
             >
               <Save size={18} />
               {isSubmitting ? 'Registrando...' : 'Registrar Equipo'}

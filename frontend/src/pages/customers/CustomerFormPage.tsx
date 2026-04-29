@@ -4,7 +4,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useCreateCustomer } from '../../hooks/useCustomers';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, User, Fingerprint, MapPin, Tag, MessageSquare } from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Label } from '../../components/ui/Label';
+import { Select } from '../../components/ui/Select';
+import { Textarea } from '../../components/ui/Textarea';
 
 const customerSchema = z.object({
   tipo_cliente: z.enum(['PERSONA', 'EMPRESA']),
@@ -63,124 +69,158 @@ export default function CustomerFormPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/customers')}
-            className="p-3 rounded-2xl hover:bg-slate-200 border border-transparent hover:border-slate-300 text-slate-500 transition-all bg-white shadow-sm"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">Nuevo Cliente</h1>
-            <p className="muted-copy mt-1 font-medium">Registra un nuevo cliente en el sistema</p>
-          </div>
-        </div>
+    <div className="p-8 max-w-[1000px] mx-auto">
+      {/* Header & Navigation */}
+      <div className="mb-8">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => navigate('/customers')}
+          className="mb-4 text-[var(--gray-500)]"
+        >
+          <ArrowLeft size={16} className="mr-2" />
+          Volver al directorio
+        </Button>
+        <PageHeader 
+          title="Nuevo Cliente"
+          subtitle="Registra un nuevo cliente en la base de datos de Argos ERP."
+        />
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <div className="surface-card p-8">
-          <div className="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-6">
-            
-            <div className="sm:col-span-3">
-              <label htmlFor="tipo_cliente" className="field-label">Tipo de Cliente</label>
-              <select
-                id="tipo_cliente"
-                {...register('tipo_cliente')}
-                className="field-input w-full"
-              >
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+        <div className="form-card">
+          <div className="form-section-title flex items-center gap-2">
+            <User size={16} /> Información Principal
+          </div>
+          
+          <div className="form-grid-2">
+            <div className="form-field">
+              <Label required>Tipo de Cliente</Label>
+              <Select {...register('tipo_cliente')}>
                 <option value="PERSONA">Persona Natural (DNI)</option>
                 <option value="EMPRESA">Empresa (RUC)</option>
-              </select>
+              </Select>
             </div>
 
-            <div className="sm:col-span-3">
-              <label htmlFor="identificador" className="field-label">
-                {tipoCliente === 'PERSONA' ? 'DNI' : 'RUC'} *
-              </label>
-              <input
+            <div className="form-field">
+              <Label required>
+                <div className="flex items-center gap-1.5">
+                  <Fingerprint size={14} className="text-[var(--gray-400)]" />
+                  {tipoCliente === 'PERSONA' ? 'DNI' : 'RUC'}
+                </div>
+              </Label>
+              <Input
                 type="text"
-                id="identificador"
+                placeholder={tipoCliente === 'PERSONA' ? 'Ej. 12345678' : 'Ej. 20123456789'}
+                error={!!(errors.identificador || identificadorError)}
                 {...register('identificador')}
-                className="field-input w-full"
               />
-              {errors.identificador && <p className="mt-2 text-sm text-red-500 font-medium">{errors.identificador.message}</p>}
-              {identificadorError && <p className="mt-2 text-sm text-red-500 font-medium">{identificadorError}</p>}
+              {(errors.identificador || identificadorError) && (
+                <span className="form-error">
+                  {errors.identificador?.message || identificadorError}
+                </span>
+              )}
             </div>
 
-            <div className="sm:col-span-6">
-              <label htmlFor="nombre" className="field-label">
-                {tipoCliente === 'PERSONA' ? 'Nombre Completo' : 'Razón Social'} *
-              </label>
-              <input
+            <div className="form-field form-grid-full">
+              <Label required>
+                {tipoCliente === 'PERSONA' ? 'Nombre Completo' : 'Razón Social'}
+              </Label>
+              <Input
                 type="text"
-                id="nombre"
+                placeholder="Ej. Juan Pérez García"
+                error={!!errors.nombre}
                 {...register('nombre')}
-                className="field-input w-full"
               />
-              {errors.nombre && <p className="mt-2 text-sm text-red-500 font-medium">{errors.nombre.message}</p>}
+              {errors.nombre && <span className="form-error">{errors.nombre.message}</span>}
             </div>
+          </div>
 
-            <div className="sm:col-span-3">
-              <label htmlFor="telefono" className="field-label">Teléfono / Celular</label>
-              <input
+          <div className="form-section-title mt-10 flex items-center gap-2">
+            <MapPin size={16} /> Contacto y Ubicación
+          </div>
+
+          <div className="form-grid-2">
+            <div className="form-field">
+              <Label>Teléfono / Celular</Label>
+              <Input
                 type="text"
-                id="telefono"
+                placeholder="Ej. 987 654 321"
                 {...register('telefono')}
-                className="field-input w-full"
               />
             </div>
 
-            <div className="sm:col-span-3">
-              <label htmlFor="correo_electronico" className="field-label">Correo Electrónico</label>
-              <input
+            <div className="form-field">
+              <Label>Correo Electrónico</Label>
+              <Input
                 type="email"
-                id="correo_electronico"
+                placeholder="ejemplo@correo.com"
+                error={!!errors.correo_electronico}
                 {...register('correo_electronico')}
-                className="field-input w-full"
               />
-              {errors.correo_electronico && <p className="mt-2 text-sm text-red-500 font-medium">{errors.correo_electronico.message}</p>}
+              {errors.correo_electronico && <span className="form-error">{errors.correo_electronico.message}</span>}
             </div>
 
-            <div className="sm:col-span-6">
-              <label htmlFor="direccion" className="field-label">Dirección</label>
-              <input
+            <div className="form-field form-grid-full">
+              <Label>Dirección</Label>
+              <Input
                 type="text"
-                id="direccion"
+                placeholder="Ej. Av. Las Flores 123, Huancayo"
                 {...register('direccion')}
-                className="field-input w-full"
               />
             </div>
+          </div>
 
-            <div className="sm:col-span-6">
-              <label htmlFor="notas" className="field-label">Notas internas</label>
-              <textarea
-                id="notas"
-                rows={3}
+          <div className="form-section-title mt-10 flex items-center gap-2">
+            <Tag size={16} /> Clasificación y Notas
+          </div>
+
+          <div className="form-grid-2">
+            <div className="form-field">
+              <Label required>Etiqueta de Cliente</Label>
+              <Select {...register('etiqueta')}>
+                <option value="NUEVO">Nuevo</option>
+                <option value="REGULAR">Regular</option>
+                <option value="FRECUENTE">Frecuente</option>
+                <option value="VIP">VIP</option>
+                <option value="MOROSO">Moroso</option>
+                <option value="ESPECIAL">Especial</option>
+              </Select>
+            </div>
+
+            <div className="form-field form-grid-full">
+              <Label>
+                <div className="flex items-center gap-1.5">
+                  <MessageSquare size={14} className="text-[var(--gray-400)]" />
+                  Notas internas
+                </div>
+              </Label>
+              <Textarea
+                rows={4}
+                placeholder="Observaciones relevantes sobre el cliente..."
                 {...register('notas')}
-                className="field-input w-full"
               />
             </div>
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-x-4">
-          <button
+        <div className="flex items-center justify-end gap-3 pt-4">
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => navigate('/customers')}
-            className="secondary-button text-sm"
           >
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             disabled={isSubmitting}
-            className="primary-button text-sm"
+            variant="primary"
+            className="px-8"
           >
-            <Save size={18} />
+            <Save size={18} className="mr-2" />
             {isSubmitting ? 'Guardando...' : 'Guardar Cliente'}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

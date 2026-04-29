@@ -1,10 +1,17 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useTicket, useTicketTransition, useUpdateTicketAmounts } from '../../hooks/useTickets';
 import { useAuthStore } from '../../store/authStore';
 import { TicketStatusBadge } from '../../components/ui/TicketStatusBadge';
 import { PriorityBadge } from '../../components/ui/PriorityBadge';
 import { PaymentModal } from '../../components/finance/PaymentModal';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { Button } from '../../components/ui/Button';
+import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
+import { ArrowLeft, CreditCard, Clock, User as UserIcon, Laptop, ClipboardList, Camera, History, Edit2 } from 'lucide-react';
+import { cn } from '../../lib/utils';
+import { Input } from '../../components/ui/Input';
+import { Label } from '../../components/ui/Label';
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   'INTAKE': ['DIAGNOSTIC'],
@@ -37,6 +44,7 @@ const statusLabels: Record<string, string> = {
 
 const TicketDetailPage = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { data: ticket, isLoading, refetch } = useTicket(id || '');
   const transitionMutation = useTicketTransition();
   const updateAmountsMutation = useUpdateTicketAmounts();
@@ -50,14 +58,14 @@ const TicketDetailPage = () => {
   const [montoEstimadoInput, setMontoEstimadoInput] = useState('');
   const [totalInput, setTotalInput] = useState('');
 
-  // Poll for real-time balance updates if we are on this page
+  // Poll for real-time balance updates
   useEffect(() => {
-    const interval = setInterval(() => refetch(), 10000);
+    const interval = setInterval(() => refetch(), 15000);
     return () => clearInterval(interval);
   }, [refetch]);
 
-  if (isLoading) return <div className="p-6">Cargando ticket...</div>;
-  if (!ticket) return <div className="p-6">Ticket no encontrado</div>;
+  if (isLoading) return <div className="p-12 text-center">Cargando ticket...</div>;
+  if (!ticket) return <div className="p-12 text-center">Ticket no encontrado</div>;
 
   const allowedNextStatuses = VALID_TRANSITIONS[ticket.estado] || [];
   
@@ -115,212 +123,314 @@ const TicketDetailPage = () => {
   const saldoPendiente = total - pagosConfirmados;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
-      {/* Cabecera */}
-      <div className="bg-white shadow rounded-lg p-6 flex flex-col md:flex-row justify-between items-start md:items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-            {ticket.folio}
-            <TicketStatusBadge status={ticket.estado} />
-            <PriorityBadge priority={ticket.prioridad} />
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">Creado el {new Date(ticket.created_at).toLocaleString()} por {ticket.created_by?.nombre || '-'}</p>
-        </div>
-        
-        {/* Acciones de Transición */}
-        <div className="mt-4 md:mt-0 flex flex-wrap gap-2">
-          {isRecep && saldoPendiente > 0 && !['DELIVERED', 'CLOSED'].includes(ticket.estado) && (
-            <button
-              onClick={() => setShowPaymentModal(true)}
-              className="px-4 py-2 bg-amber-100 text-amber-800 border border-amber-300 rounded-md text-sm font-medium hover:bg-amber-200"
-            >
-              Registrar Cobro
-            </button>
-          )}
-          
-          {allowedNextStatuses.map(status => {
-            if (!canTransition(status)) return null;
-            
-            // RN-01: No mostrar botón "Entregar" si hay saldo
-            if (status === 'DELIVERED' && saldoPendiente > 0) return null;
-            
-            if (showMotivoInput === status) {
-              return (
-                <div key={status} className="flex gap-2 items-center">
-                  <input 
-                    type="text" 
-                    value={motivo} 
-                    onChange={e => setMotivo(e.target.value)} 
-                    placeholder="Motivo..."
-                    className="border rounded px-2 py-1 text-sm"
-                  />
-                  <button 
+    <div className="p-8 max-w-[1400px] mx-auto">
+      {/* Back Button & Header */}
+      <div className="mb-6">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => navigate('/tickets')}
+          className="mb-4 text-[var(--gray-500)]"
+        >
+          <ArrowLeft size={16} className="mr-2" />
+          Volver a la lista
+        </Button>
+        <PageHeader 
+          title={ticket.folio}
+          subtitle={`Creado el ${new Date(ticket.created_at).toLocaleString()} por ${ticket.created_by?.nombre || '-'}`}
+          actions={
+            <div className="flex flex-wrap gap-2 items-center">
+              <TicketStatusBadge status={ticket.estado} />
+              <PriorityBadge priority={ticket.prioridad} />
+              
+              <div className="h-6 w-px bg-[var(--gray-200)] mx-2"></div>
+              
+              {isRecep && saldoPendiente > 0 && !['DELIVERED', 'CLOSED'].includes(ticket.estado) && (
+                <Button variant="primary" onClick={() => setShowPaymentModal(true)}>
+                  <CreditCard size={18} className="mr-2" />
+                  Registrar Cobro
+                </Button>
+              )}
+              
+              {allowedNextStatuses.map(status => {
+                if (!canTransition(status)) return null;
+                if (status === 'DELIVERED' && saldoPendiente > 0) return null;
+                
+                if (showMotivoInput === status) {
+                  return (
+                    <div key={status} className="flex gap-2 items-center bg-[var(--gray-50)] p-1 rounded-lg border border-[var(--gray-200)]">
+                      <Input 
+                        value={motivo} 
+                        onChange={e => setMotivo(e.target.value)} 
+                        placeholder="Motivo..."
+                        className="h-8 text-xs w-32"
+                      />
+                      <Button size="sm" onClick={() => handleTransition(status)}>OK</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setShowMotivoInput(null)}>X</Button>
+                    </div>
+                  );
+                }
+                
+                return (
+                  <Button
+                    key={status}
+                    variant="secondary"
+                    size="sm"
                     onClick={() => handleTransition(status)}
-                    className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                    disabled={transitionMutation.isPending}
                   >
-                    Confirmar
-                  </button>
-                  <button 
-                    onClick={() => setShowMotivoInput(null)}
-                    className="px-3 py-1 bg-gray-200 text-gray-800 rounded text-sm hover:bg-gray-300"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              );
-            }
-            
-            return (
-              <button
-                key={status}
-                onClick={() => handleTransition(status)}
-                disabled={transitionMutation.isPending}
-                className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-md text-sm font-medium hover:bg-blue-100"
-              >
-                Mover a {statusLabels[status]}
-              </button>
-            );
-          })}
-        </div>
+                    Mover a {statusLabels[status]}
+                  </Button>
+                );
+              })}
+            </div>
+          }
+        />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Columna Principal */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-lg font-medium border-b pb-2 mb-4">Descripción del Problema</h2>
-            <p className="text-gray-700 whitespace-pre-wrap">{ticket.descripcion_problema}</p>
-          </div>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Main Column */}
+        <div className="lg:col-span-8 space-y-8">
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center gap-2">
+              <ClipboardList className="h-5 w-5 text-[var(--gray-400)]" />
+              <CardTitle>Descripción del Problema</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <p className="text-[var(--gray-700)] text-[15px] leading-relaxed whitespace-pre-wrap">
+                {ticket.descripcion_problema}
+              </p>
+            </CardContent>
+          </Card>
 
-          <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-lg font-medium border-b pb-2 mb-4">Diagnóstico y Solución</h2>
-            <div className="space-y-4">
-              <div>
-                <h3 className="font-medium text-sm text-gray-500">Diagnóstico Técnico:</h3>
-                <p className="mt-1 text-gray-900">{ticket.diagnostico || <span className="italic text-gray-400">Aún no registrado</span>}</p>
+          <Card>
+            <CardHeader className="flex flex-row items-center gap-2">
+              <History className="h-5 w-5 text-[var(--gray-400)]" />
+              <CardTitle>Diagnóstico y Solución</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-6">
+              <div className="p-4 bg-[var(--gray-50)] rounded-xl border border-[var(--gray-100)]">
+                <h3 className="text-xs font-bold text-[var(--gray-400)] uppercase tracking-wider mb-2">Diagnóstico Técnico</h3>
+                <p className="text-[var(--gray-800)] font-medium">
+                  {ticket.diagnostico || <span className="italic text-[var(--gray-400)]">Pendiente de diagnóstico</span>}
+                </p>
               </div>
-              <div>
-                <h3 className="font-medium text-sm text-gray-500">Solución Aplicada:</h3>
-                <p className="mt-1 text-gray-900">{ticket.solucion || <span className="italic text-gray-400">Aún no registrada</span>}</p>
+              <div className="p-4 bg-[var(--gray-50)] rounded-xl border border-[var(--gray-100)]">
+                <h3 className="text-xs font-bold text-[var(--gray-400)] uppercase tracking-wider mb-2">Solución Aplicada</h3>
+                <p className="text-[var(--gray-800)] font-medium">
+                  {ticket.solucion || <span className="italic text-[var(--gray-400)]">Pendiente de reparación</span>}
+                </p>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {ticket.evidences && ticket.evidences.length > 0 && (
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-lg font-medium border-b pb-2 mb-4">Evidencias Fotográficas</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {ticket.evidences.map((ev: any) => (
-                  <a key={ev.id} href={ev.archivo} target="_blank" rel="noreferrer" className="block border rounded p-1 hover:border-blue-500 transition-colors">
-                    <img src={ev.archivo} alt={ev.nombre_archivo} className="w-full h-24 object-cover rounded" />
-                    <p className="text-xs text-center mt-1 truncate px-1 text-gray-500">{ev.nombre_archivo}</p>
-                  </a>
-                ))}
-              </div>
-            </div>
+            <Card>
+              <CardHeader className="flex flex-row items-center gap-2">
+                <Camera className="h-5 w-5 text-[var(--gray-400)]" />
+                <CardTitle>Evidencias Fotográficas</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {ticket.evidences.map((ev: any) => (
+                    <a 
+                      key={ev.id} 
+                      href={ev.archivo} 
+                      target="_blank" 
+                      rel="noreferrer" 
+                      className="group relative block aspect-square border border-[var(--gray-200)] rounded-xl overflow-hidden hover:border-[var(--color-brand-blue)] transition-all"
+                    >
+                      <img src={ev.archivo} alt={ev.nombre_archivo} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <span className="text-white text-[10px] font-bold uppercase tracking-wider">Ver imagen</span>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {ticket.receipts && ticket.receipts.length > 0 && (
+            <Card>
+              <CardHeader className="flex flex-row items-center gap-2">
+                <CreditCard className="h-5 w-5 text-[var(--gray-400)]" />
+                <CardTitle>Pagos y Recibos</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <table className="w-full text-sm">
+                  <thead className="bg-[var(--gray-50)] text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wider">
+                    <tr>
+                      <th className="px-6 py-3 text-left">Fecha</th>
+                      <th className="px-6 py-3 text-left">Método</th>
+                      <th className="px-6 py-3 text-right">Monto</th>
+                      <th className="px-6 py-3 text-center">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--gray-100)]">
+                    {ticket.receipts.map((r: any) => (
+                      <tr key={r.id}>
+                        <td className="px-6 py-3">{new Date(r.created_at).toLocaleDateString()}</td>
+                        <td className="px-6 py-3 font-medium">{r.method_display || r.method}</td>
+                        <td className="px-6 py-3 text-right font-bold text-[var(--gray-800)]">S/ {parseFloat(r.amount).toFixed(2)}</td>
+                        <td className="px-6 py-3 text-center">
+                          <span className={cn(
+                            "inline-block w-2 h-2 rounded-full mr-2",
+                            r.estado === 'CONFIRMED' ? "bg-[var(--color-success)]" : "bg-[var(--color-warning)]"
+                          )} />
+                          <span className="text-[12px] font-medium text-[var(--gray-600)]">{r.estado}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
           )}
         </div>
 
-        {/* Columna Lateral */}
-        <div className="space-y-6">
-          {/* Info Financiera Básica */}
-          <div className="bg-amber-50 shadow rounded-lg p-6 border border-amber-200 relative">
-            {(isAdmin || isTech) && !['DELIVERED', 'CLOSED'].includes(ticket.estado) && (
-              <button 
-                onClick={openAmountsModal}
-                className="absolute top-4 right-4 text-xs font-medium text-amber-700 bg-amber-200 px-2 py-1 rounded hover:bg-amber-300"
-              >
-                Actualizar
-              </button>
-            )}
-            <h2 className="text-lg font-medium text-amber-900 border-b border-amber-200 pb-2 mb-4">Saldo del Ticket</h2>
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-amber-800">Total a pagar:</span>
-                <span className="font-medium text-amber-900">S/ {total.toFixed(2)}</span>
+        {/* Sidebar Column (Sticky) */}
+        <div className="lg:col-span-4 space-y-8 sticky top-24">
+          
+          {/* Balance Card */}
+          <div className="bg-white border border-[var(--gray-200)] rounded-2xl p-6 shadow-[var(--shadow-md)] relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--color-brand-blue)] opacity-[0.03] rounded-bl-full -mr-10 -mt-10"></div>
+            
+            <div className="flex justify-between items-start mb-6">
+              <h3 className="text-[13px] font-bold text-[var(--gray-500)] uppercase tracking-wider">Estado de Cuenta</h3>
+              {(isAdmin || isTech) && !['DELIVERED', 'CLOSED'].includes(ticket.estado) && (
+                <Button variant="ghost" size="sm" className="h-7 text-[11px] font-bold" onClick={openAmountsModal}>
+                  <Edit2 size={12} className="mr-1" /> EDITAR
+                </Button>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-[var(--gray-500)] font-medium">Total Presupuestado</span>
+                <span className="text-[var(--gray-800)] font-bold">S/ {total.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-amber-800">Pagado:</span>
-                <span className="font-medium text-green-700">S/ {pagosConfirmados.toFixed(2)}</span>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-[var(--gray-500)] font-medium">Total Pagado</span>
+                <span className="text-[var(--color-success)] font-bold">S/ {pagosConfirmados.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-base font-bold pt-2 border-t border-amber-200">
-                <span className="text-amber-900">Saldo Pendiente:</span>
-                <span className={saldoPendiente > 0 ? "text-red-600" : "text-green-600"}>
+              <div className="pt-4 border-t border-[var(--gray-100)] flex justify-between items-center">
+                <span className="text-[var(--gray-800)] font-extrabold text-[15px]">Saldo Pendiente</span>
+                <span className={cn(
+                  "text-[24px] font-black",
+                  saldoPendiente > 0 ? "text-[var(--color-danger)]" : "text-[var(--color-success)]"
+                )}>
                   S/ {saldoPendiente.toFixed(2)}
                 </span>
               </div>
-              {saldoPendiente > 0 && (
-                <p className="text-xs text-amber-700 mt-2 text-center bg-amber-100 py-1 rounded">
-                  No se puede entregar si hay saldo.
-                </p>
-              )}
             </div>
           </div>
 
-          <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-lg font-medium border-b pb-2 mb-4">Cliente y Equipo</h2>
-            <div className="space-y-3">
-              <div>
-                <span className="text-xs text-gray-500 block">Cliente:</span>
-                <Link to={`/customers/${ticket.customer?.id}`} className="text-blue-600 hover:underline">{ticket.customer?.nombre}</Link>
+          {/* Customer & Device Info */}
+          <Card>
+            <CardHeader className="py-4">
+              <CardTitle className="text-[13px] text-[var(--gray-400)] uppercase tracking-wider">Información del Cliente</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4 space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[var(--gray-50)] flex items-center justify-center text-[var(--color-brand-blue)] border border-[var(--gray-200)]">
+                  <UserIcon size={20} />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <Link to={`/customers/${ticket.customer?.id}`} className="text-[14px] font-bold text-[var(--gray-800)] hover:text-[var(--color-brand-blue)] truncate">
+                    {ticket.customer?.nombre}
+                  </Link>
+                  <span className="text-[12px] text-[var(--gray-400)] font-medium">ID: {ticket.customer?.identificador}</span>
+                </div>
               </div>
-              <div>
-                <span className="text-xs text-gray-500 block">Identificador:</span>
-                <span className="text-sm font-medium">{ticket.customer?.identificador}</span>
+              
+              <div className="pt-4 border-t border-[var(--gray-100)]">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-[var(--gray-50)] flex items-center justify-center text-[var(--gray-400)] border border-[var(--gray-200)] shrink-0">
+                    <Laptop size={20} />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[12px] font-bold text-[var(--gray-400)] uppercase">Equipo</span>
+                    <span className="text-[14px] font-bold text-[var(--gray-800)] leading-tight">
+                      {ticket.device ? `${ticket.device.marca} ${ticket.device.modelo}` : 'No registrado'}
+                    </span>
+                    {ticket.device?.numero_serie && (
+                      <span className="text-[11px] text-[var(--gray-500)] mt-1 font-mono bg-[var(--gray-50)] px-1.5 py-0.5 rounded border border-[var(--gray-100)] w-fit">
+                        S/N: {ticket.device.numero_serie}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
-              {ticket.device && (
-                <div>
-                  <span className="text-xs text-gray-500 block">Dispositivo:</span>
-                  <span className="text-sm font-medium">{ticket.device.marca} {ticket.device.modelo}</span>
-                  {ticket.device.numero_serie && <span className="text-xs text-gray-500 block">SN: {ticket.device.numero_serie}</span>}
+
+              {ticket.accessories && ticket.accessories.length > 0 && (
+                <div className="pt-4 border-t border-[var(--gray-100)]">
+                  <span className="text-[12px] font-bold text-[var(--gray-400)] uppercase block mb-2">Accesorios</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {ticket.accessories.map((acc: any) => (
+                      <span key={acc.id} className="inline-flex items-center px-2 py-0.5 rounded-md bg-[var(--gray-50)] border border-[var(--gray-200)] text-[11px] font-medium text-[var(--gray-600)]">
+                        {acc.nombre}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
-          <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-lg font-medium border-b pb-2 mb-4">Asignación</h2>
-            <div className="space-y-3">
-              <div>
-                <span className="text-xs text-gray-500 block">Técnico Asignado:</span>
-                <span className="text-sm font-medium">{ticket.assigned_to?.nombre || 'Sin asignar'}</span>
-              </div>
-            </div>
-          </div>
-          
-          {ticket.accessories && ticket.accessories.length > 0 && (
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-lg font-medium border-b pb-2 mb-4">Accesorios</h2>
-              <ul className="space-y-2 text-sm">
-                {ticket.accessories.map((acc: any) => (
-                  <li key={acc.id} className="bg-gray-50 p-2 rounded">
-                    <span className="font-medium">{acc.nombre}</span>
-                    {acc.condicion && <span className="text-gray-500 ml-2">({acc.condicion})</span>}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          
-          <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-lg font-medium border-b pb-2 mb-4">Timeline</h2>
-            <div className="space-y-4 relative before:absolute before:inset-0 before:ml-2 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-300 before:to-transparent">
-              {ticket.transitions?.map((trans: any) => (
-                <div key={trans.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                  <div className="flex items-center justify-center w-5 h-5 rounded-full border border-white bg-slate-300 text-slate-500 group-[.is-active]:bg-blue-500 group-[.is-active]:text-blue-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
-                  </div>
-                  <div className="w-[calc(100%-2.5rem)] md:w-[calc(50%-1.25rem)] p-3 rounded border border-slate-200 bg-white shadow-sm">
-                    <div className="flex justify-between items-center mb-1">
-                      <div className="font-semibold text-slate-700 text-xs">{statusLabels[trans.estado_nuevo] || trans.estado_nuevo}</div>
-                      <time className="text-[10px] text-slate-500 font-medium">{new Date(trans.created_at).toLocaleTimeString()}</time>
+          {/* Redesigned Timeline */}
+          <Card>
+            <CardHeader className="py-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-[13px] text-[var(--gray-400)] uppercase tracking-wider">Historial / Timeline</CardTitle>
+              <Clock size={16} className="text-[var(--gray-300)]" />
+            </CardHeader>
+            <CardContent className="pt-6 overflow-y-auto max-h-[400px] scrollbar-thin">
+              <div className="space-y-0">
+                {ticket.transitions?.slice().reverse().map((trans: any, index: number) => (
+                  <div key={trans.id} className="flex gap-4 relative pb-6 group">
+                    {/* Line */}
+                    {index !== ticket.transitions.length - 1 && (
+                      <div className="absolute left-[15px] top-[30px] bottom-0 w-[2px] bg-[var(--gray-100)]"></div>
+                    )}
+                    
+                    {/* Dot */}
+                    <div className={cn(
+                      "w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 border-2",
+                      index === 0 
+                        ? "bg-[var(--color-info-bg)] border-[var(--color-brand-blue)] text-[var(--color-brand-blue)]" 
+                        : "bg-white border-[var(--gray-200)] text-[var(--gray-300)]"
+                    )}>
+                      {index === 0 ? <Clock size={14} /> : <div className="w-1.5 h-1.5 rounded-full bg-current" />}
                     </div>
-                    <div className="text-slate-500 text-xs">por {trans.cambiado_por?.nombre || 'Sistema'}</div>
-                    {trans.motivo && <div className="text-slate-600 text-xs mt-1 italic">"{trans.motivo}"</div>}
+
+                    {/* Content */}
+                    <div className="flex-1 pt-0.5">
+                      <div className="flex justify-between items-start">
+                        <span className={cn(
+                          "text-[13px] font-bold",
+                          index === 0 ? "text-[var(--gray-900)]" : "text-[var(--gray-600)]"
+                        )}>
+                          {statusLabels[trans.estado_nuevo] || trans.estado_nuevo}
+                        </span>
+                        <span className="text-[10px] text-[var(--gray-400)] font-medium">
+                          {new Date(trans.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[var(--gray-400)] mt-0.5 font-medium">
+                        por {trans.cambiado_por?.nombre || 'Sistema'} — {new Date(trans.created_at).toLocaleDateString()}
+                      </p>
+                      {trans.motivo && (
+                        <div className="mt-2 p-2 bg-[var(--gray-50)] rounded-lg border border-[var(--gray-100)] text-[11px] text-[var(--gray-600)] italic">
+                          "{trans.motivo}"
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
@@ -336,47 +446,44 @@ const TicketDetailPage = () => {
         />
       )}
 
-      {/* Update Amounts Modal */}
+      {/* Update Amounts Modal (Styled) */}
       {showAmountsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm overflow-hidden">
-            <div className="flex justify-between items-center p-4 border-b">
-              <h2 className="text-lg font-bold text-gray-900">Actualizar Montos</h2>
-            </div>
-            <div className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Monto Estimado (Opcional)</label>
-                <input 
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,22,35,0.45)] backdrop-blur-sm p-4">
+          <Card className="w-full max-w-md shadow-[var(--shadow-modal)]">
+            <CardHeader>
+              <CardTitle>Actualizar Presupuesto</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-4">
+              <div className="space-y-1.5">
+                <Label>Monto Estimado (Opcional)</Label>
+                <Input 
                   type="number" step="0.01"
                   value={montoEstimadoInput} onChange={e => setMontoEstimadoInput(e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="0.00"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Total Final (S/)</label>
-                <input 
+              <div className="space-y-1.5">
+                <Label>Total Final (S/)</Label>
+                <Input 
                   type="number" step="0.01"
                   value={totalInput} onChange={e => setTotalInput(e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="0.00"
                 />
+                <p className="text-[11px] text-[var(--gray-400)] mt-1">Este es el monto total que el cliente debe pagar.</p>
               </div>
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  onClick={() => setShowAmountsModal(false)}
-                  className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                >
+              <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-[var(--gray-100)]">
+                <Button variant="secondary" onClick={() => setShowAmountsModal(false)}>
                   Cancelar
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleUpdateAmounts}
                   disabled={updateAmountsMutation.isPending}
-                  className="px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-md hover:bg-amber-700"
                 >
-                  Guardar Montos
-                </button>
+                  {updateAmountsMutation.isPending ? 'Guardando...' : 'Actualizar Montos'}
+                </Button>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>

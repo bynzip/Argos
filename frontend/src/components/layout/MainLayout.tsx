@@ -4,14 +4,19 @@ import Navbar from './Navbar';
 
 export default function MainLayout() {
   return (
-    <div className="app-shell flex h-screen w-full overflow-hidden">
-      <div className="p-4 pr-0 hidden md:block shrink-0">
+    <div className="flex h-screen w-full overflow-hidden bg-[var(--surface-page)]">
+      {/* Sidebar */}
+      <div className="hidden md:block shrink-0">
         <Sidebar />
       </div>
-      <div className="flex w-0 flex-1 flex-col overflow-hidden">
+
+      {/* Main Content Area */}
+      <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
         <Navbar />
-        <main className="relative flex-1 overflow-y-auto focus:outline-none p-4 sm:p-6 md:p-8">
-          <Outlet />
+        <main className="flex-1 overflow-y-auto focus:outline-none p-8">
+          <div className="max-w-[1600px] mx-auto">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

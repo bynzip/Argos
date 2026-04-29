@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useCustomer } from '../../hooks/useCustomers';
-import { ArrowLeft, Edit, Smartphone, AlertCircle, Plus, Ticket } from 'lucide-react';
+import { ArrowLeft, Edit, Smartphone, Plus, Ticket, User, MapPin, Mail, Phone, Info } from 'lucide-react';
 import AddDeviceModal from '../../components/customers/AddDeviceModal';
 import { TicketStatusBadge } from '../../components/ui/TicketStatusBadge';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { Button } from '../../components/ui/Button';
+import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
+import { cn } from '../../lib/utils';
 
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -15,190 +19,245 @@ export default function CustomerDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center p-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-blue border-t-transparent"></div>
+      <div className="flex justify-center p-20">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--color-brand-blue)] border-t-transparent"></div>
       </div>
     );
   }
 
   if (error || !customer) {
     return (
-      <div className="p-8 text-center text-red-600 font-semibold">
+      <div className="p-20 text-center text-[var(--color-danger)] font-bold">
         Error al cargar los datos del cliente.
       </div>
     );
   }
 
-  const getLabelColor = (etiqueta: string) => {
-    const colors: Record<string, string> = {
-      NUEVO: 'bg-blue-100 text-blue-800 border-blue-200',
-      REGULAR: 'bg-green-100 text-green-800 border-green-200',
-      FRECUENTE: 'bg-purple-100 text-purple-800 border-purple-200',
-      VIP: 'bg-amber-100 text-amber-800 border-amber-200',
-      MOROSO: 'bg-red-100 text-red-800 border-red-200',
-      ESPECIAL: 'bg-orange-100 text-orange-800 border-orange-200',
+  const getLabelClass = (etiqueta: string) => {
+    const classes: Record<string, string> = {
+      'NUEVO': 'badge-nuevo',
+      'REGULAR': 'badge-regular',
+      'FRECUENTE': 'badge-frecuente',
+      'VIP': 'badge-vip',
+      'MOROSO': 'badge-moroso',
+      'ESPECIAL': 'badge-especial',
     };
-    return colors[etiqueta] || 'bg-slate-100 text-slate-800 border-slate-200';
+    return classes[etiqueta] || '';
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 p-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/customers')}
-            className="p-2 rounded-xl hover:bg-slate-200 border border-transparent hover:border-slate-300 text-slate-500 transition-all bg-white shadow-sm"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">{customer.nombre}</h1>
-            <p className="text-slate-500 mt-1 text-sm font-medium">
-              {customer.tipo_cliente === 'PERSONA' ? 'DNI: ' : 'RUC: '} {customer.identificador}
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-2 w-full sm:w-auto">
-          <Link to={`/tickets/new?customer_id=${customer.id}`} className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 flex items-center justify-center flex-1 sm:flex-none">
-            <Plus size={16} className="mr-2" /> Nuevo Ticket
-          </Link>
-          <Link 
-            to={`/customers/edit/${customer.id}`}
-            className="px-4 py-2 bg-white text-slate-700 border border-slate-300 rounded-md text-sm font-medium hover:bg-slate-50 flex items-center justify-center flex-1 sm:flex-none"
-          >
-            <Edit size={16} className="mr-2" /> Editar
-          </Link>
-        </div>
+    <div className="p-8 max-w-[1400px] mx-auto">
+      {/* Header & Navigation */}
+      <div className="mb-6">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => navigate('/customers')}
+          className="mb-4 text-[var(--gray-500)]"
+        >
+          <ArrowLeft size={16} className="mr-2" />
+          Volver al directorio
+        </Button>
+        <PageHeader 
+          title={customer.nombre}
+          subtitle={`${customer.tipo_cliente === 'PERSONA' ? 'DNI' : 'RUC'}: ${customer.identificador}`}
+          actions={
+            <div className="flex gap-2">
+              <Link to={`/customers/edit/${customer.id}`}>
+                <Button variant="secondary">
+                  <Edit size={16} className="mr-2" />
+                  Editar Cliente
+                </Button>
+              </Link>
+              <Link to={`/tickets/new?customer_id=${customer.id}`}>
+                <Button variant="primary">
+                  <Plus size={18} className="mr-2" />
+                  Nuevo Ticket
+                </Button>
+              </Link>
+            </div>
+          }
+        />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Información Principal */}
-        <div className="lg:col-span-1 space-y-6">
-          <div className="bg-white rounded-lg shadow border border-slate-200 p-6">
-            <h2 className="text-lg font-bold text-slate-900 mb-4 border-b pb-2">Detalles de Contacto</h2>
-            <dl className="space-y-4 text-sm">
-              <div className="flex flex-col gap-1">
-                <dt className="font-semibold text-slate-500">Teléfono</dt>
-                <dd className="font-medium text-slate-900">{customer.telefono || '-'}</dd>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Left Column: Stats and Info */}
+        <div className="lg:col-span-4 space-y-8">
+          
+          {/* Contact Info Card */}
+          <Card>
+            <CardHeader className="py-4 border-b border-[var(--gray-100)]">
+              <CardTitle className="text-[13px] text-[var(--gray-400)] uppercase tracking-wider flex items-center gap-2">
+                <User size={14} /> Información de Contacto
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-[var(--gray-50)] flex items-center justify-center text-[var(--gray-400)] shrink-0">
+                    <Phone size={16} />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wide">Teléfono</span>
+                    <span className="text-[14px] font-bold text-[var(--gray-800)]">{customer.telefono || 'No registrado'}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-[var(--gray-50)] flex items-center justify-center text-[var(--gray-400)] shrink-0">
+                    <Mail size={16} />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wide">Email</span>
+                    <span className="text-[14px] font-bold text-[var(--gray-800)] truncate">{customer.correo_electronico || 'No registrado'}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-[var(--gray-50)] flex items-center justify-center text-[var(--gray-400)] shrink-0">
+                    <MapPin size={16} />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wide">Dirección</span>
+                    <span className="text-[14px] font-bold text-[var(--gray-800)]">{customer.direccion || 'No registrada'}</span>
+                  </div>
+                </div>
               </div>
-              <div className="flex flex-col gap-1">
-                <dt className="font-semibold text-slate-500">Correo Electrónico</dt>
-                <dd className="font-medium text-slate-900 break-all">{customer.correo_electronico || '-'}</dd>
+
+              <div className="pt-6 border-t border-[var(--gray-100)]">
+                <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wide block mb-3">Etiqueta de Cliente</span>
+                <span className={cn("badge", getLabelClass(customer.etiqueta))}>
+                  {customer.etiqueta}
+                </span>
               </div>
-              <div className="flex flex-col gap-1">
-                <dt className="font-semibold text-slate-500">Dirección</dt>
-                <dd className="font-medium text-slate-900">{customer.direccion || '-'}</dd>
-              </div>
-              <div className="flex flex-col gap-1 pt-2">
-                <dt className="font-semibold text-slate-500 mb-2">Etiqueta actual</dt>
-                <dd>
-                  <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold border shadow-sm ${getLabelColor(customer.etiqueta)}`}>
-                    {customer.etiqueta}
-                  </span>
-                </dd>
-              </div>
+
               {customer.notas && (
-                <div className="flex flex-col gap-1 pt-4 border-t border-slate-100">
-                  <dt className="font-semibold text-slate-500 mb-1">Notas internas</dt>
-                  <dd className="text-slate-700 leading-relaxed bg-slate-50 p-3 rounded-xl">{customer.notas}</dd>
+                <div className="pt-6 border-t border-[var(--gray-100)]">
+                  <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wide block mb-2">Notas Internas</span>
+                  <div className="p-3 bg-[var(--gray-50)] rounded-xl border border-[var(--gray-100)] text-[13px] text-[var(--gray-600)] leading-relaxed italic">
+                    "{customer.notas}"
+                  </div>
                 </div>
               )}
-            </dl>
-          </div>
+            </CardContent>
+          </Card>
 
-          <div className="bg-white rounded-lg shadow border border-slate-200 p-6">
-            <div className="flex justify-between items-center border-b pb-2 mb-4">
-              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <Smartphone size={18} className="text-orange-600" />
-                Equipos
-              </h2>
-              <button 
+          {/* Devices Card */}
+          <Card>
+            <CardHeader className="py-4 border-b border-[var(--gray-100)] flex flex-row items-center justify-between">
+              <CardTitle className="text-[13px] text-[var(--gray-400)] uppercase tracking-wider flex items-center gap-2">
+                <Smartphone size={14} /> Equipos Registrados
+              </CardTitle>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 text-[var(--color-brand-blue)]"
                 onClick={() => setIsAddDeviceOpen(true)}
-                className="text-blue-600 hover:text-blue-800 p-1"
-                title="Añadir Equipo"
               >
                 <Plus size={18} />
-              </button>
-            </div>
-            
-            {customer.devices && customer.devices.length > 0 ? (
-              <ul className="space-y-4">
-                {customer.devices.map((device: any) => (
-                  <li key={device.id} className="flex flex-col gap-1 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                    <p className="text-sm font-bold text-slate-900">
-                      {device.tipo_equipo} {device.marca} {device.modelo}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      SN: {device.numero_serie || 'No especificado'}
-                    </p>
-                    <Link to={`/tickets?search=${device.numero_serie || device.modelo}`} className="text-xs font-semibold text-blue-600 hover:underline mt-1 inline-flex items-center">
-                      <Ticket size={12} className="mr-1" /> Ver tickets de este equipo
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="text-center py-6">
-                <p className="text-sm text-slate-500">No hay dispositivos registrados.</p>
-              </div>
-            )}
-          </div>
+              </Button>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {customer.devices && customer.devices.length > 0 ? (
+                <div className="space-y-3">
+                  {customer.devices.map((device: any) => (
+                    <div key={device.id} className="p-4 bg-[var(--gray-50)] rounded-xl border border-[var(--gray-100)] group hover:border-[var(--color-brand-blue)] transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div className="flex flex-col">
+                          <span className="text-[14px] font-bold text-[var(--gray-800)]">{device.marca} {device.modelo}</span>
+                          <span className="text-[11px] font-medium text-[var(--gray-400)] uppercase tracking-tight">{device.tipo_equipo}</span>
+                          <span className="text-[12px] text-[var(--gray-500)] mt-1 font-mono">S/N: {device.numero_serie || 'N/E'}</span>
+                        </div>
+                        <Link 
+                          to={`/tickets?search=${device.numero_serie || device.modelo}`}
+                          className="text-[var(--gray-300)] hover:text-[var(--color-brand-blue)] transition-colors"
+                          title="Ver historial de tickets"
+                        >
+                          <Ticket size={18} />
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-8 text-center">
+                  <Smartphone size={32} className="mx-auto text-[var(--gray-200)] mb-2" />
+                  <p className="text-[13px] text-[var(--gray-400)] font-medium">No hay equipos registrados.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Historial de Tickets */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-lg shadow border border-slate-200 p-6">
-            <h2 className="text-lg font-bold text-slate-900 mb-4 border-b pb-2">Historial de Tickets</h2>
-            
-            {customer.tickets && customer.tickets.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-200">
-                      <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Folio / Fecha</th>
-                      <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Equipo</th>
-                      <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Estado</th>
-                      <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase text-right">Total (S/)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {customer.tickets.map((ticket: any) => (
-                      <tr key={ticket.id} className="hover:bg-slate-50">
-                        <td className="py-3 px-4">
-                          <Link to={`/tickets/${ticket.id}`} className="text-sm font-bold text-blue-600 hover:underline block">
-                            {ticket.folio}
-                          </Link>
-                          <span className="text-xs text-slate-500">{new Date(ticket.created_at).toLocaleDateString()}</span>
-                        </td>
-                        <td className="py-3 px-4 text-sm text-slate-700">
-                          {ticket.device ? `${ticket.device.marca} ${ticket.device.modelo}` : 'Sin equipo'}
-                        </td>
-                        <td className="py-3 px-4">
-                          <TicketStatusBadge status={ticket.estado} />
-                        </td>
-                        <td className="py-3 px-4 text-sm font-medium text-slate-900 text-right">
-                          {parseFloat(ticket.total).toFixed(2)}
-                        </td>
+        {/* Right Column: Ticket History */}
+        <div className="lg:col-span-8">
+          <Card className="overflow-hidden">
+            <CardHeader className="py-4 bg-[var(--gray-50)] border-b border-[var(--gray-100)]">
+              <CardTitle className="text-[14px] font-bold text-[var(--gray-800)] uppercase tracking-tight">Historial de Tickets de Reparación</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {customer.tickets && customer.tickets.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-[var(--gray-50)] text-[10px] font-bold text-[var(--gray-400)] uppercase tracking-wider border-b border-[var(--gray-100)]">
+                      <tr>
+                        <th className="px-6 py-3">Folio / Fecha</th>
+                        <th className="px-6 py-3">Equipo / Problema</th>
+                        <th className="px-6 py-3">Estado</th>
+                        <th className="px-6 py-3 text-right">Total (S/)</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <AlertCircle className="mx-auto h-10 w-10 text-slate-300 mb-4" />
-                <p className="text-sm font-semibold text-slate-600">No hay tickets registrados.</p>
-                <p className="text-xs text-slate-400 mt-1">Este cliente aún no ha ingresado equipos a reparación.</p>
-              </div>
-            )}
-          </div>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--gray-100)]">
+                      {customer.tickets.map((ticket: any) => (
+                        <tr key={ticket.id} className="hover:bg-[var(--gray-50)] transition-colors">
+                          <td className="px-6 py-4">
+                            <Link to={`/tickets/${ticket.id}`} className="text-sm font-bold text-[var(--color-brand-blue)] hover:underline block">
+                              {ticket.folio}
+                            </Link>
+                            <span className="text-[11px] text-[var(--gray-400)] font-medium">{new Date(ticket.created_at).toLocaleDateString()}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-[var(--gray-700)]">
+                                {ticket.device ? `${ticket.device.marca} ${ticket.device.modelo}` : 'Sin equipo'}
+                              </span>
+                              <span className="text-[11px] text-[var(--gray-400)] truncate max-w-[200px]">{ticket.descripcion_problema}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <TicketStatusBadge status={ticket.estado} />
+                          </td>
+                          <td className="px-6 py-4 text-sm font-black text-[var(--gray-800)] text-right">
+                            S/ {parseFloat(ticket.total).toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="py-20 text-center">
+                  <div className="w-16 h-16 bg-[var(--gray-50)] rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Info size={32} className="text-[var(--gray-200)]" />
+                  </div>
+                  <h3 className="text-[16px] font-bold text-[var(--gray-800)]">Sin tickets registrados</h3>
+                  <p className="text-sm text-[var(--gray-400)] mt-1 max-w-[300px] mx-auto">
+                    Este cliente aún no ha ingresado equipos para servicio técnico.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
 
       {isAddDeviceOpen && customerId && (
         <AddDeviceModal 
           customerId={customerId} 
-          onClose={() => setIsAddDeviceOpen(false)} 
+          onClose={() => {
+            setIsAddDeviceOpen(false);
+            // Optional: refetch or state update
+          }} 
         />
       )}
     </div>

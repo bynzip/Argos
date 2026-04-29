@@ -4,7 +4,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useCustomer, useUpdateCustomer } from '../../hooks/useCustomers';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, User, Fingerprint, MapPin, Tag, MessageSquare } from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Label } from '../../components/ui/Label';
+import { Select } from '../../components/ui/Select';
+import { Textarea } from '../../components/ui/Textarea';
 
 const customerSchema = z.object({
   tipo_cliente: z.enum(['PERSONA', 'EMPRESA']),
@@ -83,144 +89,160 @@ export default function CustomerEditPage() {
   };
 
   if (isLoading) {
-    return <div className="p-12 flex justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-blue border-t-transparent"></div></div>;
+    return (
+      <div className="p-20 flex justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--color-brand-blue)] border-t-transparent"></div>
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate(`/customers/${customerId}`)}
-            className="p-3 rounded-2xl hover:bg-slate-200 border border-transparent hover:border-slate-300 text-slate-500 transition-all bg-white shadow-sm"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">Editar Cliente</h1>
-            <p className="text-slate-500 mt-1 font-medium">Modifica los datos del cliente</p>
-          </div>
-        </div>
+    <div className="p-8 max-w-[1000px] mx-auto">
+      {/* Header & Navigation */}
+      <div className="mb-8">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => navigate(`/customers/${customerId}`)}
+          className="mb-4 text-[var(--gray-500)]"
+        >
+          <ArrowLeft size={16} className="mr-2" />
+          Volver al cliente
+        </Button>
+        <PageHeader 
+          title="Editar Cliente"
+          subtitle={`Modifica los datos de ${customer?.nombre || 'este cliente'}.`}
+        />
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <div className="bg-white rounded-lg shadow border border-slate-200 p-8">
-          <div className="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-6">
-            
-            <div className="sm:col-span-3">
-              <label htmlFor="tipo_cliente" className="block text-sm font-medium text-gray-700">Tipo de Cliente</label>
-              <select
-                id="tipo_cliente"
-                {...register('tipo_cliente')}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-              >
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+        <div className="form-card">
+          <div className="form-section-title flex items-center gap-2">
+            <User size={16} /> Información Principal
+          </div>
+          
+          <div className="form-grid-2">
+            <div className="form-field">
+              <Label required>Tipo de Cliente</Label>
+              <Select {...register('tipo_cliente')}>
                 <option value="PERSONA">Persona Natural (DNI)</option>
                 <option value="EMPRESA">Empresa (RUC)</option>
-              </select>
+              </Select>
             </div>
 
-            <div className="sm:col-span-3">
-              <label htmlFor="identificador" className="block text-sm font-medium text-gray-700">
-                {tipoCliente === 'PERSONA' ? 'DNI' : 'RUC'} *
-              </label>
-              <input
+            <div className="form-field">
+              <Label required>
+                <div className="flex items-center gap-1.5">
+                  <Fingerprint size={14} className="text-[var(--gray-400)]" />
+                  {tipoCliente === 'PERSONA' ? 'DNI' : 'RUC'}
+                </div>
+              </Label>
+              <Input
                 type="text"
-                id="identificador"
+                error={!!(errors.identificador || identificadorError)}
                 {...register('identificador')}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               />
-              {errors.identificador && <p className="mt-2 text-sm text-red-500 font-medium">{errors.identificador.message}</p>}
-              {identificadorError && <p className="mt-2 text-sm text-red-500 font-medium">{identificadorError}</p>}
+              {(errors.identificador || identificadorError) && (
+                <span className="form-error">
+                  {errors.identificador?.message || identificadorError}
+                </span>
+              )}
             </div>
 
-            <div className="sm:col-span-6">
-              <label htmlFor="nombre" className="block text-sm font-medium text-gray-700">
-                {tipoCliente === 'PERSONA' ? 'Nombre Completo' : 'Razón Social'} *
-              </label>
-              <input
+            <div className="form-field form-grid-full">
+              <Label required>
+                {tipoCliente === 'PERSONA' ? 'Nombre Completo' : 'Razón Social'}
+              </Label>
+              <Input
                 type="text"
-                id="nombre"
+                error={!!errors.nombre}
                 {...register('nombre')}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               />
-              {errors.nombre && <p className="mt-2 text-sm text-red-500 font-medium">{errors.nombre.message}</p>}
+              {errors.nombre && <span className="form-error">{errors.nombre.message}</span>}
             </div>
+          </div>
 
-            <div className="sm:col-span-3">
-              <label htmlFor="telefono" className="block text-sm font-medium text-gray-700">Teléfono / Celular</label>
-              <input
+          <div className="form-section-title mt-10 flex items-center gap-2">
+            <MapPin size={16} /> Contacto y Ubicación
+          </div>
+
+          <div className="form-grid-2">
+            <div className="form-field">
+              <Label>Teléfono / Celular</Label>
+              <Input
                 type="text"
-                id="telefono"
                 {...register('telefono')}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               />
             </div>
 
-            <div className="sm:col-span-3">
-              <label htmlFor="correo_electronico" className="block text-sm font-medium text-gray-700">Correo Electrónico</label>
-              <input
+            <div className="form-field">
+              <Label>Correo Electrónico</Label>
+              <Input
                 type="email"
-                id="correo_electronico"
+                error={!!errors.correo_electronico}
                 {...register('correo_electronico')}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               />
-              {errors.correo_electronico && <p className="mt-2 text-sm text-red-500 font-medium">{errors.correo_electronico.message}</p>}
+              {errors.correo_electronico && <span className="form-error">{errors.correo_electronico.message}</span>}
             </div>
 
-            <div className="sm:col-span-6">
-              <label htmlFor="direccion" className="block text-sm font-medium text-gray-700">Dirección</label>
-              <input
+            <div className="form-field form-grid-full">
+              <Label>Dirección</Label>
+              <Input
                 type="text"
-                id="direccion"
                 {...register('direccion')}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               />
             </div>
+          </div>
 
-            <div className="sm:col-span-3">
-              <label htmlFor="etiqueta" className="block text-sm font-medium text-gray-700">Etiqueta del Cliente</label>
-              <select
-                id="etiqueta"
-                {...register('etiqueta')}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-              >
-                <option value="NUEVO">NUEVO</option>
-                <option value="REGULAR">REGULAR</option>
-                <option value="FRECUENTE">FRECUENTE</option>
+          <div className="form-section-title mt-10 flex items-center gap-2">
+            <Tag size={16} /> Clasificación y Notas
+          </div>
+
+          <div className="form-grid-2">
+            <div className="form-field">
+              <Label required>Etiqueta de Cliente</Label>
+              <Select {...register('etiqueta')}>
+                <option value="NUEVO">Nuevo</option>
+                <option value="REGULAR">Regular</option>
+                <option value="FRECUENTE">Frecuente</option>
                 <option value="VIP">VIP</option>
-                <option value="MOROSO">MOROSO</option>
-                <option value="ESPECIAL">ESPECIAL</option>
-              </select>
+                <option value="MOROSO">Moroso</option>
+                <option value="ESPECIAL">Especial</option>
+              </Select>
             </div>
 
-            <div className="sm:col-span-6">
-              <label htmlFor="notas" className="block text-sm font-medium text-gray-700">Notas internas</label>
-              <textarea
-                id="notas"
-                rows={3}
+            <div className="form-field form-grid-full">
+              <Label>
+                <div className="flex items-center gap-1.5">
+                  <MessageSquare size={14} className="text-[var(--gray-400)]" />
+                  Notas internas
+                </div>
+              </Label>
+              <Textarea
+                rows={4}
                 {...register('notas')}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               />
             </div>
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-x-4">
-          <button
+        <div className="flex items-center justify-end gap-3 pt-4">
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => navigate(`/customers/${customerId}`)}
-            className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
           >
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             disabled={isSubmitting}
-            className="inline-flex justify-center items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+            variant="primary"
+            className="px-8"
           >
             <Save size={18} className="mr-2" />
             {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
-          </button>
+          </Button>
         </div>
       </form>
     </div>
