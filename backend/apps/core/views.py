@@ -58,7 +58,8 @@ class DashboardViewSet(viewsets.ViewSet):
         from apps.customers.models import Customer
         from apps.products.models import Product
         from apps.tickets.models import Ticket, TicketTransition
-        from apps.finance.models import Receipt, Caja
+        from apps.finance.models import Receipt, CashClosure
+        from django.db.models import F, Sum, Count, DecimalField
         
         user_role = request.user.user_roles.select_related('role').first()
         role = user_role.role.nombre if user_role else 'Desconocido'
@@ -73,7 +74,7 @@ class DashboardViewSet(viewsets.ViewSet):
 
         today = timezone.now().date()
         
-        # Commmon metrics
+        # Common metrics
         active_tickets_qs = Ticket.objects.exclude(estado__in=['DELIVERED', 'CLOSED', 'REJECTED'])
         
         if role == 'Administrador' or request.user.is_superuser:
@@ -84,32 +85,32 @@ class DashboardViewSet(viewsets.ViewSet):
                 "daily_revenue": Receipt.objects.filter(
                     created_at__date=today, 
                     estado='CONFIRMED'
-                ).aggregate(total=models.Sum('amount'))['total'] or 0,
-                "low_stock_alerts": Product.objects.filter(stocks__cantidad__lte=models.F('stock_minimo')).distinct().count(),
+                ).aggregate(total=Sum('amount'))['total'] or 0,
+                "low_stock_alerts": Product.objects.filter(stocks__cantidad__lte=F('stock_minimo')).distinct().count(),
             }
             
             # Chart: Tickets by Status
-            status_counts = active_tickets_qs.values('estado').annotate(count=models.Count('id'))
+            status_counts = active_tickets_qs.values('estado').annotate(count=Count('id'))
             data['charts']['tickets_by_status'] = {item['estado']: item['count'] for item in status_counts}
             
         elif role == 'Recepcionista':
-            caja_abierta = Caja.objects.filter(estado='OPEN').exists()
+            caja_abierta = CashClosure.objects.filter(estado='OPEN').exists()
             data['metrics'] = {
                 "caja_abierta": caja_abierta,
                 "ready_tickets": Ticket.objects.filter(estado__in=['READY', 'STORAGE']).count(),
-                "pending_payments_count": Ticket.objects.filter(estado='READY').count(), # Simplified
+                "pending_payments_count": Ticket.objects.filter(estado='READY').count(),
                 "daily_revenue": Receipt.objects.filter(
                     created_at__date=today, 
                     estado='CONFIRMED'
-                ).aggregate(total=models.Sum('amount'))['total'] or 0,
+                ).aggregate(total=Sum('amount'))['total'] or 0,
             }
             
             # Chart: Revenue by Method Today
             revenue_by_method = Receipt.objects.filter(
                 created_at__date=today, 
                 estado='CONFIRMED'
-            ).values('method').annotate(total=models.Sum('amount'))
-            data['charts']['revenue_by_method'] = {item['method']: item['total'] for item in revenue_by_method}
+            ).values('metodo_pago').annotate(total=Sum('amount'))
+            data['charts']['revenue_by_method'] = {item['metodo_pago']: item['total'] for item in revenue_by_method}
 
         elif role == 'Técnico':
             my_tickets = Ticket.objects.filter(assigned_to=request.user)
@@ -124,17 +125,26 @@ class DashboardViewSet(viewsets.ViewSet):
                 "my_testing_tickets": my_tickets.filter(estado='IN_TESTING').count(),
             }
             
-            # Chart: My productivity (completed in last 7 days)
-            # This is a bit more complex, let's just give a summary for now
             data['charts']['my_status_distribution'] = {
                 item['estado']: item['count'] 
-                for item in my_tickets.exclude(estado__in=['DELIVERED', 'CLOSED', 'REJECTED']).values('estado').annotate(count=models.Count('id'))
+                for item in my_tickets.exclude(estado__in=['DELIVERED', 'CLOSED', 'REJECTED']).values('estado').annotate(count=Count('id'))
             }
 
         elif role == 'Almacenero':
             data['metrics'] = {
-                "low_stock_alerts": Product.objects.filter(stocks__cantidad__lte=models.F('stock_minimo')).distinct().count(),
+                "low_stock_alerts": Product.objects.filter(stocks__cantidad__lte=F('stock_minimo')).distinct().count(),
                 "total_products": Product.objects.count(),
+                "inventory_value": Product.objects.annotate(
+                    stock_sum=Sum('stocks__cantidad')
+                ).aggregate(
+                    total=Sum(F('stock_sum') * F('precio_venta'), output_field=DecimalField())
+                )['total'] or 0,
             }
+            
+            # Chart: Products with lowest stock (top 5)
+            low_stock_products = Product.objects.annotate(
+                total_stock=Sum('stocks__cantidad')
+            ).order_by('total_stock')[:5]
+            data['charts']['low_stock_products'] = {p.nombre: float(p.total_stock or 0) for p in low_stock_products}
 
         return Response(data)

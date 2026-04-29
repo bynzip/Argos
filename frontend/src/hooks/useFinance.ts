@@ -14,6 +14,7 @@ export interface CashClosure {
   closing_notes: string | null;
   total_dia?: number;
   ingresos_por_metodo?: { metodo_pago: string, total: number }[];
+  receipts?: any[];
 }
 
 export const useCajaStatus = () => {

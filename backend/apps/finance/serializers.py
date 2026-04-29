@@ -22,11 +22,12 @@ class ReceiptSerializer(serializers.ModelSerializer):
 
 class CashClosureSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
+    receipts = ReceiptSerializer(many=True, read_only=True)
     
     class Meta:
         model = CashClosure
         fields = [
             'id', 'user', 'estado', 'opening_amount', 'expected_amount',
             'declared_amount', 'difference', 'opened_at', 'closed_at',
-            'closing_notes'
+            'closing_notes', 'receipts'
         ]

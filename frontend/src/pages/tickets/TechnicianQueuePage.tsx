@@ -6,8 +6,8 @@ import { PriorityBadge } from '../../components/ui/PriorityBadge';
 import { Clock, AlertCircle, Inbox, Zap } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
-import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
-import { cn } from '../../lib/utils';
+import { Card, CardHeader, CardContent } from '../../components/ui/Card';
+// import { cn } from '../../lib/utils';
 
 const TechnicianQueuePage = () => {
   const { user } = useAuthStore();

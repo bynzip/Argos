@@ -4,7 +4,7 @@ import { useAuthStore } from '../../store/authStore';
 import { Users, Ticket as TicketIcon, Package, AlertTriangle, CheckCircle, Clock, TrendingUp, DollarSign, BarChart3, PieChart } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { TicketStatusBadge } from '../../components/ui/TicketStatusBadge';
-import { PriorityBadge } from '../../components/ui/PriorityBadge';
+// import { PriorityBadge } from '../../components/ui/PriorityBadge';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { cn } from '../../lib/utils';
@@ -108,15 +108,21 @@ const SimpleBarChart = ({ data, title, icon: Icon, colorClass = "bg-[var(--color
 const DashboardPage = () => {
   const { data, isLoading } = useDashboard();
   const { user } = useAuthStore();
-  const isAdmin = user?.role === 'Administrador' || user?.is_superuser;
-  const isRecep = user?.role === 'Recepcionista';
-  const isTech = user?.role === 'Técnico';
+  
+  // Detección de roles más robusta combinando info de sesión y del backend
+  const effectiveRole = data?.role || user?.role;
+  const isSuperAdmin = user?.is_superuser;
+  
+  const isAdmin = isSuperAdmin || effectiveRole === 'Administrador';
+  const isRecep = effectiveRole === 'Recepcionista';
+  const isTech = effectiveRole === 'Técnico';
+  const isAlmacenero = effectiveRole === 'Almacenero';
 
   const { data: recentTickets } = useTickets(
     { ordering: '-created_at', page_size: 5 }
   );
 
-  if (isLoading) return <div className="p-12 text-center">Cargando métricas del sistema...</div>;
+  if (isLoading) return <div className="p-12 text-center font-medium text-[var(--gray-500)]">Cargando métricas del sistema...</div>;
   if (!data) return <div className="p-12 text-center text-[var(--gray-500)]">No hay datos disponibles en este momento</div>;
 
   const today = new Date().toLocaleDateString('es-ES', { 
@@ -129,13 +135,13 @@ const DashboardPage = () => {
   return (
     <div className="p-8 max-w-[1400px] mx-auto">
       <PageHeader 
-        title={`Hola, ${user?.nombre} 👋`}
+        title={`Hola, ${user?.nombre || 'Usuario'} 👋`}
         subtitle={today.charAt(0).toUpperCase() + today.slice(1)}
       />
 
       {/* Grid de Métricas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {(isAdmin) && (
+        {isAdmin && (
           <>
             <StatCard 
               label="Tickets Activos" 
@@ -168,7 +174,7 @@ const DashboardPage = () => {
           </>
         )}
 
-        {isRecep && (
+        {isRecep && !isSuperAdmin && (
           <>
             <StatCard 
               label="Caja de Hoy" 
@@ -200,7 +206,7 @@ const DashboardPage = () => {
           </>
         )}
 
-        {isTech && (
+        {isTech && !isSuperAdmin && (
           <>
             <StatCard 
               label="Mis Tickets Activos" 
@@ -230,6 +236,37 @@ const DashboardPage = () => {
             />
           </>
         )}
+
+        {isAlmacenero && !isSuperAdmin && (
+          <>
+            <StatCard 
+              label="Stock Crítico" 
+              value={data.metrics.low_stock_alerts || 0} 
+              icon={AlertTriangle} 
+              color="red" 
+              link="/inventory"
+            />
+            <StatCard 
+              label="Total Productos" 
+              value={data.metrics.total_products || 0} 
+              icon={Package} 
+              color="blue" 
+              link="/inventory"
+            />
+            <StatCard 
+              label="Valor Inventario" 
+              value={`S/ ${parseFloat(data.metrics.inventory_value || 0).toFixed(2)}`} 
+              icon={DollarSign} 
+              color="green" 
+            />
+            <StatCard 
+              label="Categorías" 
+              value={data.metrics.categories_count || 0} 
+              icon={BarChart3} 
+              color="indigo" 
+            />
+          </>
+        )}
       </div>
 
       {/* Charts Section */}
@@ -243,7 +280,7 @@ const DashboardPage = () => {
               colorClass="bg-[var(--color-brand-blue)]"
             />
           )}
-          {isRecep && (
+          {isRecep && !isSuperAdmin && (
             <SimpleBarChart 
               title="Ingresos por Método de Pago (Hoy)" 
               data={data.charts.revenue_by_method || {}} 
@@ -251,7 +288,7 @@ const DashboardPage = () => {
               colorClass="bg-[var(--color-success)]"
             />
           )}
-          {isTech && (
+          {isTech && !isSuperAdmin && (
             <SimpleBarChart 
               title="Mi Estado de Trabajo Actual" 
               data={data.charts.my_status_distribution || {}} 
@@ -259,10 +296,18 @@ const DashboardPage = () => {
               colorClass="bg-[var(--color-brand-orange)]"
             />
           )}
+          {isAlmacenero && !isSuperAdmin && (
+            <SimpleBarChart 
+              title="Productos con Menor Stock" 
+              data={data.charts.low_stock_products || {}} 
+              icon={Package}
+              colorClass="bg-[var(--color-danger)]"
+            />
+          )}
         </div>
 
         <div className="space-y-6">
-          <div className="bg-[var(--gradient-brand)] rounded-xl p-6 text-white shadow-[var(--shadow-md)] relative overflow-hidden h-full flex flex-col justify-center">
+          <div className="bg-brand-gradient rounded-xl p-6 text-white shadow-[var(--shadow-md)] relative overflow-hidden h-full flex flex-col justify-center">
              <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-[0.1] rounded-bl-full -mr-10 -mt-10"></div>
              <div className="relative z-10">
                <h3 className="text-xl font-bold mb-2">Argos ERP v1.0</h3>

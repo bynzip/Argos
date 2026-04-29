@@ -1,7 +1,7 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useProduct } from '../../hooks/useProducts';
 import { useAuthStore } from '../../store/authStore';
-import { ArrowLeft, Edit, Package, Hash, Tag, Info, AlertTriangle, Boxes, BadgeDollarSign } from 'lucide-react';
+import { ArrowLeft, Edit, Hash, Tag, Info, AlertTriangle, Boxes, BadgeDollarSign } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';

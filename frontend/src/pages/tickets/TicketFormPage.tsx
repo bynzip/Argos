@@ -13,7 +13,7 @@ import { Input } from '../../components/ui/Input';
 import { Label } from '../../components/ui/Label';
 import { Select } from '../../components/ui/Select';
 import { Textarea } from '../../components/ui/Textarea';
-import { cn } from '../../lib/utils';
+// import { cn } from '../../lib/utils';
 
 const accessorySchema = z.object({
   nombre: z.string().min(1, 'Requerido'),

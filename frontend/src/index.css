@@ -99,6 +99,10 @@ body {
   (From section 5 of ARGOS_DESIGN_GUIDE.md)
 */
 
+.bg-brand-gradient {
+  background: var(--gradient-brand);
+}
+
 .btn-primary {
   background: var(--gradient-brand);
   color: #FFFFFF;
@@ -288,3 +292,73 @@ body {
 .badge-priority-medium   { background:#EFF3FF; color:#2347A5; }
 .badge-priority-high     { background:#FFF7ED; color:#C2410C; }
 .badge-priority-critical { background:#FEF2F2; color:#DC2626; font-weight:600; }
+
+
+/* Sección de título dentro de un form-card */
+.form-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-700);
+  padding-bottom: 14px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--gray-200);
+}
+ 
+/* Wrapper de campo de formulario (label + input + error) */
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+ 
+/* Grid de 2 columnas para formularios */
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 20px;
+  margin-top: 8px;
+}
+ 
+@media (min-width: 640px) {
+  .form-grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+ 
+/* Grid de 3 columnas para formularios */
+.form-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 20px;
+  margin-top: 8px;
+}
+ 
+@media (min-width: 640px) {
+  .form-grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+ 
+@media (min-width: 1024px) {
+  .form-grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+ 
+/* Elemento que ocupa todo el ancho del grid */
+.form-grid-full {
+  grid-column: 1 / -1;
+}
+ 
+/* Variante border-right para sidebar */
+.border-right {
+  border-right: 1px solid var(--gray-200);
+}
+ 
+/* Variante border-bottom */
+.border-bottom {
+  border-bottom: 1px solid var(--gray-200);
+}

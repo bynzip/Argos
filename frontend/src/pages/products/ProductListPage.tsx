@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useProducts, Product } from '../../hooks/useProducts';
+import { useProducts, Product, useCategories, useBrands } from '../../hooks/useProducts';
 import { useAuthStore } from '../../store/authStore';
 import { DataTable } from '../../components/ui/DataTable';
 import { Plus, Package, AlertTriangle, Eye, Edit } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
+import { Select } from '../../components/ui/Select';
 
 export default function ProductListPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [brandFilter, setBrandFilter] = useState('');
   const navigate = useNavigate();
   const { user } = useAuthStore();
   
@@ -23,7 +26,13 @@ export default function ProductListPage() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const { data: products = [], isLoading } = useProducts({ search: debouncedSearch });
+  const { data: products = [], isLoading } = useProducts({ 
+    search: debouncedSearch,
+    category: categoryFilter || undefined,
+    brand: brandFilter || undefined
+  });
+  const { data: categories } = useCategories();
+  const { data: brands } = useBrands();
 
   const columns = [
     {
@@ -145,6 +154,34 @@ export default function ProductListPage() {
         isLoading={isLoading}
         onSearch={setSearchTerm}
         searchPlaceholder="Buscar por código, nombre o marca..."
+        filters={
+          <div className="flex gap-3">
+            <div className="w-[160px]">
+              <Select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="h-9 text-[13px]"
+              >
+                <option value="">Todas las Categorías</option>
+                {categories?.map(c => (
+                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                ))}
+              </Select>
+            </div>
+            <div className="w-[160px]">
+              <Select
+                value={brandFilter}
+                onChange={(e) => setBrandFilter(e.target.value)}
+                className="h-9 text-[13px]"
+              >
+                <option value="">Todas las Marcas</option>
+                {brands?.map(b => (
+                  <option key={b.id} value={b.id}>{b.nombre}</option>
+                ))}
+              </Select>
+            </div>
+          </div>
+        }
       />
     </div>
   );

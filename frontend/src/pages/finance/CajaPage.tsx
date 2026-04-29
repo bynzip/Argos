@@ -157,7 +157,7 @@ const CajaPage = () => {
         </Card>
         <Card className="p-5 flex flex-col gap-1 border-l-4 border-l-[var(--gray-800)]">
           <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase">Total Esperado</span>
-          <span className="text-2xl font-black text-[var(--gray-800)]">S/ {(parseFloat(caja.opening_amount) + caja.total_dia).toFixed(2)}</span>
+          <span className="text-2xl font-black text-[var(--gray-800)]">S/ {(parseFloat(caja.opening_amount) + (caja.total_dia || 0)).toFixed(2)}</span>
         </Card>
       </div>
 
@@ -199,6 +199,70 @@ const CajaPage = () => {
                     <p className="text-[var(--gray-400)] text-sm font-medium">No hay cobros registrados en este turno.</p>
                   </div>
                 )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Últimos Cobros */}
+          <Card className="mt-8">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Últimos Cobros del Turno</CardTitle>
+              <History size={16} className="text-[var(--gray-300)]" />
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-[var(--gray-50)] text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wider">
+                    <tr>
+                      <th className="px-6 py-3 text-left">Hora</th>
+                      <th className="px-6 py-3 text-left">Folio</th>
+                      <th className="px-6 py-3 text-left">Método</th>
+                      <th className="px-6 py-3 text-right">Monto</th>
+                      <th className="px-6 py-3 text-center">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--gray-100)]">
+                    {caja.receipts && caja.receipts.length > 0 ? (
+                      caja.receipts.slice().reverse().map((r: any) => (
+                        <tr key={r.id} className="hover:bg-[var(--gray-50)] transition-colors">
+                          <td className="px-6 py-3 text-[var(--gray-500)]">
+                            {new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                          <td className="px-6 py-3 font-bold text-[var(--color-brand-blue)]">
+                            {r.folio}
+                          </td>
+                          <td className="px-6 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className={cn("w-5 h-5 rounded flex items-center justify-center text-white scale-75", getMethodColor(r.metodo_pago))}>
+                                {getMethodIcon(r.metodo_pago)}
+                              </div>
+                              <span className="text-[12px] font-medium">{r.metodo_pago}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-3 text-right font-black text-[var(--gray-800)]">
+                            S/ {parseFloat(r.amount).toFixed(2)}
+                          </td>
+                          <td className="px-6 py-3 text-center">
+                            <span className={cn(
+                              "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold border",
+                              r.estado === 'CONFIRMED' 
+                                ? "bg-[var(--color-success-bg)] text-[var(--color-success)] border-[var(--color-success-border)]" 
+                                : "bg-[var(--color-warning-bg)] text-[var(--color-warning)] border-[var(--color-warning-border)]"
+                            )}>
+                              {r.estado}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-10 text-center text-[var(--gray-400)] italic">
+                          No hay cobros registrados.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </CardContent>
           </Card>

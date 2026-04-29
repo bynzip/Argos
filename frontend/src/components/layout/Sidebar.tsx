@@ -6,8 +6,7 @@ import {
   Settings, 
   Package, 
   Ticket, 
-  DollarSign,
-  Bell
+  DollarSign
 } from 'lucide-react';
 
 type ModuleConfig = {
@@ -52,7 +51,7 @@ export default function Sidebar() {
     <aside className="w-[240px] bg-white border-right border-[var(--gray-200)] flex flex-col h-screen shrink-0 shadow-[2px_0_8px_rgba(0,0,0,0.04)] z-20">
       {/* Logo Section */}
       <div className="h-[64px] px-4 flex items-center gap-3 border-bottom border-[var(--gray-100)]">
-        <div className="w-9 h-9 rounded-lg bg-[var(--gradient-brand)] flex items-center justify-center text-white font-extrabold text-sm shadow-sm">
+        <div className="w-9 h-9 rounded-lg bg-brand-gradient flex items-center justify-center text-white font-black text-[14px] shadow-sm">
           AR
         </div>
         <div className="flex flex-col">
@@ -78,7 +77,7 @@ export default function Sidebar() {
               className={`
                 flex items-center gap-3 h-10 px-3 rounded-lg transition-all duration-150
                 ${isActive 
-                  ? 'bg-[var(--color-info-bg)] text-[var(--color-brand-blue)] font-semibold border-l-4 border-[var(--color-brand-blue)] rounded-l-none' 
+                  ? 'bg-[var(--color-info-bg)] text-[var(--color-brand-blue)] font-semibold border-l-[3px] border-[var(--color-brand-blue)] rounded-l-none' 
                   : 'text-[var(--gray-600)] hover:bg-[var(--gray-100)] hover:text-[var(--gray-800)]'
                 }
               `}
@@ -93,7 +92,7 @@ export default function Sidebar() {
       {/* User Section */}
       <div className="p-4 border-t border-[var(--gray-200)] bg-[var(--gray-50)]">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-[var(--gradient-brand)] flex items-center justify-center text-white text-[11px] font-bold shadow-sm">
+          <div className="w-8 h-8 rounded-full bg-brand-gradient flex items-center justify-center text-white text-[11px] font-bold shadow-sm">
             {user ? getInitials(user.nombre) : '??'}
           </div>
           <div className="flex flex-col min-w-0">
