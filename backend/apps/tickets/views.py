@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from apps.users.permissions import RolePermission
 from django_filters.rest_framework import DjangoFilterBackend
 from django.core.exceptions import ValidationError
+from rest_framework.pagination import PageNumberPagination
 
 from .models import Ticket, TicketAccessory, TicketEvidence
 from .serializers import (
@@ -15,9 +16,15 @@ from .services import create_ticket, transition_ticket, assign_ticket
 from .services.ticket_service import update_ticket_amounts
 from apps.customers.models import Customer, Device
 
+class TicketPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
 class TicketViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RolePermission]
-    
+    pagination_class = TicketPagination
+
     def get_queryset(self):
         user = self.request.user
         if user.is_superuser:

@@ -92,7 +92,7 @@ export default function Sidebar() {
       {/* User Section */}
       <div className="p-4 border-t border-[var(--gray-200)] bg-[var(--gray-50)]">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-brand-gradient flex items-center justify-center text-white text-[11px] font-bold shadow-sm">
+          <div className="w-8 h-8 rounded-full bg-[var(--color-info-bg)] flex items-center justify-center text-[var(--color-brand-blue)] text-[11px] font-bold shadow-sm border border-[var(--color-info-border)]">
             {user ? getInitials(user.nombre) : '??'}
           </div>
           <div className="flex flex-col min-w-0">

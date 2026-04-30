@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from apps.users.permissions import RolePermission
 from django.db.models import Sum
 from django.db.models.functions import Coalesce
+from apps.tickets.views import TicketPagination
 
 from .models import Category, Brand, Warehouse, Product, StockItem
 from .serializers import (
@@ -39,6 +40,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated, RolePermission]
+    pagination_class = TicketPagination
     required_permissions = {
         'list': ['inventory.view_catalog'],
         'retrieve': ['inventory.view_catalog'],

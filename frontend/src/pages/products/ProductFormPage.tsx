@@ -192,7 +192,7 @@ export default function ProductFormPage() {
             className="px-10 h-11"
           >
             <Save size={18} className="mr-2" />
-            {isSubmitting ? 'Guardando...' : '💾 Guardar Producto'}
+            {isSubmitting ? 'Guardando...' : 'Guardar Producto'}
           </Button>
         </div>
       </form>

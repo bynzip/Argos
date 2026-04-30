@@ -1,20 +1,28 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useProducts, Product, useCategories, useBrands } from '../../hooks/useProducts';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useProducts, Product, useCategories, useBrands, PaginatedResponse } from '../../hooks/useProducts';
 import { useAuthStore } from '../../store/authStore';
 import { DataTable } from '../../components/ui/DataTable';
-import { Plus, Package, AlertTriangle, Eye, Edit } from 'lucide-react';
+import { Plus, Package, AlertTriangle, Eye, Edit, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
 
 export default function ProductListPage() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [brandFilter, setBrandFilter] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  
+  const initialSearch = searchParams.get('search') || '';
+  const initialCategory = searchParams.get('category') || '';
+  const initialBrand = searchParams.get('brand') || '';
+  const initialPage = parseInt(searchParams.get('page') || '1');
+
+  const [searchTerm, setSearchTerm] = useState(initialSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
+  const [categoryFilter, setCategoryFilter] = useState(initialCategory);
+  const [brandFilter, setBrandFilter] = useState(initialBrand);
+  const [page, setPage] = useState(initialPage);
   
   const isAdmin = user?.role === 'Administrador' || user?.is_superuser;
   const isAlmacenero = user?.role === 'Almacenero';
@@ -22,17 +30,51 @@ export default function ProductListPage() {
   const canViewCost = isAdmin || isAlmacenero;
   
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      if (searchTerm !== initialSearch) {
+        setPage(1);
+        setSearchParams(prev => {
+          if (searchTerm) prev.set('search', searchTerm);
+          else prev.delete('search');
+          prev.set('page', '1');
+          return prev;
+        });
+      }
+    }, 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const { data: products = [], isLoading } = useProducts({ 
+  const { data, isLoading } = useProducts({ 
     search: debouncedSearch,
     category: categoryFilter || undefined,
-    brand: brandFilter || undefined
+    brand: brandFilter || undefined,
+    page: page
   });
+
   const { data: categories } = useCategories();
   const { data: brands } = useBrands();
+
+  // Determinar si la data es paginada o un array simple
+  const isPaginated = data && typeof data === 'object' && !Array.isArray(data);
+  const products = isPaginated 
+    ? (data as PaginatedResponse<Product>).results || [] 
+    : (Array.isArray(data) ? data : []);
+  
+  const totalCount = isPaginated 
+    ? (data as PaginatedResponse<Product>).count || 0 
+    : products.length;
+    
+  const hasNext = isPaginated ? !!(data as PaginatedResponse<Product>).next : false;
+  const hasPrev = isPaginated ? !!(data as PaginatedResponse<Product>).previous : false;
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    setSearchParams(prev => {
+      prev.set('page', newPage.toString());
+      return prev;
+    });
+  };
 
   const columns = [
     {
@@ -138,7 +180,7 @@ export default function ProductListPage() {
     <div className="p-8 max-w-[1600px] mx-auto">
       <PageHeader 
         title="Catálogo de Productos"
-        subtitle="Gestiona los repuestos, accesorios y suministros del taller."
+        subtitle={`Gestiona los repuestos, accesorios y suministros (${totalCount} en total).`}
         actions={
           <Button variant="primary" onClick={() => navigate('/inventory/new')}>
             <Plus size={18} />
@@ -147,42 +189,122 @@ export default function ProductListPage() {
         }
       />
 
-      <DataTable
-        data={products}
-        columns={columns}
-        keyExtractor={(item) => item.id}
-        isLoading={isLoading}
-        onSearch={setSearchTerm}
-        searchPlaceholder="Buscar por código, nombre o marca..."
-        filters={
-          <div className="flex gap-3">
-            <div className="w-[160px]">
-              <Select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="h-9 text-[13px]"
-              >
-                <option value="">Todas las Categorías</option>
-                {categories?.map(c => (
-                  <option key={c.id} value={c.id}>{c.nombre}</option>
-                ))}
-              </Select>
+      <div className="space-y-4">
+        <DataTable
+          data={products}
+          columns={columns}
+          keyExtractor={(item) => item.id}
+          isLoading={isLoading}
+          onSearch={setSearchTerm}
+          initialSearchValue={initialSearch}
+          searchPlaceholder="Buscar por código, nombre o marca..."
+          filters={
+            <div className="flex gap-3">
+              <div className="w-[160px]">
+                <Select
+                  value={categoryFilter}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setCategoryFilter(val);
+                    setPage(1);
+                    setSearchParams(prev => {
+                      if (val) prev.set('category', val);
+                      else prev.delete('category');
+                      prev.set('page', '1');
+                      return prev;
+                    });
+                  }}
+                  className="h-9 text-[13px]"
+                >
+                  <option value="">Todas las Categorías</option>
+                  {categories?.map(c => (
+                    <option key={c.id} value={c.id}>{c.nombre}</option>
+                  ))}
+                </Select>
+              </div>
+              <div className="w-[160px]">
+                <Select
+                  value={brandFilter}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setBrandFilter(val);
+                    setPage(1);
+                    setSearchParams(prev => {
+                      if (val) prev.set('brand', val);
+                      else prev.delete('brand');
+                      prev.set('page', '1');
+                      return prev;
+                    });
+                  }}
+                  className="h-9 text-[13px]"
+                >
+                  <option value="">Todas las Marcas</option>
+                  {brands?.map(b => (
+                    <option key={b.id} value={b.id}>{b.nombre}</option>
+                  ))}
+                </Select>
+              </div>
             </div>
-            <div className="w-[160px]">
-              <Select
-                value={brandFilter}
-                onChange={(e) => setBrandFilter(e.target.value)}
-                className="h-9 text-[13px]"
+          }
+        />
+
+        {/* Pagination Footer */}
+        {isPaginated && (
+          <div className="flex items-center justify-between px-4 py-3 bg-white border border-[var(--gray-200)] rounded-xl shadow-sm">
+            <div className="flex flex-1 justify-between sm:hidden">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handlePageChange(page - 1)}
+                disabled={!hasPrev || isLoading}
               >
-                <option value="">Todas las Marcas</option>
-                {brands?.map(b => (
-                  <option key={b.id} value={b.id}>{b.nombre}</option>
-                ))}
-              </Select>
+                Anterior
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handlePageChange(page + 1)}
+                disabled={!hasNext || isLoading}
+              >
+                Siguiente
+              </Button>
+            </div>
+            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-[var(--gray-500)]">
+                  Mostrando <span className="font-bold text-[var(--gray-800)]">{products.length}</span> de <span className="font-bold text-[var(--gray-800)]">{totalCount}</span> productos
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handlePageChange(page - 1)}
+                  disabled={!hasPrev || isLoading}
+                  className="h-8 w-8 p-0"
+                >
+                  <ChevronLeft size={18} />
+                </Button>
+                
+                <div className="flex items-center justify-center h-8 min-w-[32px] px-2 rounded-lg bg-[var(--color-info-bg)] text-[var(--color-brand-blue)] text-xs font-bold border border-[var(--color-info-border)]">
+                  Página {page}
+                </div>
+
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handlePageChange(page + 1)}
+                  disabled={!hasNext || isLoading}
+                  className="h-8 w-8 p-0"
+                >
+                  <ChevronRight size={18} />
+                </Button>
+              </div>
             </div>
           </div>
-        }
-      />
+        )}
+      </div>
     </div>
   );
 }
+

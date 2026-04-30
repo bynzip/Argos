@@ -24,13 +24,25 @@ export interface CustomerDetail extends Customer {
   tickets?: any[];
 }
 
+export interface PaginatedResponse<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}
+
 // Búsqueda y listado
-export const useCustomers = (params?: { search?: string; etiqueta?: string; is_active?: boolean }) => {
-  return useQuery<Customer[]>({
+export const useCustomers = (params?: { search?: string; etiqueta?: string; is_active?: boolean; page?: number }) => {
+  return useQuery<PaginatedResponse<Customer> | Customer[]>({
     queryKey: ['customers', params],
     queryFn: async () => {
       const response = await api.get('/api/customers/', { params });
-      return response.data.results ?? response.data;
+      const data = response.data;
+      
+      if (data && typeof data === 'object' && Array.isArray(data.results)) {
+        return data as PaginatedResponse<Customer>;
+      }
+      return (Array.isArray(data) ? data : []) as Customer[];
     },
   });
 };

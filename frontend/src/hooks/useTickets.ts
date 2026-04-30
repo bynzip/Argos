@@ -21,12 +21,27 @@ export interface Ticket {
   transitions?: any[];
 }
 
+export interface PaginatedResponse<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}
+
 export const useTickets = (params?: Record<string, any>) => {
   return useQuery({
     queryKey: ['tickets', params],
     queryFn: async () => {
       const response = await axios.get('/api/tickets/', { params });
-      return response.data.results ?? response.data;
+      const data = response.data;
+      
+      // Si la respuesta es paginada, devolvemos el objeto completo para que el componente maneje la paginación
+      if (data && typeof data === 'object' && Array.isArray(data.results)) {
+        return data as PaginatedResponse<Ticket>;
+      }
+      
+      // Fallback para respuestas tipo lista simple
+      return (Array.isArray(data) ? data : []) as Ticket[];
     }
   });
 };

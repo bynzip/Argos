@@ -43,7 +43,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center p-4 bg-[var(--surface-page)]">
       <div className="form-card w-full max-w-md p-10 sm:p-12 shadow-[var(--shadow-lg)]">
         <div className="text-center">
-          <div className="mx-auto mb-6 grid h-16 w-16 place-items-center rounded-2xl bg-[var(--gradient-brand)] text-white shadow-[0_12px_24px_rgba(35,71,165,0.2)]">
+          <div className="mx-auto mb-6 grid h-16 w-16 place-items-center rounded-2xl bg-brand-gradient text-white shadow-[0_12px_24px_rgba(35,71,165,0.2)]">
             <span className="text-2xl font-black tracking-wider">AR</span>
           </div>
           <h2 className="text-3xl font-bold tracking-tight text-[var(--gray-800)]">

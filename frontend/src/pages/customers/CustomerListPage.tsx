@@ -1,25 +1,68 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useCustomers, Customer } from '../../hooks/useCustomers';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useCustomers, Customer, PaginatedResponse } from '../../hooks/useCustomers';
 import { DataTable } from '../../components/ui/DataTable';
-import { Plus, Eye } from 'lucide-react';
+import { Plus, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
 import { cn } from '../../lib/utils';
 
 export default function CustomerListPage() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [etiquetaFilter, setEtiquetaFilter] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   
+  const initialSearch = searchParams.get('search') || '';
+  const initialEtiqueta = searchParams.get('etiqueta') || '';
+  const initialPage = parseInt(searchParams.get('page') || '1');
+
+  const [searchTerm, setSearchTerm] = useState(initialSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
+  const [etiquetaFilter, setEtiquetaFilter] = useState(initialEtiqueta);
+  const [page, setPage] = useState(initialPage);
+  
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      if (searchTerm !== initialSearch) {
+        setPage(1);
+        setSearchParams(prev => {
+          if (searchTerm) prev.set('search', searchTerm);
+          else prev.delete('search');
+          prev.set('page', '1');
+          return prev;
+        });
+      }
+    }, 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const { data: customers = [], isLoading } = useCustomers({ search: debouncedSearch, etiqueta: etiquetaFilter });
+  const { data, isLoading } = useCustomers({ 
+    search: debouncedSearch, 
+    etiqueta: etiquetaFilter,
+    page: page 
+  });
+
+  // Determinar si la data es paginada o un array simple
+  const isPaginated = data && typeof data === 'object' && !Array.isArray(data);
+  const customers = isPaginated 
+    ? (data as PaginatedResponse<Customer>).results || [] 
+    : (Array.isArray(data) ? data : []);
+  
+  const totalCount = isPaginated 
+    ? (data as PaginatedResponse<Customer>).count || 0 
+    : customers.length;
+    
+  const hasNext = isPaginated ? !!(data as PaginatedResponse<Customer>).next : false;
+  const hasPrev = isPaginated ? !!(data as PaginatedResponse<Customer>).previous : false;
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    setSearchParams(prev => {
+      prev.set('page', newPage.toString());
+      return prev;
+    });
+  };
 
   const getLabelClass = (etiqueta: string) => {
     const classes: Record<string, string> = {
@@ -88,7 +131,7 @@ export default function CustomerListPage() {
     <div className="p-8 max-w-[1600px] mx-auto">
       <PageHeader 
         title="Directorio de Clientes"
-        subtitle="Gestiona los clientes, sus datos de contacto y sus dispositivos."
+        subtitle={`Gestiona los clientes y sus dispositivos (${totalCount} en total).`}
         actions={
           <Button variant="primary" onClick={() => navigate('/customers/new')}>
             <Plus size={18} />
@@ -97,31 +140,101 @@ export default function CustomerListPage() {
         }
       />
 
-      <DataTable
-        data={customers}
-        columns={columns}
-        keyExtractor={(item) => item.id}
-        isLoading={isLoading}
-        onSearch={setSearchTerm}
-        searchPlaceholder="Buscar por DNI, RUC, nombre o teléfono..."
-        filters={
-          <div className="w-[180px]">
-            <Select
-              value={etiquetaFilter}
-              onChange={(e) => setEtiquetaFilter(e.target.value)}
-              className="h-9 text-[13px]"
-            >
-              <option value="">Todas las Etiquetas</option>
-              <option value="NUEVO">Nuevo</option>
-              <option value="REGULAR">Regular</option>
-              <option value="FRECUENTE">Frecuente</option>
-              <option value="VIP">VIP</option>
-              <option value="MOROSO">Moroso</option>
-              <option value="ESPECIAL">Especial</option>
-            </Select>
+      <div className="space-y-4">
+        <DataTable
+          data={customers}
+          columns={columns}
+          keyExtractor={(item) => item.id}
+          isLoading={isLoading}
+          onSearch={setSearchTerm}
+          initialSearchValue={initialSearch}
+          searchPlaceholder="Buscar por DNI, RUC, nombre o teléfono..."
+          filters={
+            <div className="w-[180px]">
+              <Select
+                value={etiquetaFilter}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setEtiquetaFilter(val);
+                  setPage(1);
+                  setSearchParams(prev => {
+                    if (val) prev.set('etiqueta', val);
+                    else prev.delete('etiqueta');
+                    prev.set('page', '1');
+                    return prev;
+                  });
+                }}
+                className="h-9 text-[13px]"
+              >
+                <option value="">Todas las Etiquetas</option>
+                <option value="NUEVO">Nuevo</option>
+                <option value="REGULAR">Regular</option>
+                <option value="FRECUENTE">Frecuente</option>
+                <option value="VIP">VIP</option>
+                <option value="MOROSO">Moroso</option>
+                <option value="ESPECIAL">Especial</option>
+              </Select>
+            </div>
+          }
+        />
+
+        {/* Pagination Footer */}
+        {isPaginated && (
+          <div className="flex items-center justify-between px-4 py-3 bg-white border border-[var(--gray-200)] rounded-xl shadow-sm">
+            <div className="flex flex-1 justify-between sm:hidden">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handlePageChange(page - 1)}
+                disabled={!hasPrev || isLoading}
+              >
+                Anterior
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handlePageChange(page + 1)}
+                disabled={!hasNext || isLoading}
+              >
+                Siguiente
+              </Button>
+            </div>
+            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-[var(--gray-500)]">
+                  Mostrando <span className="font-bold text-[var(--gray-800)]">{customers.length}</span> de <span className="font-bold text-[var(--gray-800)]">{totalCount}</span> clientes
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handlePageChange(page - 1)}
+                  disabled={!hasPrev || isLoading}
+                  className="h-8 w-8 p-0"
+                >
+                  <ChevronLeft size={18} />
+                </Button>
+                
+                <div className="flex items-center justify-center h-8 min-w-[32px] px-2 rounded-lg bg-[var(--color-info-bg)] text-[var(--color-brand-blue)] text-xs font-bold border border-[var(--color-info-border)]">
+                  Página {page}
+                </div>
+
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handlePageChange(page + 1)}
+                  disabled={!hasNext || isLoading}
+                  className="h-8 w-8 p-0"
+                >
+                  <ChevronRight size={18} />
+                </Button>
+              </div>
+            </div>
           </div>
-        }
-      />
+        )}
+      </div>
     </div>
   );
 }
+

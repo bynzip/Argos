@@ -34,7 +34,11 @@ type FormData = z.infer<typeof formSchema>;
 const TicketFormPage = () => {
   const navigate = useNavigate();
   const createMutation = useCreateTicket();
-  const { data: customers } = useCustomers();
+  const { data: customersResponse } = useCustomers();
+  const customers = Array.isArray(customersResponse) 
+    ? customersResponse 
+    : customersResponse?.results || [];
+    
   const [files, setFiles] = useState<File[]>([]);
   
   const { register, control, handleSubmit, watch, formState: { errors } } = useForm<FormData>({

@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from apps.users.permissions import RolePermission
 from django_filters.rest_framework import DjangoFilterBackend
+from apps.tickets.views import TicketPagination
 
 from .models import Customer, Device
 from .serializers import CustomerListSerializer, CustomerDetailSerializer, DeviceSerializer
@@ -15,6 +16,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
     """
     queryset = Customer.objects.all().order_by('-created_at')
     permission_classes = [IsAuthenticated, RolePermission]
+    pagination_class = TicketPagination
     required_permissions = {
         'list': ['customers.view_list'],
         'retrieve': ['customers.view_detail'],

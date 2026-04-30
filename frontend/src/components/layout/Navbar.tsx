@@ -145,7 +145,7 @@ export default function Navbar() {
             onClick={() => setShowUserMenu(!showUserMenu)}
             className="flex items-center gap-3 p-1 rounded-lg hover:bg-[var(--gray-50)] transition-colors group"
           >
-            <div className="w-8 h-8 rounded-full bg-brand-gradient flex items-center justify-center text-white text-[11px] font-bold shadow-sm">
+            <div className="w-8 h-8 rounded-full bg-[var(--color-info-bg)] flex items-center justify-center text-[var(--color-brand-blue)] text-[11px] font-bold shadow-sm border border-[var(--color-info-border)]">
               {user ? getInitials(user.nombre) : '??'}
             </div>
             <div className="hidden md:flex flex-col items-start text-left">

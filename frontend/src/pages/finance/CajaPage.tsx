@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useCajaStatus, useAbrirCaja, useCerrarCaja } from '../../hooks/useFinance';
 import { useCajaStore } from '../../store/cajaStore';
-import { Lock, Unlock, AlertTriangle, DollarSign, CreditCard, Smartphone, Landmark, Info } from 'lucide-react';
+import { Lock, Unlock, AlertTriangle, DollarSign, CreditCard, Smartphone, Landmark, Info, History } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';

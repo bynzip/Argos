@@ -28,12 +28,24 @@ export interface Product {
   created_at: string;
 }
 
+export interface PaginatedResponse<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}
+
 export const useProducts = (params?: any) => {
-  return useQuery<Product[]>({
+  return useQuery<PaginatedResponse<Product> | Product[]>({
     queryKey: ['products', params],
     queryFn: async () => {
       const response = await api.get('/api/products/', { params });
-      return response.data.results ?? response.data;
+      const data = response.data;
+      
+      if (data && typeof data === 'object' && Array.isArray(data.results)) {
+        return data as PaginatedResponse<Product>;
+      }
+      return (Array.isArray(data) ? data : []) as Product[];
     },
   });
 };
