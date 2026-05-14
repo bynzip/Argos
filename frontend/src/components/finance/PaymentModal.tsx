@@ -2,16 +2,20 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { AlertTriangle, CheckCircle2, CreditCard, UploadCloud, X } from 'lucide-react';
+
 import { useRegistrarPago } from '../../hooks/useFinance';
-import { X, UploadCloud, CreditCard, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { cn } from '../../lib/utils';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
 import { Select } from '../ui/Select';
-import { cn } from '../../lib/utils';
 
 const paymentSchema = z.object({
-  amount: z.string().min(1, 'El monto es obligatorio').refine(val => !isNaN(parseFloat(val)) && parseFloat(val) > 0, 'Debe ser un número mayor a 0'),
+  amount: z.string().min(1, 'El monto es obligatorio').refine(
+    (val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0,
+    'Debe ser un número mayor a 0'
+  ),
   metodo_pago: z.enum(['CASH', 'TRANSFER', 'CARD', 'YAPE', 'PLIN']),
   referencia: z.string().optional(),
 });
@@ -28,7 +32,12 @@ export const PaymentModal: React.FC<Props> = ({ ticketId, saldoPendiente, onClos
   const registrarMutation = useRegistrarPago(ticketId);
   const [voucherFile, setVoucherFile] = useState<File | null>(null);
 
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors }
+  } = useForm<FormData>({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
       amount: saldoPendiente.toFixed(2),
@@ -37,7 +46,7 @@ export const PaymentModal: React.FC<Props> = ({ ticketId, saldoPendiente, onClos
   });
 
   const selectedMethod = watch('metodo_pago');
-  const requiresVoucher = ['TRANSFER', 'YAPE', 'PLIN'].includes(selectedMethod);
+  const requiresVoucher = selectedMethod !== 'CASH';
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -47,20 +56,24 @@ export const PaymentModal: React.FC<Props> = ({ ticketId, saldoPendiente, onClos
 
   const onSubmit = (data: FormData) => {
     if (requiresVoucher && !voucherFile) {
-      alert("Es obligatorio adjuntar el voucher para pagos digitales.");
+      alert('Es obligatorio adjuntar el voucher para pagos digitales.');
       return;
     }
 
     if (parseFloat(data.amount) > saldoPendiente) {
-      alert("El monto ingresado es mayor al saldo pendiente.");
+      alert('El monto ingresado es mayor al saldo pendiente.');
       return;
     }
 
     const formData = new FormData();
     formData.append('amount', data.amount);
     formData.append('metodo_pago', data.metodo_pago);
-    if (data.referencia) formData.append('referencia', data.referencia);
-    if (voucherFile) formData.append('voucher_file', voucherFile);
+    if (data.referencia) {
+      formData.append('referencia', data.referencia);
+    }
+    if (voucherFile) {
+      formData.append('voucher_file', voucherFile);
+    }
 
     registrarMutation.mutate(formData, {
       onSuccess: () => {
@@ -72,22 +85,22 @@ export const PaymentModal: React.FC<Props> = ({ ticketId, saldoPendiente, onClos
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,22,35,0.45)] backdrop-blur-sm p-4">
       <div className="bg-white rounded-[16px] shadow-[var(--shadow-modal)] w-full max-w-md overflow-hidden flex flex-col">
-        {/* Header */}
         <div className="flex justify-between items-center px-6 py-4 border-b border-[var(--gray-100)]">
           <h2 className="text-[17px] font-bold text-[var(--gray-800)]">Registrar Cobro</h2>
-          <button 
-            onClick={onClose} 
+          <button
+            onClick={onClose}
             className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--gray-400)] hover:bg-[var(--gray-100)] hover:text-[var(--gray-700)] transition-colors"
           >
-            <X size={20}/>
+            <X size={20} />
           </button>
         </div>
-        
-        {/* Alert Bar */}
+
         <div className="px-6 py-4 bg-[var(--color-warning-bg)] border-b border-[var(--color-warning-border)] flex justify-between items-center">
           <div className="flex items-center gap-2">
             <CreditCard size={16} className="text-[var(--color-warning)]" />
-            <span className="text-[13px] text-[var(--color-warning)] font-bold uppercase tracking-tight">Saldo Pendiente</span>
+            <span className="text-[13px] text-[var(--color-warning)] font-bold uppercase tracking-tight">
+              Saldo Pendiente
+            </span>
           </div>
           <span className="text-xl font-black text-[var(--color-warning)]">S/ {saldoPendiente.toFixed(2)}</span>
         </div>
@@ -108,35 +121,32 @@ export const PaymentModal: React.FC<Props> = ({ ticketId, saldoPendiente, onClos
             <Label required>Monto a Cobrar (S/)</Label>
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--gray-400)] font-bold">S/</span>
-              <Input 
-                {...register('amount')}
-                type="number"
-                step="0.01"
-                className="pl-9 font-bold text-lg"
-              />
+              <Input {...register('amount')} type="number" step="0.01" className="pl-9 font-bold text-lg" />
             </div>
             {errors.amount && <span className="form-error">{errors.amount.message}</span>}
           </div>
 
           {requiresVoucher && (
             <div className="space-y-4 p-5 rounded-2xl bg-[var(--gray-50)] border border-[var(--gray-200)] shadow-inner">
+              <div className="p-3 bg-[var(--color-warning-bg)] border border-[var(--color-warning-border)] rounded-lg text-[12px] text-[var(--color-warning)] font-medium">
+                Este pago digital se registrará como pendiente. No reducirá el saldo del ticket hasta que sea confirmado manualmente.
+              </div>
+
               <div className="space-y-1.5">
                 <Label required>N° de Operación / Referencia</Label>
-                <Input 
-                  {...register('referencia')}
-                  type="text"
-                  placeholder="Ej: 12345678"
-                />
+                <Input {...register('referencia')} type="text" placeholder="Ej: 12345678" />
               </div>
 
               <div className="space-y-1.5">
                 <Label required>Voucher / Comprobante</Label>
-                <label className={cn(
-                  "flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-xl cursor-pointer transition-all",
-                  voucherFile 
-                    ? "bg-[var(--color-success-bg)] border-[var(--color-success-border)]" 
-                    : "bg-white border-[var(--color-info-border)] hover:bg-[var(--color-info-bg)]"
-                )}>
+                <label
+                  className={cn(
+                    'flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-xl cursor-pointer transition-all',
+                    voucherFile
+                      ? 'bg-[var(--color-success-bg)] border-[var(--color-success-border)]'
+                      : 'bg-white border-[var(--color-info-border)] hover:bg-[var(--color-info-bg)]'
+                  )}
+                >
                   <div className="flex flex-col items-center justify-center text-center px-4">
                     {voucherFile ? (
                       <>
@@ -157,7 +167,12 @@ export const PaymentModal: React.FC<Props> = ({ ticketId, saldoPendiente, onClos
                       </>
                     )}
                   </div>
-                  <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleFileChange} />
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*,application/pdf"
+                    onChange={handleFileChange}
+                  />
                 </label>
               </div>
             </div>
@@ -171,19 +186,10 @@ export const PaymentModal: React.FC<Props> = ({ ticketId, saldoPendiente, onClos
           )}
 
           <div className="flex justify-end gap-3 pt-4 border-t border-[var(--gray-100)]">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onClose}
-            >
+            <Button type="button" variant="ghost" onClick={onClose}>
               Cancelar
             </Button>
-            <Button
-              type="submit"
-              disabled={registrarMutation.isPending}
-              variant="primary"
-              className="px-6"
-            >
+            <Button type="submit" disabled={registrarMutation.isPending} variant="primary" className="px-6">
               {registrarMutation.isPending ? 'Procesando...' : 'Confirmar Cobro'}
             </Button>
           </div>

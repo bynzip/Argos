@@ -1,81 +1,89 @@
-import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useTicket, useTicketTransition, useUpdateTicketAmounts } from '../../hooks/useTickets';
-import { useAuthStore } from '../../store/authStore';
-import { TicketStatusBadge } from '../../components/ui/TicketStatusBadge';
-import { PriorityBadge } from '../../components/ui/PriorityBadge';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Camera, ClipboardList, Clock, CreditCard, Edit2, History, Laptop, User as UserIcon } from 'lucide-react';
+
 import { PaymentModal } from '../../components/finance/PaymentModal';
-import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
-import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
-import { ArrowLeft, CreditCard, Clock, User as UserIcon, Laptop, ClipboardList, Camera, History, Edit2 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Label } from '../../components/ui/Label';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { PriorityBadge } from '../../components/ui/PriorityBadge';
+import { TicketStatusBadge } from '../../components/ui/TicketStatusBadge';
+import { useConfirmarPago } from '../../hooks/useFinance';
+import { useTicket, useTicketTransition, useUpdateTicketAmounts } from '../../hooks/useTickets';
+import { cn } from '../../lib/utils';
+import { useAuthStore } from '../../store/authStore';
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  'INTAKE': ['DIAGNOSTIC'],
-  'DIAGNOSTIC': ['QUOTED', 'IN_REPAIR'],
-  'QUOTED': ['APPROVED', 'REJECTED'],
-  'APPROVED': ['WAITING_PARTS', 'IN_REPAIR'],
-  'WAITING_PARTS': ['IN_REPAIR'],
-  'IN_REPAIR': ['IN_TESTING', 'DIAGNOSTIC'],
-  'IN_TESTING': ['READY'],
-  'READY': ['DELIVERED', 'STORAGE'],
-  'STORAGE': ['DELIVERED'],
-  'DELIVERED': ['CLOSED'],
-  'REJECTED': ['DELIVERED'],
+  INTAKE: ['DIAGNOSTIC'],
+  DIAGNOSTIC: ['QUOTED', 'IN_REPAIR'],
+  QUOTED: ['APPROVED', 'REJECTED'],
+  APPROVED: ['WAITING_PARTS', 'IN_REPAIR'],
+  WAITING_PARTS: ['IN_REPAIR'],
+  IN_REPAIR: ['IN_TESTING', 'DIAGNOSTIC'],
+  IN_TESTING: ['READY'],
+  READY: ['DELIVERED', 'STORAGE'],
+  STORAGE: ['DELIVERED'],
+  DELIVERED: ['CLOSED'],
+  REJECTED: ['DELIVERED'],
 };
 
 const statusLabels: Record<string, string> = {
-  'INTAKE': 'Ingreso',
-  'DIAGNOSTIC': 'Diagnóstico',
-  'QUOTED': 'Cotizado',
-  'APPROVED': 'Aprobado',
-  'WAITING_PARTS': 'En espera repuesto',
-  'IN_REPAIR': 'En reparación',
-  'IN_TESTING': 'En pruebas',
-  'READY': 'Listo',
-  'DELIVERED': 'Entregado',
-  'CLOSED': 'Cerrado',
-  'REJECTED': 'Rechazado',
-  'STORAGE': 'Cochera',
+  INTAKE: 'Ingreso',
+  DIAGNOSTIC: 'Diagnóstico',
+  QUOTED: 'Cotizado',
+  APPROVED: 'Aprobado',
+  WAITING_PARTS: 'En espera repuesto',
+  IN_REPAIR: 'En reparación',
+  IN_TESTING: 'En pruebas',
+  READY: 'Listo',
+  DELIVERED: 'Entregado',
+  CLOSED: 'Cerrado',
+  REJECTED: 'Rechazado',
+  STORAGE: 'Cochera',
 };
 
-const TicketDetailPage = () => {
+export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: ticket, isLoading, refetch } = useTicket(id || '');
   const transitionMutation = useTicketTransition();
   const updateAmountsMutation = useUpdateTicketAmounts();
+  const confirmPaymentMutation = useConfirmarPago();
   const { user } = useAuthStore();
+
   const [motivo, setMotivo] = useState('');
   const [showMotivoInput, setShowMotivoInput] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  
-  // States for updating amounts
   const [showAmountsModal, setShowAmountsModal] = useState(false);
   const [montoEstimadoInput, setMontoEstimadoInput] = useState('');
   const [totalInput, setTotalInput] = useState('');
 
-  // Poll for real-time balance updates
   useEffect(() => {
     const interval = setInterval(() => refetch(), 15000);
     return () => clearInterval(interval);
   }, [refetch]);
 
-  if (isLoading) return <div className="p-12 text-center">Cargando ticket...</div>;
-  if (!ticket) return <div className="p-12 text-center">Ticket no encontrado</div>;
+  if (isLoading) {
+    return <div className="p-12 text-center">Cargando ticket...</div>;
+  }
+  if (!ticket) {
+    return <div className="p-12 text-center">Ticket no encontrado</div>;
+  }
 
   const allowedNextStatuses = VALID_TRANSITIONS[ticket.estado] || [];
-  
   const isRecep = user?.role === 'Recepcionista' || user?.is_superuser;
   const isTech = user?.role === 'Técnico' || user?.is_superuser;
   const isAdmin = user?.is_superuser || user?.role === 'Administrador';
-  
+
   const canTransition = (nextStatus: string) => {
-    if (nextStatus === 'DELIVERED' || nextStatus === 'CLOSED') return isRecep;
-    if (nextStatus === 'DIAGNOSTIC' && ticket.estado === 'INTAKE') return isRecep || isTech; 
+    if (nextStatus === 'DELIVERED' || nextStatus === 'CLOSED' || nextStatus === 'STORAGE') {
+      return isRecep;
+    }
+    if (nextStatus === 'DIAGNOSTIC' && ticket.estado === 'INTAKE') {
+      return isRecep || isTech;
+    }
     return isTech;
   };
 
@@ -84,16 +92,20 @@ const TicketDetailPage = () => {
       setShowMotivoInput(newStatus);
       return;
     }
-    
-    transitionMutation.mutate({ id: ticket.id, newStatus, motivo }, {
-      onSuccess: () => {
-        setShowMotivoInput(null);
-        setMotivo('');
-      },
-      onError: (error: any) => {
-        alert(error.response?.data?.detail || "Error al transicionar");
+
+    transitionMutation.mutate(
+      { id: ticket.id, newStatus, motivo },
+      {
+        onSuccess: () => {
+          setShowMotivoInput(null);
+          setMotivo('');
+          refetch();
+        },
+        onError: (error: any) => {
+          alert(error.response?.data?.detail || 'Error al transicionar');
+        }
       }
-    });
+    );
   };
 
   const openAmountsModal = () => {
@@ -103,74 +115,76 @@ const TicketDetailPage = () => {
   };
 
   const handleUpdateAmounts = () => {
-    updateAmountsMutation.mutate({
-      id: ticket.id,
-      monto_estimado: montoEstimadoInput || undefined,
-      total: totalInput || undefined,
-      motivo: 'Actualización manual de montos'
-    }, {
-      onSuccess: () => {
-        setShowAmountsModal(false);
+    updateAmountsMutation.mutate(
+      {
+        id: ticket.id,
+        monto_estimado: montoEstimadoInput || undefined,
+        total: totalInput || undefined,
+        motivo: 'Actualización manual de montos'
+      },
+      {
+        onSuccess: () => {
+          setShowAmountsModal(false);
+          refetch();
+        }
       }
-    });
+    );
   };
 
-  // Derive balance
-  const pagosConfirmados = ticket.receipts ? 
-    ticket.receipts.filter((r: any) => r.estado === 'CONFIRMED').reduce((acc: number, curr: any) => acc + parseFloat(curr.amount), 0) : 0;
-  
+  const pagosConfirmados = ticket.receipts
+    ? ticket.receipts
+        .filter((r: any) => r.estado === 'CONFIRMED')
+        .reduce((acc: number, curr: any) => acc + parseFloat(curr.amount), 0)
+    : 0;
+  const pagosPendientes = ticket.receipts
+    ? ticket.receipts
+        .filter((r: any) => r.estado === 'PENDING')
+        .reduce((acc: number, curr: any) => acc + parseFloat(curr.amount), 0)
+    : 0;
   const total = parseFloat(ticket.total);
   const saldoPendiente = total - pagosConfirmados;
 
   return (
     <div className="p-8 max-w-[1400px] mx-auto">
-      {/* Back Button & Header */}
       <div className="mb-6">
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={() => navigate('/tickets')}
-          className="mb-4 text-[var(--gray-500)]"
-        >
+        <Button variant="ghost" size="sm" onClick={() => navigate('/tickets')} className="mb-4 text-[var(--gray-500)]">
           <ArrowLeft size={16} className="mr-2" />
           Volver a la lista
         </Button>
-        <PageHeader 
+        <PageHeader
           title={ticket.folio}
           subtitle={`Creado el ${new Date(ticket.created_at).toLocaleString()} por ${ticket.created_by?.nombre || '-'}`}
           actions={
             <div className="flex flex-wrap gap-2 items-center">
               <TicketStatusBadge status={ticket.estado} />
               <PriorityBadge priority={ticket.prioridad} />
-              
-              <div className="h-6 w-px bg-[var(--gray-200)] mx-2"></div>
-              
+              <div className="h-6 w-px bg-[var(--gray-200)] mx-2" />
+
               {isRecep && saldoPendiente > 0 && !['DELIVERED', 'CLOSED'].includes(ticket.estado) && (
                 <Button variant="primary" onClick={() => setShowPaymentModal(true)}>
                   <CreditCard size={18} className="mr-2" />
                   Registrar Cobro
                 </Button>
               )}
-              
-              {allowedNextStatuses.map(status => {
-                if (!canTransition(status)) return null;
-                if (status === 'DELIVERED' && saldoPendiente > 0) return null;
-                
+
+              {allowedNextStatuses.map((status) => {
+                if (!canTransition(status)) {
+                  return null;
+                }
+                if (status === 'DELIVERED' && saldoPendiente > 0) {
+                  return null;
+                }
+
                 if (showMotivoInput === status) {
                   return (
                     <div key={status} className="flex gap-2 items-center bg-[var(--gray-50)] p-1 rounded-lg border border-[var(--gray-200)]">
-                      <Input 
-                        value={motivo} 
-                        onChange={e => setMotivo(e.target.value)} 
-                        placeholder="Motivo..."
-                        className="h-8 text-xs w-32"
-                      />
+                      <Input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Motivo..." className="h-8 text-xs w-32" />
                       <Button size="sm" onClick={() => handleTransition(status)}>OK</Button>
                       <Button size="sm" variant="ghost" onClick={() => setShowMotivoInput(null)}>X</Button>
                     </div>
                   );
                 }
-                
+
                 return (
                   <Button
                     key={status}
@@ -189,9 +203,7 @@ const TicketDetailPage = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Main Column */}
         <div className="lg:col-span-8 space-y-8">
-          
           <Card>
             <CardHeader className="flex flex-row items-center gap-2">
               <ClipboardList className="h-5 w-5 text-[var(--gray-400)]" />
@@ -234,11 +246,11 @@ const TicketDetailPage = () => {
               <CardContent className="pt-6">
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                   {ticket.evidences.map((ev: any) => (
-                    <a 
-                      key={ev.id} 
-                      href={ev.archivo} 
-                      target="_blank" 
-                      rel="noreferrer" 
+                    <a
+                      key={ev.id}
+                      href={ev.archivo}
+                      target="_blank"
+                      rel="noreferrer"
                       className="group relative block aspect-square border border-[var(--gray-200)] rounded-xl overflow-hidden hover:border-[var(--color-brand-blue)] transition-all"
                     >
                       <img src={ev.archivo} alt={ev.nombre_archivo} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
@@ -266,21 +278,33 @@ const TicketDetailPage = () => {
                       <th className="px-6 py-3 text-left">Método</th>
                       <th className="px-6 py-3 text-right">Monto</th>
                       <th className="px-6 py-3 text-center">Estado</th>
+                      {isAdmin && <th className="px-6 py-3 text-right">Acción</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--gray-100)]">
-                    {ticket.receipts.map((r: any) => (
-                      <tr key={r.id}>
-                        <td className="px-6 py-3">{new Date(r.created_at).toLocaleDateString()}</td>
-                        <td className="px-6 py-3 font-medium">{r.method_display || r.method}</td>
-                        <td className="px-6 py-3 text-right font-bold text-[var(--gray-800)]">S/ {parseFloat(r.amount).toFixed(2)}</td>
+                    {ticket.receipts.map((receipt: any) => (
+                      <tr key={receipt.id}>
+                        <td className="px-6 py-3">{new Date(receipt.created_at).toLocaleDateString()}</td>
+                        <td className="px-6 py-3 font-medium">{receipt.metodo_pago}</td>
+                        <td className="px-6 py-3 text-right font-bold text-[var(--gray-800)]">S/ {parseFloat(receipt.amount).toFixed(2)}</td>
                         <td className="px-6 py-3 text-center">
-                          <span className={cn(
-                            "inline-block w-2 h-2 rounded-full mr-2",
-                            r.estado === 'CONFIRMED' ? "bg-[var(--color-success)]" : "bg-[var(--color-warning)]"
-                          )} />
-                          <span className="text-[12px] font-medium text-[var(--gray-600)]">{r.estado}</span>
+                          <span className={cn('inline-block w-2 h-2 rounded-full mr-2', receipt.estado === 'CONFIRMED' ? 'bg-[var(--color-success)]' : 'bg-[var(--color-warning)]')} />
+                          <span className="text-[12px] font-medium text-[var(--gray-600)]">{receipt.estado}</span>
                         </td>
+                        {isAdmin && (
+                          <td className="px-6 py-3 text-right">
+                            {receipt.estado === 'PENDING' && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => confirmPaymentMutation.mutate(receipt.id, { onSuccess: () => refetch() })}
+                                disabled={confirmPaymentMutation.isPending}
+                              >
+                                Confirmar
+                              </Button>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -290,13 +314,10 @@ const TicketDetailPage = () => {
           )}
         </div>
 
-        {/* Sidebar Column (Sticky) */}
         <div className="lg:col-span-4 space-y-8 sticky top-24">
-          
-          {/* Balance Card */}
           <div className="bg-white border border-[var(--gray-200)] rounded-2xl p-6 shadow-[var(--shadow-md)] relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--color-brand-blue)] opacity-[0.03] rounded-bl-full -mr-10 -mt-10"></div>
-            
+            <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--color-brand-blue)] opacity-[0.03] rounded-bl-full -mr-10 -mt-10" />
+
             <div className="flex justify-between items-start mb-6">
               <h3 className="text-[13px] font-bold text-[var(--gray-500)] uppercase tracking-wider">Estado de Cuenta</h3>
               {(isAdmin || isTech) && !['DELIVERED', 'CLOSED'].includes(ticket.estado) && (
@@ -315,19 +336,24 @@ const TicketDetailPage = () => {
                 <span className="text-[var(--gray-500)] font-medium">Total Pagado</span>
                 <span className="text-[var(--color-success)] font-bold">S/ {pagosConfirmados.toFixed(2)}</span>
               </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-[var(--gray-500)] font-medium">Pagos Pendientes</span>
+                <span className="text-[var(--color-warning)] font-bold">S/ {pagosPendientes.toFixed(2)}</span>
+              </div>
               <div className="pt-4 border-t border-[var(--gray-100)] flex justify-between items-center">
                 <span className="text-[var(--gray-800)] font-extrabold text-[15px]">Saldo Pendiente</span>
-                <span className={cn(
-                  "text-[24px] font-black",
-                  saldoPendiente > 0 ? "text-[var(--color-danger)]" : "text-[var(--color-success)]"
-                )}>
+                <span className={cn('text-[24px] font-black', saldoPendiente > 0 ? 'text-[var(--color-danger)]' : 'text-[var(--color-success)]')}>
                   S/ {saldoPendiente.toFixed(2)}
                 </span>
               </div>
+              {pagosPendientes > 0 && (
+                <div className="p-3 bg-[var(--color-warning-bg)] border border-[var(--color-warning-border)] rounded-lg text-[12px] text-[var(--color-warning)] font-medium">
+                  Los pagos digitales pendientes ya fueron registrados, pero no descuentan el saldo hasta confirmación.
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Customer & Device Info */}
           <Card>
             <CardHeader className="py-4">
               <CardTitle className="text-[13px] text-[var(--gray-400)] uppercase tracking-wider">Información del Cliente</CardTitle>
@@ -344,7 +370,7 @@ const TicketDetailPage = () => {
                   <span className="text-[12px] text-[var(--gray-400)] font-medium">ID: {ticket.customer?.identificador}</span>
                 </div>
               </div>
-              
+
               <div className="pt-4 border-t border-[var(--gray-100)]">
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-lg bg-[var(--gray-50)] flex items-center justify-center text-[var(--gray-400)] border border-[var(--gray-200)] shrink-0">
@@ -379,7 +405,6 @@ const TicketDetailPage = () => {
             </CardContent>
           </Card>
 
-          {/* Redesigned Timeline */}
           <Card>
             <CardHeader className="py-4 flex flex-row items-center justify-between">
               <CardTitle className="text-[13px] text-[var(--gray-400)] uppercase tracking-wider">Historial / Timeline</CardTitle>
@@ -389,28 +414,23 @@ const TicketDetailPage = () => {
               <div className="space-y-0">
                 {ticket.transitions?.slice().reverse().map((trans: any, index: number) => (
                   <div key={trans.id} className="flex gap-4 relative pb-6 group">
-                    {/* Line */}
                     {index !== ticket.transitions.length - 1 && (
-                      <div className="absolute left-[15px] top-[30px] bottom-0 w-[2px] bg-[var(--gray-100)]"></div>
+                      <div className="absolute left-[15px] top-[30px] bottom-0 w-[2px] bg-[var(--gray-100)]" />
                     )}
-                    
-                    {/* Dot */}
-                    <div className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 border-2",
-                      index === 0 
-                        ? "bg-[var(--color-info-bg)] border-[var(--color-brand-blue)] text-[var(--color-brand-blue)]" 
-                        : "bg-white border-[var(--gray-200)] text-[var(--gray-300)]"
-                    )}>
+                    <div
+                      className={cn(
+                        'w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 border-2',
+                        index === 0
+                          ? 'bg-[var(--color-info-bg)] border-[var(--color-brand-blue)] text-[var(--color-brand-blue)]'
+                          : 'bg-white border-[var(--gray-200)] text-[var(--gray-300)]'
+                      )}
+                    >
                       {index === 0 ? <Clock size={14} /> : <div className="w-1.5 h-1.5 rounded-full bg-current" />}
                     </div>
 
-                    {/* Content */}
                     <div className="flex-1 pt-0.5">
                       <div className="flex justify-between items-start">
-                        <span className={cn(
-                          "text-[13px] font-bold",
-                          index === 0 ? "text-[var(--gray-900)]" : "text-[var(--gray-600)]"
-                        )}>
+                        <span className={cn('text-[13px] font-bold', index === 0 ? 'text-[var(--gray-900)]' : 'text-[var(--gray-600)]')}>
                           {statusLabels[trans.estado_nuevo] || trans.estado_nuevo}
                         </span>
                         <span className="text-[10px] text-[var(--gray-400)] font-medium">
@@ -418,7 +438,7 @@ const TicketDetailPage = () => {
                         </span>
                       </div>
                       <p className="text-[11px] text-[var(--gray-400)] mt-0.5 font-medium">
-                        por {trans.cambiado_por?.nombre || 'Sistema'} — {new Date(trans.created_at).toLocaleDateString()}
+                        por {trans.cambiado_por?.nombre || 'Sistema'} - {new Date(trans.created_at).toLocaleDateString()}
                       </p>
                       {trans.motivo && (
                         <div className="mt-2 p-2 bg-[var(--gray-50)] rounded-lg border border-[var(--gray-100)] text-[11px] text-[var(--gray-600)] italic">
@@ -434,19 +454,17 @@ const TicketDetailPage = () => {
         </div>
       </div>
 
-      {/* Payment Modal */}
       {showPaymentModal && (
-        <PaymentModal 
-          ticketId={ticket.id} 
-          saldoPendiente={saldoPendiente} 
+        <PaymentModal
+          ticketId={ticket.id}
+          saldoPendiente={saldoPendiente}
           onClose={() => {
             setShowPaymentModal(false);
             refetch();
-          }} 
+          }}
         />
       )}
 
-      {/* Update Amounts Modal (Styled) */}
       {showAmountsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,22,35,0.45)] backdrop-blur-sm p-4">
           <Card className="w-full max-w-md shadow-[var(--shadow-modal)]">
@@ -456,29 +474,16 @@ const TicketDetailPage = () => {
             <CardContent className="pt-6 space-y-4">
               <div className="space-y-1.5">
                 <Label>Monto Estimado (Opcional)</Label>
-                <Input 
-                  type="number" step="0.01"
-                  value={montoEstimadoInput} onChange={e => setMontoEstimadoInput(e.target.value)}
-                  placeholder="0.00"
-                />
+                <Input type="number" step="0.01" value={montoEstimadoInput} onChange={(e) => setMontoEstimadoInput(e.target.value)} placeholder="0.00" />
               </div>
               <div className="space-y-1.5">
                 <Label>Total Final (S/)</Label>
-                <Input 
-                  type="number" step="0.01"
-                  value={totalInput} onChange={e => setTotalInput(e.target.value)}
-                  placeholder="0.00"
-                />
+                <Input type="number" step="0.01" value={totalInput} onChange={(e) => setTotalInput(e.target.value)} placeholder="0.00" />
                 <p className="text-[11px] text-[var(--gray-400)] mt-1">Este es el monto total que el cliente debe pagar.</p>
               </div>
               <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-[var(--gray-100)]">
-                <Button variant="secondary" onClick={() => setShowAmountsModal(false)}>
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={handleUpdateAmounts}
-                  disabled={updateAmountsMutation.isPending}
-                >
+                <Button variant="secondary" onClick={() => setShowAmountsModal(false)}>Cancelar</Button>
+                <Button onClick={handleUpdateAmounts} disabled={updateAmountsMutation.isPending}>
                   {updateAmountsMutation.isPending ? 'Guardando...' : 'Actualizar Montos'}
                 </Button>
               </div>
@@ -488,6 +493,4 @@ const TicketDetailPage = () => {
       )}
     </div>
   );
-};
-
-export default TicketDetailPage;
+}

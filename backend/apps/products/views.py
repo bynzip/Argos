@@ -16,19 +16,40 @@ class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.filter(activo=True)
     serializer_class = CategorySerializer
     permission_classes = [IsAuthenticated, RolePermission]
-    required_permissions = {'list': ['inventory.view_catalog']}
+    required_permissions = {
+        'list': ['inventory.view_catalog'],
+        'retrieve': ['inventory.view_catalog'],
+        'create': ['inventory.create_product'],
+        'update': ['inventory.edit_product'],
+        'partial_update': ['inventory.edit_product'],
+        'destroy': ['inventory.deactivate_product'],
+    }
 
 class BrandViewSet(viewsets.ModelViewSet):
     queryset = Brand.objects.filter(activo=True)
     serializer_class = BrandSerializer
     permission_classes = [IsAuthenticated, RolePermission]
-    required_permissions = {'list': ['inventory.view_catalog']}
+    required_permissions = {
+        'list': ['inventory.view_catalog'],
+        'retrieve': ['inventory.view_catalog'],
+        'create': ['inventory.create_product'],
+        'update': ['inventory.edit_product'],
+        'partial_update': ['inventory.edit_product'],
+        'destroy': ['inventory.deactivate_product'],
+    }
 
 class WarehouseViewSet(viewsets.ModelViewSet):
     queryset = Warehouse.objects.all()
     serializer_class = WarehouseSerializer
     permission_classes = [IsAuthenticated, RolePermission]
-    required_permissions = {'list': ['inventory.view_catalog']}
+    required_permissions = {
+        'list': ['inventory.view_catalog'],
+        'retrieve': ['inventory.view_catalog'],
+        'create': ['inventory.manage_movements'],
+        'update': ['inventory.manage_movements'],
+        'partial_update': ['inventory.manage_movements'],
+        'destroy': ['inventory.manage_movements'],
+    }
 
 class ProductViewSet(viewsets.ModelViewSet):
     """
@@ -58,5 +79,13 @@ class ProductViewSet(viewsets.ModelViewSet):
 class StockItemViewSet(viewsets.ModelViewSet):
     queryset = StockItem.objects.all()
     serializer_class = StockItemSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RolePermission]
+    required_permissions = {
+        'list': ['inventory.view_stock'],
+        'retrieve': ['inventory.view_stock'],
+        'create': ['inventory.manage_movements'],
+        'update': ['inventory.manage_movements'],
+        'partial_update': ['inventory.manage_movements'],
+        'destroy': ['inventory.manage_movements'],
+    }
     filterset_fields = ['product', 'warehouse']

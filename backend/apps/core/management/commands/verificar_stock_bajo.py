@@ -27,7 +27,7 @@ class Command(BaseCommand):
         # Obtenemos los usuarios que deben recibir la notificación (Almaceneros y Administradores)
         # En base a los roles configurados.
         receivers = User.objects.filter(
-            role_users__role__nombre__in=['Almacenero', 'Administrador'],
+            user_roles__role__nombre__in=['Almacenero', 'Administrador'],
             is_active=True
         ).distinct()
 

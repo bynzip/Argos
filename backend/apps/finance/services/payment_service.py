@@ -4,6 +4,7 @@ from apps.core.utils import generate_folio
 from apps.finance.models import Receipt, PaymentVoucher
 from .cash_service import get_open_cash_closure
 import hashlib
+from django.utils import timezone
 
 def calculate_file_hash(file_obj):
     sha256_hash = hashlib.sha256()
@@ -60,4 +61,17 @@ def register_payment(user, ticket, amount, metodo_pago, referencia=None, voucher
                 subido_por=user
             )
 
+        return receipt
+
+
+def confirm_payment(user, receipt):
+    with transaction.atomic():
+        if receipt.estado != Receipt.ReceiptStatus.PENDING:
+            raise ValidationError("Solo se pueden confirmar pagos pendientes.")
+
+        receipt.estado = Receipt.ReceiptStatus.CONFIRMED
+        receipt.confirmado_por = user
+        receipt.confirmado_el = timezone.now()
+        receipt.conciliado_banco = True
+        receipt.save(update_fields=['estado', 'confirmado_por', 'confirmado_el', 'conciliado_banco', 'updated_at'])
         return receipt

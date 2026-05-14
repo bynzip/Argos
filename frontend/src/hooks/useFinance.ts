@@ -13,7 +13,9 @@ export interface CashClosure {
   closed_at: string | null;
   closing_notes: string | null;
   total_dia?: number;
+  pending_total?: number;
   ingresos_por_metodo?: { metodo_pago: string, total: number }[];
+  pendientes_por_metodo?: { metodo_pago: string, total: number }[];
   receipts?: any[];
 }
 
@@ -74,6 +76,20 @@ export const useRegistrarPago = (ticketId: string) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tickets', ticketId] });
+      queryClient.invalidateQueries({ queryKey: ['caja'] });
+    },
+  });
+};
+
+export const useConfirmarPago = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (receiptId: number) => {
+      const response = await axios.post(`/api/finance/pagos/${receiptId}/confirm/`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
       queryClient.invalidateQueries({ queryKey: ['caja'] });
     },
   });

@@ -136,6 +136,27 @@ class User(AbstractBaseUser):
         if self.is_superuser:
             return set() # Django admin usa has_perm directamente para superusuarios
         return set()
+
+    def get_permission_codes(self):
+        if self.is_superuser:
+            return {"all"}
+
+        perms = set()
+        for user_role in self.user_roles.select_related('role').prefetch_related('role__role_permissions__permission'):
+            for role_perm in user_role.role.role_permissions.all():
+                perms.add(role_perm.permission.code)
+
+        for user_perm in self.user_permissions.select_related('permission'):
+            if user_perm.is_denied:
+                perms.discard(user_perm.permission.code)
+            else:
+                perms.add(user_perm.permission.code)
+
+        return perms
+
+    def has_permission_code(self, permission_code):
+        user_permissions = self.get_permission_codes()
+        return "all" in user_permissions or permission_code in user_permissions
         
     @property
     def is_staff(self):

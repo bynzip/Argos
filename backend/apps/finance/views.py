@@ -1,15 +1,23 @@
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from apps.users.permissions import RolePermission
-from django.core.exceptions import ValidationError
 from decimal import Decimal
 
-from .models import CashClosure, Receipt
-from .serializers import CashClosureSerializer, ReceiptSerializer
-from .services import open_cash_closure, close_cash_closure, register_payment, get_open_cash_closure
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
 from apps.tickets.models import Ticket
+from apps.users.permissions import RolePermission
+
+from .models import Receipt
+from .serializers import CashClosureSerializer, ReceiptSerializer
+from .services import (
+    close_cash_closure,
+    confirm_payment,
+    get_open_cash_closure,
+    open_cash_closure,
+    register_payment,
+)
+
 
 class CashClosureViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, RolePermission]
@@ -21,19 +29,25 @@ class CashClosureViewSet(viewsets.ViewSet):
 
     def list(self, request):
         closure = get_open_cash_closure(request.user)
-        if closure:
-            serializer = CashClosureSerializer(closure)
-            
-            # Additional summary
-            from django.db.models import Sum
-            ingresos_por_metodo = closure.receipts.filter(estado__in=['CONFIRMED', 'PENDING']).values('metodo_pago').annotate(total=Sum('amount'))
-            
-            data = serializer.data
-            data['ingresos_por_metodo'] = ingresos_por_metodo
-            data['total_dia'] = closure.receipts.filter(estado__in=['CONFIRMED', 'PENDING']).aggregate(t=Sum('amount'))['t'] or 0
-            
-            return Response(data)
-        return Response({'detail': 'No hay caja abierta'}, status=status.HTTP_404_NOT_FOUND)
+        if not closure:
+            return Response({'detail': 'No hay caja abierta'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = CashClosureSerializer(closure)
+        from django.db.models import Sum
+
+        confirmed_receipts = closure.receipts.filter(estado='CONFIRMED')
+        pending_receipts = closure.receipts.filter(estado='PENDING')
+
+        data = serializer.data
+        data['ingresos_por_metodo'] = list(
+            confirmed_receipts.values('metodo_pago').annotate(total=Sum('amount'))
+        )
+        data['pendientes_por_metodo'] = list(
+            pending_receipts.values('metodo_pago').annotate(total=Sum('amount'))
+        )
+        data['total_dia'] = confirmed_receipts.aggregate(t=Sum('amount'))['t'] or 0
+        data['pending_total'] = pending_receipts.aggregate(t=Sum('amount'))['t'] or 0
+        return Response(data)
 
     @action(detail=False, methods=['post'])
     def open(self, request):
@@ -54,12 +68,12 @@ class PaymentViewSet(viewsets.ViewSet):
     required_permissions = {
         'list': ['finance.view_receipts'],
         'create': ['finance.register_payment'],
+        'confirm': ['finance.confirm_payment'],
     }
 
     def list(self, request, ticket_id=None):
         receipts = Receipt.objects.filter(ticket_id=ticket_id).order_by('-created_at')
-        serializer = ReceiptSerializer(receipts, many=True)
-        return Response(serializer.data)
+        return Response(ReceiptSerializer(receipts, many=True).data)
 
     def create(self, request, ticket_id=None):
         try:
@@ -89,3 +103,13 @@ class PaymentViewSet(viewsets.ViewSet):
             voucher_file=voucher_file
         )
         return Response(ReceiptSerializer(receipt).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def confirm(self, request, pk=None, ticket_id=None):
+        try:
+            receipt = Receipt.objects.get(pk=pk)
+        except Receipt.DoesNotExist:
+            return Response({'detail': 'Recibo no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+
+        receipt = confirm_payment(request.user, receipt)
+        return Response(ReceiptSerializer(receipt).data)

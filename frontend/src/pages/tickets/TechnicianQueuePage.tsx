@@ -13,13 +13,14 @@ const TechnicianQueuePage = () => {
   const { user } = useAuthStore();
   const { data: tickets, isLoading } = useTickets({ assigned_to: user?.id, ordering: '-prioridad,created_at' });
   const transitionMutation = useTicketTransition();
+  const ticketList = Array.isArray(tickets) ? tickets : tickets?.results ?? [];
 
   if (isLoading) return <div className="p-12 text-center text-[var(--gray-500)]">Cargando cola de trabajo...</div>;
 
   // Filter only active technical tickets
-  const activeTickets = tickets?.filter((t: Ticket) => 
+  const activeTickets = ticketList.filter((t: Ticket) => 
     !['DELIVERED', 'CLOSED', 'STORAGE', 'REJECTED', 'INTAKE'].includes(t.estado)
-  ) || [];
+  );
 
   const handleQuickTransition = (id: string, currentStatus: string) => {
     let newStatus = '';

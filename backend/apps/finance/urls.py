@@ -12,4 +12,7 @@ urlpatterns = [
         'get': 'list',
         'post': 'create'
     }), name='ticket-pagos'),
+    path('pagos/<int:pk>/confirm/', PaymentViewSet.as_view({
+        'post': 'confirm'
+    }), name='confirmar-pago'),
 ]
