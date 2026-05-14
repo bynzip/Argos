@@ -1,7 +1,11 @@
+from decimal import Decimal
+
 from django.db import transaction
 
 from apps.core.models import FolioCounter
-from apps.products.models import Product, StockItem, Warehouse
+from apps.products.models import Product
+
+from .inventory_service import create_initial_stock
 
 
 def create_product(data, initial_stock=0):
@@ -22,15 +26,7 @@ def create_product(data, initial_stock=0):
             activo=data.get('activo', True)
         )
 
-        if initial_stock > 0:
-            warehouse, _ = Warehouse.objects.get_or_create(
-                nombre="Almacén Principal",
-                defaults={"ubicacion": "Sede Central"}
-            )
-            StockItem.objects.create(
-                product=product,
-                warehouse=warehouse,
-                cantidad=initial_stock
-            )
+        if Decimal(str(initial_stock or 0)) > 0:
+            create_initial_stock(product, initial_stock)
 
         return product

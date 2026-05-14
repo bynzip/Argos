@@ -59,7 +59,8 @@ class DashboardViewSet(viewsets.ViewSet):
         from apps.products.models import Product
         from apps.tickets.models import Ticket, TicketTransition
         from apps.finance.models import Receipt, CashClosure
-        from django.db.models import F, Sum, Count, DecimalField
+        from django.db.models import F, Sum, Count, DecimalField, Value, ExpressionWrapper
+        from django.db.models.functions import Coalesce
         
         user_role = request.user.user_roles.select_related('role').first()
         role = user_role.role.nombre if user_role else 'Desconocido'
@@ -73,6 +74,15 @@ class DashboardViewSet(viewsets.ViewSet):
         }
 
         today = timezone.now().date()
+        products_with_stock = Product.objects.annotate(
+            stock_fisico=Coalesce(Sum('stocks__cantidad'), Value(0), output_field=DecimalField(max_digits=12, decimal_places=3)),
+            stock_reservado=Coalesce(Sum('stocks__reservado'), Value(0), output_field=DecimalField(max_digits=12, decimal_places=3)),
+            stock_disponible=ExpressionWrapper(
+                F('stock_fisico') - F('stock_reservado'),
+                output_field=DecimalField(max_digits=12, decimal_places=3),
+            ),
+        )
+        low_stock_products_qs = products_with_stock.filter(stock_disponible__lte=F('stock_minimo')).distinct()
         
         # Common metrics
         active_tickets_qs = Ticket.objects.exclude(estado__in=['DELIVERED', 'CLOSED', 'REJECTED'])
@@ -86,7 +96,7 @@ class DashboardViewSet(viewsets.ViewSet):
                     created_at__date=today, 
                     estado='CONFIRMED'
                 ).aggregate(total=Sum('amount'))['total'] or 0,
-                "low_stock_alerts": Product.objects.filter(stocks__cantidad__lte=F('stock_minimo')).distinct().count(),
+                "low_stock_alerts": low_stock_products_qs.count(),
             }
             
             # Chart: Tickets by Status
@@ -132,19 +142,15 @@ class DashboardViewSet(viewsets.ViewSet):
 
         elif role == 'Almacenero':
             data['metrics'] = {
-                "low_stock_alerts": Product.objects.filter(stocks__cantidad__lte=F('stock_minimo')).distinct().count(),
+                "low_stock_alerts": low_stock_products_qs.count(),
                 "total_products": Product.objects.count(),
-                "inventory_value": Product.objects.annotate(
-                    stock_sum=Sum('stocks__cantidad')
-                ).aggregate(
-                    total=Sum(F('stock_sum') * F('precio_venta'), output_field=DecimalField())
+                "inventory_value": products_with_stock.aggregate(
+                    total=Sum(F('stock_fisico') * F('precio_venta'), output_field=DecimalField())
                 )['total'] or 0,
             }
             
             # Chart: Products with lowest stock (top 5)
-            low_stock_products = Product.objects.annotate(
-                total_stock=Sum('stocks__cantidad')
-            ).order_by('total_stock')[:5]
-            data['charts']['low_stock_products'] = {p.nombre: float(p.total_stock or 0) for p in low_stock_products}
+            low_stock_products = products_with_stock.order_by('stock_disponible')[:5]
+            data['charts']['low_stock_products'] = {p.nombre: float(p.stock_disponible or 0) for p in low_stock_products}
 
         return Response(data)

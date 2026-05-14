@@ -32,7 +32,7 @@ export interface PaginatedResponse<T> {
 }
 
 // Búsqueda y listado
-export const useCustomers = (params?: { search?: string; etiqueta?: string; is_active?: boolean; page?: number }) => {
+export const useCustomers = (params?: { search?: string; etiqueta?: string; is_active?: boolean; page?: number; page_size?: number }) => {
   return useQuery<PaginatedResponse<Customer> | Customer[]>({
     queryKey: ['customers', params],
     queryFn: async () => {

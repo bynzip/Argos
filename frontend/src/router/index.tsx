@@ -12,12 +12,18 @@ import ProductListPage from '../pages/products/ProductListPage';
 import ProductFormPage from '../pages/products/ProductFormPage';
 import ProductEditPage from '../pages/products/ProductEditPage';
 import ProductDetailPage from '../pages/products/ProductDetailPage';
+import InventoryReservationsPage from '../pages/products/InventoryReservationsPage';
+import InventoryMovementsPage from '../pages/products/InventoryMovementsPage';
+import WarehousesPage from '../pages/products/WarehousesPage';
 import TicketListPage from '../pages/tickets/TicketListPage';
 import TicketFormPage from '../pages/tickets/TicketFormPage';
 import TicketDetailPage from '../pages/tickets/TicketDetailPage';
 import TechnicianQueuePage from '../pages/tickets/TechnicianQueuePage';
 import CajaPage from '../pages/finance/CajaPage';
 import DashboardPage from '../pages/dashboard/DashboardPage';
+import QuoteListPage from '../pages/quotes/QuoteListPage';
+import QuoteEditorPage from '../pages/quotes/QuoteEditorPage';
+import ServiceCatalogPage from '../pages/quotes/ServiceCatalogPage';
 
 // Componente para proteger rutas
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
@@ -80,6 +86,9 @@ export const router = createBrowserRouter([
         children: [
           { path: '', element: <ProductListPage /> },
           { path: 'new', element: <ProductFormPage /> },
+          { path: 'warehouses', element: <WarehousesPage /> },
+          { path: 'reservations', element: <InventoryReservationsPage /> },
+          { path: 'movements', element: <InventoryMovementsPage /> },
           { path: 'edit/:id', element: <ProductEditPage /> },
           { path: ':id', element: <ProductDetailPage /> },
         ]
@@ -91,6 +100,15 @@ export const router = createBrowserRouter([
           { path: 'new', element: <TicketFormPage /> },
           { path: 'queue', element: <TechnicianQueuePage /> },
           { path: ':id', element: <TicketDetailPage /> },
+        ]
+      },
+      {
+        path: 'quotes',
+        children: [
+          { path: '', element: <QuoteListPage /> },
+          { path: 'new', element: <QuoteEditorPage /> },
+          { path: 'services', element: <ServiceCatalogPage /> },
+          { path: ':id', element: <QuoteEditorPage /> },
         ]
       },
       {

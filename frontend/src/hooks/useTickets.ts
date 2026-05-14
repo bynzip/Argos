@@ -19,6 +19,29 @@ export interface Ticket {
   accessories?: any[];
   evidences?: any[];
   transitions?: any[];
+  active_quote?: {
+    id: number;
+    folio: string;
+    version: number;
+    estado: string;
+    total: string;
+    is_active_version: boolean;
+  } | null;
+  stock_reservations?: Array<{
+    id: number;
+    cantidad: string;
+    estado: string;
+    notas?: string;
+    stock_item: {
+      id: number;
+      product_name: string;
+      product_code: string;
+      warehouse_name: string;
+      cantidad: string;
+      reservado: string;
+      disponible: string;
+    };
+  }>;
 }
 
 export interface PaginatedResponse<T> {

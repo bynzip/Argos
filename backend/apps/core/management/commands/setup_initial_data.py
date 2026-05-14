@@ -57,6 +57,11 @@ class Command(BaseCommand):
             ("quotes.reject", "Marcar cotización como rechazada", "quotes"),
             ("quotes.convert_to_ticket", "Convertir cotización aprobada en ticket", "quotes"),
             ("quotes.approve_multinivel", "Aprobar cotizaciones de alto monto", "quotes"),
+            # Services
+            ("services.view_list", "Ver lista de servicios", "services"),
+            ("services.view_detail", "Ver detalle de servicio", "services"),
+            ("services.create", "Crear servicio", "services"),
+            ("services.edit", "Editar servicio", "services"),
             # Inventory
             ("inventory.view_catalog", "Ver catálogo de productos", "inventory"),
             ("inventory.create_product", "Crear producto en el catálogo", "inventory"),
@@ -122,6 +127,7 @@ class Command(BaseCommand):
                 "devices.view_list", "devices.create", "devices.edit",
                 "tickets.view_list", "tickets.view_detail", "tickets.create", "tickets.upload_evidence", "tickets.transition_reception",
                 "quotes.view_list", "quotes.view_detail", "quotes.create", "quotes.send", "quotes.approve", "quotes.reject", "quotes.convert_to_ticket",
+                "services.view_list", "services.view_detail",
                 "inventory.view_catalog", "inventory.view_stock",
                 "finance.view_cash", "finance.open_close_cash", "finance.register_payment", "finance.request_discount", "finance.view_receipts",
                 "hr.mark_attendance", "hr.view_own_attendance"
@@ -131,12 +137,14 @@ class Command(BaseCommand):
                 "devices.view_list",
                 "tickets.view_own", "tickets.view_detail", "tickets.upload_evidence", "tickets.transition_technical", "tickets.reserve_parts",
                 "quotes.view_draft",
+                "services.view_list", "services.view_detail",
                 "inventory.view_catalog", "inventory.view_stock", "inventory.reserve_stock",
                 "hr.mark_attendance", "hr.view_own_attendance"
             ],
             "Almacenero": [
                 "tickets.view_readonly",
                 "quotes.view_list",
+                "services.view_list",
                 "inventory.view_catalog", "inventory.view_cost", "inventory.view_stock", "inventory.manage_movements", "inventory.adjust_stock", "inventory.transfer_stock", "inventory.create_product", "inventory.edit_product",
                 "suppliers.view", "suppliers.create", "suppliers.edit", "suppliers.manage_orders",
                 "reports.view_inventory",

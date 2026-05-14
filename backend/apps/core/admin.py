@@ -12,7 +12,10 @@ class BaseAdmin(ImportExportModelAdmin):
 
 @admin.register(CompanyProfile)
 class CompanyProfileAdmin(BaseAdmin):
-    list_display = ('business_name', 'ruc', 'phone', 'email')
+    list_display = (
+        'business_name', 'ruc', 'phone', 'email',
+        'quote_default_validity_days', 'quote_default_igv', 'quote_approval_threshold_amount'
+    )
     readonly_fields = ('created_at', 'updated_at')
 
     def has_add_permission(self, request):

@@ -120,10 +120,24 @@ def create_ticket(customer, user, descripcion_problema, device=None, prioridad=T
 
 def transition_ticket(ticket, new_status, user, motivo=None):
     with transaction.atomic():
+        try:
+            from apps.products.services import ticket_has_active_reservations
+        except ImportError:
+            ticket_has_active_reservations = None
+
         current_status = ticket.estado
 
         if current_status == new_status:
             return ticket
+
+        if new_status in {
+            Ticket.TicketStatus.QUOTED,
+            Ticket.TicketStatus.APPROVED,
+            Ticket.TicketStatus.REJECTED,
+        }:
+            raise ValidationError(
+                "Los estados de cotización se gestionan desde el módulo de cotizaciones."
+            )
 
         allowed_statuses = VALID_TRANSITIONS.get(current_status, [])
         if new_status not in allowed_statuses:
@@ -137,6 +151,15 @@ def transition_ticket(ticket, new_status, user, motivo=None):
         if new_status == Ticket.TicketStatus.DELIVERED and ticket.saldo_pendiente > 0:
             raise ValidationError(
                 f"No se puede entregar el equipo. Hay un saldo pendiente de S/ {ticket.saldo_pendiente}."
+            )
+
+        if (
+            new_status in {Ticket.TicketStatus.DELIVERED, Ticket.TicketStatus.CLOSED}
+            and ticket_has_active_reservations
+            and ticket_has_active_reservations(ticket)
+        ):
+            raise ValidationError(
+                "Este ticket todavía tiene reservas activas. Debes consumirlas o liberarlas antes de cerrarlo."
             )
 
         ticket.estado = new_status
@@ -155,6 +178,16 @@ def transition_ticket(ticket, new_status, user, motivo=None):
 
 def update_ticket_amounts(ticket, user, monto_estimado=None, total=None, motivo="Actualización de montos"):
     with transaction.atomic():
+        try:
+            from apps.quotes.services import get_active_ticket_quote
+        except ImportError:
+            get_active_ticket_quote = None
+
+        if get_active_ticket_quote and get_active_ticket_quote(ticket):
+            raise ValidationError(
+                "Este ticket tiene una cotización activa. Los montos deben actualizarse desde la cotización."
+            )
+
         update_fields = ['updated_at']
         if monto_estimado is not None:
             ticket.monto_estimado = monto_estimado

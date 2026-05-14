@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Camera, ClipboardList, Clock, CreditCard, Edit2, History, Laptop, User as UserIcon } from 'lucide-react';
+import { ArrowLeft, Boxes, Camera, ClipboardList, Clock, CreditCard, Edit2, FileText, History, Laptop, User as UserIcon } from 'lucide-react';
 
 import { PaymentModal } from '../../components/finance/PaymentModal';
+import { ReservationModal } from '../../components/inventory/ReservationModal';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
@@ -11,6 +12,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { PriorityBadge } from '../../components/ui/PriorityBadge';
 import { TicketStatusBadge } from '../../components/ui/TicketStatusBadge';
 import { useConfirmarPago } from '../../hooks/useFinance';
+import { useConsumeReservation, useReleaseReservation } from '../../hooks/useInventory';
 import { useTicket, useTicketTransition, useUpdateTicketAmounts } from '../../hooks/useTickets';
 import { cn } from '../../lib/utils';
 import { useAuthStore } from '../../store/authStore';
@@ -51,12 +53,15 @@ export default function TicketDetailPage() {
   const transitionMutation = useTicketTransition();
   const updateAmountsMutation = useUpdateTicketAmounts();
   const confirmPaymentMutation = useConfirmarPago();
+  const releaseReservationMutation = useReleaseReservation();
+  const consumeReservationMutation = useConsumeReservation();
   const { user } = useAuthStore();
 
   const [motivo, setMotivo] = useState('');
   const [showMotivoInput, setShowMotivoInput] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showAmountsModal, setShowAmountsModal] = useState(false);
+  const [showReservationModal, setShowReservationModal] = useState(false);
   const [montoEstimadoInput, setMontoEstimadoInput] = useState('');
   const [totalInput, setTotalInput] = useState('');
 
@@ -72,10 +77,15 @@ export default function TicketDetailPage() {
     return <div className="p-12 text-center">Ticket no encontrado</div>;
   }
 
-  const allowedNextStatuses = VALID_TRANSITIONS[ticket.estado] || [];
+  const allowedNextStatuses = (VALID_TRANSITIONS[ticket.estado] || []).filter(
+    (status) => !['QUOTED', 'APPROVED', 'REJECTED'].includes(status)
+  );
   const isRecep = user?.role === 'Recepcionista' || user?.is_superuser;
   const isTech = user?.role === 'Técnico' || user?.is_superuser;
   const isAdmin = user?.is_superuser || user?.role === 'Administrador';
+  const isAlmacenero = user?.role === 'Almacenero';
+  const canManageReservations = isAdmin || isAlmacenero || isTech;
+  const canReserveInTicket = ['APPROVED', 'WAITING_PARTS', 'IN_REPAIR'].includes(ticket.estado);
 
   const canTransition = (nextStatus: string) => {
     if (nextStatus === 'DELIVERED' || nextStatus === 'CLOSED' || nextStatus === 'STORAGE') {
@@ -154,7 +164,7 @@ export default function TicketDetailPage() {
         <PageHeader
           title={ticket.folio}
           subtitle={`Creado el ${new Date(ticket.created_at).toLocaleString()} por ${ticket.created_by?.nombre || '-'}`}
-          actions={
+          actions={(
             <div className="flex flex-wrap gap-2 items-center">
               <TicketStatusBadge status={ticket.estado} />
               <PriorityBadge priority={ticket.prioridad} />
@@ -166,6 +176,25 @@ export default function TicketDetailPage() {
                   Registrar Cobro
                 </Button>
               )}
+
+              {canManageReservations && canReserveInTicket && (
+                <Button variant="secondary" onClick={() => setShowReservationModal(true)}>
+                  <Boxes size={16} className="mr-2" />
+                  Reservar Repuestos
+                </Button>
+              )}
+
+              {ticket.active_quote ? (
+                <Button variant="secondary" onClick={() => navigate(`/quotes/${ticket.active_quote?.id}`)}>
+                  <FileText size={16} className="mr-2" />
+                  Ver Cotización
+                </Button>
+              ) : ticket.estado === 'DIAGNOSTIC' ? (
+                <Button variant="secondary" onClick={() => navigate(`/quotes/new?ticketId=${ticket.id}`)}>
+                  <FileText size={16} className="mr-2" />
+                  Crear Cotización
+                </Button>
+              ) : null}
 
               {allowedNextStatuses.map((status) => {
                 if (!canTransition(status)) {
@@ -198,7 +227,7 @@ export default function TicketDetailPage() {
                 );
               })}
             </div>
-          }
+          )}
         />
       </div>
 
@@ -320,7 +349,7 @@ export default function TicketDetailPage() {
 
             <div className="flex justify-between items-start mb-6">
               <h3 className="text-[13px] font-bold text-[var(--gray-500)] uppercase tracking-wider">Estado de Cuenta</h3>
-              {(isAdmin || isTech) && !['DELIVERED', 'CLOSED'].includes(ticket.estado) && (
+              {(isAdmin || isTech) && !ticket.active_quote && !['DELIVERED', 'CLOSED'].includes(ticket.estado) && (
                 <Button variant="ghost" size="sm" className="h-7 text-[11px] font-bold" onClick={openAmountsModal}>
                   <Edit2 size={12} className="mr-1" /> EDITAR
                 </Button>
@@ -353,6 +382,99 @@ export default function TicketDetailPage() {
               )}
             </div>
           </div>
+
+          <Card>
+            <CardHeader className="py-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-[13px] text-[var(--gray-400)] uppercase tracking-wider">Cotización</CardTitle>
+              <FileText size={16} className="text-[var(--gray-300)]" />
+            </CardHeader>
+            <CardContent className="pt-4 space-y-4">
+              {ticket.active_quote ? (
+                <>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-[var(--gray-500)]">Documento</span>
+                    <Link to={`/quotes/${ticket.active_quote.id}`} className="font-bold text-[var(--color-brand-blue)] hover:underline">
+                      {ticket.active_quote.folio} · v{ticket.active_quote.version}
+                    </Link>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-[var(--gray-500)]">Estado</span>
+                    <span className="font-bold">{ticket.active_quote.estado}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-[var(--gray-500)]">Total cotizado</span>
+                    <span className="font-bold">S/ {parseFloat(ticket.active_quote.total).toFixed(2)}</span>
+                  </div>
+                  <div className="p-3 bg-[var(--gray-50)] rounded-lg border border-[var(--gray-100)] text-[12px] text-[var(--gray-500)]">
+                    Mientras exista una cotización activa, los montos del ticket se controlan desde ese documento.
+                  </div>
+                </>
+              ) : ticket.estado === 'DIAGNOSTIC' ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-[var(--gray-500)]">
+                    Este ticket está listo para cotizar. Puedes generar el presupuesto formal desde aquí.
+                  </p>
+                  <Button variant="secondary" className="w-full" onClick={() => navigate(`/quotes/new?ticketId=${ticket.id}`)}>
+                    <FileText size={16} className="mr-2" />
+                    Crear Cotización
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-sm text-[var(--gray-400)]">
+                  Este ticket aún no tiene una cotización activa asociada.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="py-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-[13px] text-[var(--gray-400)] uppercase tracking-wider">Reservas de repuestos</CardTitle>
+              <Boxes size={16} className="text-[var(--gray-300)]" />
+            </CardHeader>
+            <CardContent className="pt-4 space-y-4">
+              {ticket.stock_reservations && ticket.stock_reservations.length > 0 ? (
+                ticket.stock_reservations.map((reservation: any) => (
+                  <div key={reservation.id} className="rounded-xl border border-[var(--gray-200)] p-3 bg-[var(--gray-50)] space-y-2">
+                    <div className="flex justify-between items-start gap-3">
+                      <div>
+                        <div className="font-bold text-[var(--gray-800)]">{reservation.stock_item.product_name}</div>
+                        <div className="text-[11px] text-[var(--gray-500)]">
+                          {reservation.stock_item.warehouse_name} · {reservation.stock_item.product_code}
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-bold uppercase tracking-wider">{reservation.estado}</span>
+                    </div>
+                    <div className="text-sm text-[var(--gray-600)]">
+                      Reservado: <strong>{reservation.cantidad}</strong>
+                    </div>
+                    {reservation.estado === 'ACTIVE' && canManageReservations && (
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => consumeReservationMutation.mutate({ id: reservation.id }, { onSuccess: () => refetch() })}
+                        >
+                          Consumir
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => releaseReservationMutation.mutate({ id: reservation.id }, { onSuccess: () => refetch() })}
+                        >
+                          Liberar
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-[var(--gray-400)]">
+                  Este ticket todavía no tiene reservas activas.
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader className="py-4">
@@ -460,6 +582,17 @@ export default function TicketDetailPage() {
           saldoPendiente={saldoPendiente}
           onClose={() => {
             setShowPaymentModal(false);
+            refetch();
+          }}
+        />
+      )}
+
+      {showReservationModal && (
+        <ReservationModal
+          ticketId={ticket.id}
+          activeQuoteId={ticket.active_quote?.id}
+          onClose={() => {
+            setShowReservationModal(false);
             refetch();
           }}
         />

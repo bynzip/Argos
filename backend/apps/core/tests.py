@@ -18,7 +18,7 @@ class LowStockCommandTests(TestCase):
             stock_minimo=5,
         )
         self.warehouse = Warehouse.objects.create(nombre='Principal', ubicacion='A1')
-        StockItem.objects.create(product=self.product, warehouse=self.warehouse, cantidad=2)
+        StockItem.objects.create(product=self.product, warehouse=self.warehouse, cantidad=2, reservado=1)
 
     def test_low_stock_command_creates_notifications_without_crashing(self):
         call_command('verificar_stock_bajo')

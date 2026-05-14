@@ -30,6 +30,10 @@ class CompanyProfile(models.Model):
     ruc = models.CharField(max_length=15)
     phone = models.CharField(max_length=20)
     email = models.EmailField()
+    quote_default_validity_days = models.IntegerField(default=15)
+    quote_default_igv = models.DecimalField(max_digits=5, decimal_places=2, default=18)
+    quote_approval_threshold_amount = models.DecimalField(max_digits=12, decimal_places=2, default=1500)
+    quote_default_terms = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

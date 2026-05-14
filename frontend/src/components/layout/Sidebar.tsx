@@ -6,7 +6,8 @@ import {
   Settings, 
   Package, 
   Ticket, 
-  DollarSign
+  DollarSign,
+  FileText
 } from 'lucide-react';
 
 type ModuleConfig = {
@@ -31,6 +32,7 @@ export default function Sidebar() {
   const menuItems: ModuleConfig[] = [
     { name: 'Dashboard', path: '/', icon: Home },
     { name: 'Tickets', path: '/tickets', icon: Ticket, permissionRequired: 'tickets' },
+    { name: 'Cotizaciones', path: '/quotes', icon: FileText, permissionRequired: 'quotes' },
     { name: 'Clientes', path: '/customers', icon: Users, permissionRequired: 'customers' },
     { name: 'Inventario', path: '/inventory', icon: Package, permissionRequired: 'inventory' },
     { name: 'Finanzas', path: '/finance', icon: DollarSign, permissionRequired: 'finance' },

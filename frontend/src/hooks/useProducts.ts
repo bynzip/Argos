@@ -24,7 +24,20 @@ export interface Product {
   precio_venta: string;
   stock_minimo: number;
   activo: boolean;
-  total_stock: number;
+  total_stock: string;
+  total_stock_fisico: string;
+  total_stock_reservado: string;
+  total_stock_disponible: string;
+  stocks?: Array<{
+    id: number;
+    warehouse: number;
+    warehouse_name: string;
+    cantidad: string;
+    reservado: string;
+    disponible: string;
+    costo_promedio: string;
+    ubicacion_especifica?: string;
+  }>;
   created_at: string;
 }
 

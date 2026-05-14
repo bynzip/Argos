@@ -7,13 +7,13 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: 
+        primary:
           "bg-brand-gradient text-white shadow-[0_2px_8px_rgba(35,71,165,0.20)] hover:opacity-90 hover:shadow-[0_4px_16px_rgba(35,71,165,0.28)] border-none",
-        secondary: 
+        secondary:
           "bg-white text-[var(--gray-700)] border border-[var(--gray-300)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:bg-[var(--gray-50)] hover:border-[var(--gray-400)]",
-        ghost: 
+        ghost:
           "bg-transparent text-[var(--gray-500)] hover:bg-[var(--gray-100)] hover:text-[var(--gray-700)]",
-        danger: 
+        danger:
           "bg-[var(--color-danger-bg)] text-[var(--color-danger)] border border-[var(--color-danger-border)] hover:bg-[var(--color-danger-bg)] hover:border-[var(--color-danger)]",
         outline:
           "bg-transparent border border-[var(--gray-300)] text-[var(--gray-600)] hover:border-[var(--color-brand-blue)] hover:text-[var(--color-brand-blue)]",

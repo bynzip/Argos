@@ -40,6 +40,8 @@ class TicketDetailSerializer(serializers.ModelSerializer):
     evidences = TicketEvidenceSerializer(many=True, read_only=True)
     transitions = TicketTransitionSerializer(many=True, read_only=True)
     receipts = serializers.SerializerMethodField()
+    active_quote = serializers.SerializerMethodField()
+    stock_reservations = serializers.SerializerMethodField()
     
     class Meta:
         model = Ticket
@@ -48,3 +50,22 @@ class TicketDetailSerializer(serializers.ModelSerializer):
     def get_receipts(self, obj):
         from apps.finance.serializers import ReceiptSerializer
         return ReceiptSerializer(obj.receipts.all().order_by('-created_at'), many=True).data
+
+    def get_active_quote(self, obj):
+        try:
+            from apps.quotes.serializers import QuoteSummarySerializer
+            from apps.quotes.services import get_active_ticket_quote
+
+            quote = get_active_ticket_quote(obj)
+            if not quote:
+                return None
+            return QuoteSummarySerializer(quote).data
+        except Exception:
+            return None
+
+    def get_stock_reservations(self, obj):
+        try:
+            from apps.products.serializers import StockReservationSerializer
+            return StockReservationSerializer(obj.stock_reservations.all().order_by('-created_at'), many=True).data
+        except Exception:
+            return []
