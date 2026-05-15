@@ -161,7 +161,14 @@ class InventoryMovement(models.Model):
 
 class ProductSupplier(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='product_suppliers')
-    supplier_id = models.BigIntegerField()
+    supplier = models.ForeignKey(
+        'suppliers.Supplier',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='product_suppliers',
+    )
+    supplier_id_legacy = models.BigIntegerField(null=True, blank=True)
     supplier_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     lead_time_days = models.IntegerField(null=True, blank=True)
     is_primary = models.BooleanField(default=False)
@@ -169,7 +176,14 @@ class ProductSupplier(models.Model):
 
     class Meta:
         db_table = 'product_suppliers'
-        unique_together = ('product', 'supplier_id')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['product', 'supplier'],
+                condition=models.Q(supplier__isnull=False),
+                name='unique_product_supplier_when_supplier_present',
+            )
+        ]
 
     def __str__(self):
-        return f"{self.product.codigo} -> proveedor {self.supplier_id}"
+        supplier_name = self.supplier.nombre if self.supplier_id else f"proveedor legado {self.supplier_id_legacy}"
+        return f"{self.product.codigo} -> {supplier_name}"

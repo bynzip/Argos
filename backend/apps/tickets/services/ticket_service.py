@@ -2,9 +2,11 @@ import json
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils import timezone
 
+from apps.core.audit import log_audit
 from apps.core.utils import generate_folio
-from apps.tickets.models import Ticket, TicketTransition
+from apps.tickets.models import Ticket, TicketChecklistEvidence, TicketChecklistItem, TicketSubareaMovement, TicketTransition
 from apps.users.permissions import require_permission
 
 MAX_EVIDENCE_FILES = 15
@@ -118,6 +120,10 @@ def create_ticket(customer, user, descripcion_problema, device=None, prioridad=T
         return ticket
 
 
+def has_pending_required_checklist(ticket):
+    return ticket.checklist_items.filter(requerido=True, completado=False).exists()
+
+
 def transition_ticket(ticket, new_status, user, motivo=None):
     with transaction.atomic():
         try:
@@ -153,6 +159,11 @@ def transition_ticket(ticket, new_status, user, motivo=None):
                 f"No se puede entregar el equipo. Hay un saldo pendiente de S/ {ticket.saldo_pendiente}."
             )
 
+        if new_status == Ticket.TicketStatus.READY and has_pending_required_checklist(ticket):
+            raise ValidationError(
+                "No se puede marcar como listo. Aun faltan items obligatorios del checklist post-servicio."
+            )
+
         if (
             new_status in {Ticket.TicketStatus.DELIVERED, Ticket.TicketStatus.CLOSED}
             and ticket_has_active_reservations
@@ -172,6 +183,7 @@ def transition_ticket(ticket, new_status, user, motivo=None):
             cambiado_por=user,
             motivo=motivo
         )
+        log_audit(module='tickets', action='STATUS_CHANGE', user=user, obj=ticket, before_data={'estado': current_status}, after_data={'estado': new_status})
 
         return ticket
 
@@ -198,5 +210,124 @@ def update_ticket_amounts(ticket, user, monto_estimado=None, total=None, motivo=
 
         if len(update_fields) > 1:
             ticket.save(update_fields=update_fields)
+            log_audit(module='tickets', action='UPDATE', user=user, obj=ticket, after_data={'monto_estimado': str(ticket.monto_estimado), 'total': str(ticket.total)})
 
         return ticket
+
+
+@transaction.atomic
+def update_ticket_technical_details(*, ticket, user, diagnostico=None, solucion=None):
+    require_permission(user, 'tickets.transition_technical')
+    update_fields = ['updated_at']
+    before_data = {'diagnostico': ticket.diagnostico, 'solucion': ticket.solucion}
+
+    if diagnostico is not None:
+        ticket.diagnostico = diagnostico
+        update_fields.append('diagnostico')
+    if solucion is not None:
+        ticket.solucion = solucion
+        update_fields.append('solucion')
+
+    ticket.save(update_fields=update_fields)
+    log_audit(
+        module='tickets',
+        action='UPDATE',
+        user=user,
+        obj=ticket,
+        before_data=before_data,
+        after_data={'diagnostico': ticket.diagnostico, 'solucion': ticket.solucion},
+    )
+    return ticket
+
+
+@transaction.atomic
+def create_checklist_item(*, ticket, user, nombre, requerido=True, notas='', orden=0, evidence_files=None):
+    require_permission(user, 'tickets.transition_technical')
+    item = TicketChecklistItem.objects.create(
+        ticket=ticket,
+        nombre=nombre.strip(),
+        requerido=requerido,
+        notas=notas or '',
+        orden=orden or 0,
+    )
+    for file_obj in evidence_files or []:
+        TicketChecklistEvidence.objects.create(
+            checklist_item=item,
+            archivo=file_obj,
+            nombre_archivo=file_obj.name,
+            subido_por=user,
+        )
+    log_audit(module='tickets', action='CREATE', user=user, obj=item, after_data={'ticket_id': str(ticket.id), 'nombre': item.nombre})
+    return item
+
+
+@transaction.atomic
+def update_checklist_item(*, checklist_item, user, completado=None, notas=None, evidence_files=None):
+    require_permission(user, 'tickets.transition_technical')
+    update_fields = ['updated_at']
+
+    if completado is not None:
+        checklist_item.completado = bool(completado)
+        checklist_item.completado_por = user if checklist_item.completado else None
+        checklist_item.completado_el = timezone.now() if checklist_item.completado else None
+        update_fields.extend(['completado', 'completado_por', 'completado_el'])
+    if notas is not None:
+        checklist_item.notas = notas
+        update_fields.append('notas')
+
+    checklist_item.save(update_fields=update_fields)
+    for file_obj in evidence_files or []:
+        TicketChecklistEvidence.objects.create(
+            checklist_item=checklist_item,
+            archivo=file_obj,
+            nombre_archivo=file_obj.name,
+            subido_por=user,
+        )
+    log_audit(module='tickets', action='UPDATE', user=user, obj=checklist_item, after_data={'completado': checklist_item.completado, 'notas': checklist_item.notas})
+    return checklist_item
+
+
+@transaction.atomic
+def move_ticket_subarea(*, ticket, subarea, user, notas=''):
+    require_permission(user, 'tickets.transition_technical')
+    previous_subarea = ticket.subarea
+    ticket.subarea = subarea
+    ticket.save(update_fields=['subarea', 'updated_at'])
+    movement = TicketSubareaMovement.objects.create(
+        ticket=ticket,
+        subarea_origen=previous_subarea,
+        subarea_destino=subarea,
+        movido_por=user,
+        notas=notas or '',
+    )
+    log_audit(
+        module='tickets',
+        action='STATUS_CHANGE',
+        user=user,
+        obj=movement,
+        before_data={'subarea_origen': previous_subarea_id(previous_subarea)},
+        after_data={'subarea_destino': previous_subarea_id(subarea)},
+    )
+    return movement
+
+
+def previous_subarea_id(subarea):
+    return subarea.id if subarea else None
+
+
+@transaction.atomic
+def create_warranty_ticket(*, source_ticket, user, descripcion_problema, prioridad=None):
+    require_permission(user, 'tickets.create')
+    warranty_ticket = create_ticket(
+        customer=source_ticket.customer,
+        user=user,
+        descripcion_problema=descripcion_problema,
+        device=source_ticket.device,
+        prioridad=prioridad or source_ticket.prioridad,
+        ticket_padre=source_ticket,
+        es_garantia=True,
+        assigned_to=source_ticket.assigned_to,
+        subarea=source_ticket.subarea,
+    )
+    log_audit(module='tickets', action='CREATE', user=user, obj=warranty_ticket, after_data={'ticket_padre_id': str(source_ticket.id), 'es_garantia': True})
+    return warranty_ticket

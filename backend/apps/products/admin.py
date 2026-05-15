@@ -97,5 +97,5 @@ class InventoryMovementAdmin(admin.ModelAdmin):
 
 @admin.register(ProductSupplier)
 class ProductSupplierAdmin(admin.ModelAdmin):
-    list_display = ('product', 'supplier_id', 'supplier_price', 'lead_time_days', 'is_primary')
+    list_display = ('product', 'supplier', 'supplier_id_legacy', 'supplier_price', 'lead_time_days', 'is_primary')
     list_filter = ('is_primary',)

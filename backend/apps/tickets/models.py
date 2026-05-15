@@ -127,3 +127,60 @@ class TicketTransition(models.Model):
 
     def __str__(self):
         return f"{self.ticket.folio}: {self.estado_anterior} -> {self.estado_nuevo}"
+
+
+class TicketChecklistItem(models.Model):
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='checklist_items')
+    nombre = models.CharField(max_length=150)
+    requerido = models.BooleanField(default=True)
+    completado = models.BooleanField(default=False)
+    notas = models.TextField(blank=True)
+    orden = models.IntegerField(default=0)
+    completado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='completed_ticket_checklists',
+    )
+    completado_el = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'ticket_checklist_items'
+        ordering = ['orden', 'id']
+
+    def __str__(self):
+        return f'{self.ticket.folio} - {self.nombre}'
+
+
+class TicketChecklistEvidence(models.Model):
+    checklist_item = models.ForeignKey(TicketChecklistItem, on_delete=models.CASCADE, related_name='evidences')
+    archivo = models.FileField(upload_to='tickets/checklists/%Y/%m/%d/', max_length=500)
+    nombre_archivo = models.CharField(max_length=255)
+    subido_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='uploaded_checklist_evidences')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'ticket_checklist_evidences'
+        ordering = ['created_at']
+
+    def __str__(self):
+        return self.nombre_archivo
+
+
+class TicketSubareaMovement(models.Model):
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='subarea_movements')
+    subarea_origen = models.ForeignKey(Subarea, on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets_moved_from')
+    subarea_destino = models.ForeignKey(Subarea, on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets_moved_to')
+    movido_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='ticket_subarea_movements')
+    notas = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'ticket_subarea_movements'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.ticket.folio}: {self.subarea_origen} -> {self.subarea_destino}'

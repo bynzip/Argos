@@ -35,9 +35,14 @@ class WarehouseSerializer(serializers.ModelSerializer):
 
 
 class ProductSupplierSerializer(serializers.ModelSerializer):
+    supplier_name = serializers.ReadOnlyField(source='supplier.nombre')
+
     class Meta:
         model = ProductSupplier
-        fields = ('id', 'supplier_id', 'supplier_price', 'lead_time_days', 'is_primary', 'created_at')
+        fields = (
+            'id', 'supplier', 'supplier_name', 'supplier_id_legacy',
+            'supplier_price', 'lead_time_days', 'is_primary', 'created_at'
+        )
 
 
 class ProductStockSummarySerializer(serializers.ModelSerializer):

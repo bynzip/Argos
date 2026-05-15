@@ -42,6 +42,19 @@ export interface Ticket {
       disponible: string;
     };
   }>;
+  checklist_items?: Array<{
+    id: number;
+    nombre: string;
+    requerido: boolean;
+    completado: boolean;
+    notas?: string;
+  }>;
+  subarea_movements?: Array<any>;
+  warranty_children?: Array<{ id: string; folio: string; estado: string; created_at: string }>;
+  parent_ticket_summary?: { id: string; folio: string; estado: string } | null;
+  payment_schedules?: Array<any>;
+  cochera_charges?: Array<any>;
+  discounts?: Array<any>;
 }
 
 export interface PaginatedResponse<T> {
@@ -128,6 +141,72 @@ export const useUpdateTicketAmounts = () => {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
       queryClient.invalidateQueries({ queryKey: ['tickets', variables.id] });
+    },
+  });
+};
+
+export const useUpdateTechnicalDetails = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, diagnostico, solucion }: { id: string; diagnostico?: string; solucion?: string }) => {
+      const response = await axios.patch(`/api/tickets/${id}/update_technical_details/`, {
+        diagnostico,
+        solucion,
+      });
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['tickets', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    },
+  });
+};
+
+export const useAddChecklistItem = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ticketId, data }: { ticketId: string; data: FormData }) => {
+      const response = await axios.post(`/api/tickets/${ticketId}/add_checklist_item/`, data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['tickets', variables.ticketId] });
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    },
+  });
+};
+
+export const useUpdateChecklistItem = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ticketId, checklistId, data }: { ticketId: string; checklistId: number; data: FormData }) => {
+      const response = await axios.patch(`/api/tickets/${ticketId}/checklist-items/${checklistId}/`, data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['tickets', variables.ticketId] });
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    },
+  });
+};
+
+export const useCreateWarrantyTicket = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ticketId, descripcion_problema, prioridad }: { ticketId: string; descripcion_problema: string; prioridad?: string }) => {
+      const response = await axios.post(`/api/tickets/${ticketId}/create_warranty/`, {
+        descripcion_problema,
+        prioridad,
+      });
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['tickets', variables.ticketId] });
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
     },
   });
 };

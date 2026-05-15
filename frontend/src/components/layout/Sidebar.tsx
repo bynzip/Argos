@@ -7,7 +7,11 @@ import {
   Package, 
   Ticket, 
   DollarSign,
-  FileText
+  FileText,
+  Truck,
+  ClipboardCheck,
+  BarChart3,
+  SlidersHorizontal
 } from 'lucide-react';
 
 type ModuleConfig = {
@@ -36,6 +40,10 @@ export default function Sidebar() {
     { name: 'Clientes', path: '/customers', icon: Users, permissionRequired: 'customers' },
     { name: 'Inventario', path: '/inventory', icon: Package, permissionRequired: 'inventory' },
     { name: 'Finanzas', path: '/finance', icon: DollarSign, permissionRequired: 'finance' },
+    { name: 'Compras', path: '/suppliers/orders', icon: Truck, permissionRequired: 'suppliers' },
+    { name: 'RRHH', path: '/hr', icon: ClipboardCheck, permissionRequired: 'hr' },
+    { name: 'Reportes', path: '/reports', icon: BarChart3, permissionRequired: 'reports' },
+    { name: 'Parámetros', path: '/settings', icon: SlidersHorizontal, permissionRequired: 'config' },
     { name: 'Usuarios', path: '/users', icon: Settings, permissionRequired: 'users' },
   ];
 

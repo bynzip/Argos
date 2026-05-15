@@ -8,13 +8,20 @@ from rest_framework.response import Response
 from apps.customers.models import Customer, Device
 from apps.users.permissions import RolePermission
 
-from .models import Ticket, TicketAccessory, TicketEvidence
+from apps.users.models import Subarea
+
+from .models import Ticket, TicketAccessory, TicketChecklistItem, TicketEvidence
 from .serializers import TicketDetailSerializer, TicketListSerializer
 from .services import (
     assign_ticket,
     create_ticket,
+    create_checklist_item,
+    create_warranty_ticket,
+    move_ticket_subarea,
     parse_accessories_payload,
     transition_ticket,
+    update_checklist_item,
+    update_ticket_technical_details,
     validate_evidence_files,
     validate_ticket_device_customer,
 )
@@ -40,6 +47,11 @@ class TicketViewSet(viewsets.ModelViewSet):
         'transition': ['tickets.transition_technical', 'tickets.transition_reception'],
         'assign': ['tickets.assign_technician'],
         'update_amounts': ['tickets.transition_technical', 'tickets.transition_reception'],
+        'update_technical_details': ['tickets.transition_technical'],
+        'add_checklist_item': ['tickets.transition_technical'],
+        'update_checklist_item': ['tickets.transition_technical'],
+        'move_subarea': ['tickets.transition_technical'],
+        'create_warranty': ['tickets.create'],
     }
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = [
@@ -166,3 +178,89 @@ class TicketViewSet(viewsets.ModelViewSet):
             motivo=motivo
         )
         return Response(TicketDetailSerializer(ticket).data)
+
+    @action(detail=True, methods=['patch'])
+    def update_technical_details(self, request, pk=None):
+        ticket = self.get_object()
+        ticket = update_ticket_technical_details(
+            ticket=ticket,
+            user=request.user,
+            diagnostico=request.data.get('diagnostico'),
+            solucion=request.data.get('solucion'),
+        )
+        return Response(TicketDetailSerializer(ticket).data)
+
+    @action(detail=True, methods=['post'])
+    def add_checklist_item(self, request, pk=None):
+        ticket = self.get_object()
+        nombre = (request.data.get('nombre') or '').strip()
+        if not nombre:
+            return Response({'detail': 'nombre es obligatorio'}, status=status.HTTP_400_BAD_REQUEST)
+
+        create_checklist_item(
+            ticket=ticket,
+            user=request.user,
+            nombre=nombre,
+            requerido=str(request.data.get('requerido', 'true')).lower() != 'false',
+            notas=request.data.get('notas', ''),
+            orden=int(request.data.get('orden', 0) or 0),
+            evidence_files=request.FILES.getlist('evidences'),
+        )
+        ticket.refresh_from_db()
+        return Response(TicketDetailSerializer(ticket).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['patch'], url_path=r'checklist-items/(?P<checklist_id>[^/.]+)')
+    def update_checklist_item(self, request, pk=None, checklist_id=None):
+        ticket = self.get_object()
+        try:
+            checklist_item = TicketChecklistItem.objects.get(ticket=ticket, pk=checklist_id)
+        except TicketChecklistItem.DoesNotExist:
+            return Response({'detail': 'Item de checklist no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+
+        completado_raw = request.data.get('completado')
+        completado = None
+        if completado_raw is not None:
+            completado = str(completado_raw).lower() in {'1', 'true', 'yes', 'si'}
+
+        update_checklist_item(
+            checklist_item=checklist_item,
+            user=request.user,
+            completado=completado,
+            notas=request.data.get('notas'),
+            evidence_files=request.FILES.getlist('evidences'),
+        )
+        ticket.refresh_from_db()
+        return Response(TicketDetailSerializer(ticket).data)
+
+    @action(detail=True, methods=['patch'])
+    def move_subarea(self, request, pk=None):
+        ticket = self.get_object()
+        subarea_id = request.data.get('subarea_id')
+        try:
+            subarea = Subarea.objects.get(pk=subarea_id) if subarea_id else None
+        except Subarea.DoesNotExist:
+            return Response({'detail': 'Subarea no encontrada'}, status=status.HTTP_400_BAD_REQUEST)
+
+        move_ticket_subarea(
+            ticket=ticket,
+            subarea=subarea,
+            user=request.user,
+            notas=request.data.get('notas', ''),
+        )
+        ticket.refresh_from_db()
+        return Response(TicketDetailSerializer(ticket).data)
+
+    @action(detail=True, methods=['post'])
+    def create_warranty(self, request, pk=None):
+        ticket = self.get_object()
+        descripcion_problema = (request.data.get('descripcion_problema') or '').strip()
+        if not descripcion_problema:
+            return Response({'detail': 'descripcion_problema es obligatorio'}, status=status.HTTP_400_BAD_REQUEST)
+
+        warranty_ticket = create_warranty_ticket(
+            source_ticket=ticket,
+            user=request.user,
+            descripcion_problema=descripcion_problema,
+            prioridad=request.data.get('prioridad') or ticket.prioridad,
+        )
+        return Response(TicketDetailSerializer(warranty_ticket).data, status=status.HTTP_201_CREATED)

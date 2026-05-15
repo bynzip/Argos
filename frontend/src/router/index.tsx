@@ -24,6 +24,11 @@ import DashboardPage from '../pages/dashboard/DashboardPage';
 import QuoteListPage from '../pages/quotes/QuoteListPage';
 import QuoteEditorPage from '../pages/quotes/QuoteEditorPage';
 import ServiceCatalogPage from '../pages/quotes/ServiceCatalogPage';
+import SupplierListPage from '../pages/suppliers/SupplierListPage';
+import PurchaseOrderListPage from '../pages/suppliers/PurchaseOrderListPage';
+import AttendancePage from '../pages/hr/AttendancePage';
+import ReportsPage from '../pages/reports/ReportsPage';
+import CompanyProfilePage from '../pages/settings/CompanyProfilePage';
 
 // Componente para proteger rutas
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
@@ -115,6 +120,31 @@ export const router = createBrowserRouter([
         path: 'finance',
         children: [
           { path: '', element: <CajaPage /> },
+        ]
+      },
+      {
+        path: 'suppliers',
+        children: [
+          { path: '', element: <SupplierListPage /> },
+          { path: 'orders', element: <PurchaseOrderListPage /> },
+        ]
+      },
+      {
+        path: 'hr',
+        children: [
+          { path: '', element: <AttendancePage /> },
+        ]
+      },
+      {
+        path: 'reports',
+        children: [
+          { path: '', element: <ReportsPage /> },
+        ]
+      },
+      {
+        path: 'settings',
+        children: [
+          { path: '', element: <CompanyProfilePage /> },
         ]
       },
     ],

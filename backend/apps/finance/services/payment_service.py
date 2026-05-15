@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 from apps.core.utils import generate_folio
 from apps.finance.models import Receipt, PaymentVoucher
 from .cash_service import get_open_cash_closure
+from .advanced_service import apply_receipt_to_schedules
 import hashlib
 from django.utils import timezone
 
@@ -12,7 +13,7 @@ def calculate_file_hash(file_obj):
         sha256_hash.update(chunk)
     return sha256_hash.hexdigest()
 
-def register_payment(user, ticket, amount, metodo_pago, referencia=None, voucher_file=None):
+def register_payment(user, ticket, amount, metodo_pago, referencia=None, voucher_file=None, tipo_recibo=None, schedule_items=None):
     with transaction.atomic():
         # RN-09: No se puede registrar ningA?n pago si no hay una caja abierta
         closure = get_open_cash_closure(user)
@@ -38,7 +39,7 @@ def register_payment(user, ticket, amount, metodo_pago, referencia=None, voucher
             folio=folio,
             cash_closure=closure,
             ticket=ticket,
-            tipo_recibo=Receipt.ReceiptType.PAYMENT,
+            tipo_recibo=tipo_recibo or Receipt.ReceiptType.PAYMENT,
             metodo_pago=metodo_pago,
             amount=amount,
             referencia=referencia,
@@ -61,10 +62,13 @@ def register_payment(user, ticket, amount, metodo_pago, referencia=None, voucher
                 subido_por=user
             )
 
+        if estado_inicial == Receipt.ReceiptStatus.CONFIRMED:
+            apply_receipt_to_schedules(receipt=receipt, schedule_items=schedule_items)
+
         return receipt
 
 
-def confirm_payment(user, receipt):
+def confirm_payment(user, receipt, schedule_items=None):
     with transaction.atomic():
         if receipt.estado != Receipt.ReceiptStatus.PENDING:
             raise ValidationError("Solo se pueden confirmar pagos pendientes.")
@@ -74,4 +78,5 @@ def confirm_payment(user, receipt):
         receipt.confirmado_el = timezone.now()
         receipt.conciliado_banco = True
         receipt.save(update_fields=['estado', 'confirmado_por', 'confirmado_el', 'conciliado_banco', 'updated_at'])
+        apply_receipt_to_schedules(receipt=receipt, schedule_items=schedule_items)
         return receipt
