@@ -76,9 +76,9 @@ class Customer(SoftDeleteModel):
         db_table = 'customers'
         constraints = [
             models.UniqueConstraint(
-                fields=['identificador'],
+                fields=['tipo_cliente', 'identificador'],
                 condition=models.Q(deleted_at__isnull=True),
-                name='unique_active_customer_identifier'
+                name='unique_active_customer_identifier_per_type'
             )
         ]
         indexes = [

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -11,16 +11,27 @@ import { Input } from '../../components/ui/Input';
 import { Label } from '../../components/ui/Label';
 import { Select } from '../../components/ui/Select';
 import { Textarea } from '../../components/ui/Textarea';
+import { getApiErrorMessage } from '../../lib/apiErrors';
 
 const customerSchema = z.object({
   tipo_cliente: z.enum(['PERSONA', 'EMPRESA']),
-  identificador: z.string().min(8, 'Debe tener al menos 8 caracteres'),
+  identificador: z.string().regex(/^\d+$/, 'Solo debe contener dígitos numéricos'),
   nombre: z.string().min(2, 'El nombre es obligatorio'),
   telefono: z.string().optional(),
   correo_electronico: z.string().email('Correo inválido').optional().or(z.literal('')),
   direccion: z.string().optional(),
   etiqueta: z.enum(['NUEVO', 'REGULAR', 'FRECUENTE', 'VIP', 'MOROSO', 'ESPECIAL']),
   notas: z.string().optional(),
+}).superRefine((data, ctx) => {
+  const expectedLength = data.tipo_cliente === 'PERSONA' ? 8 : 11;
+  const documentName = data.tipo_cliente === 'PERSONA' ? 'DNI' : 'RUC';
+  if (data.identificador.length !== expectedLength) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['identificador'],
+      message: `El ${documentName} debe tener exactamente ${expectedLength} dígitos`,
+    });
+  }
 });
 
 type CustomerForm = z.infer<typeof customerSchema>;
@@ -29,11 +40,15 @@ export default function CustomerFormPage() {
   const navigate = useNavigate();
   const createCustomer = useCreateCustomer();
   const [identificadorError, setIdentificadorError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const identificadorSectionRef = useRef<HTMLDivElement | null>(null);
 
   const {
     register,
     handleSubmit,
+    setFocus,
     watch,
+    trigger,
     formState: { errors, isSubmitting },
   } = useForm<CustomerForm>({
     resolver: zodResolver(customerSchema),
@@ -44,10 +59,32 @@ export default function CustomerFormPage() {
   });
 
   const tipoCliente = watch('tipo_cliente');
+  const identificador = watch('identificador');
+  const identificadorField = register('identificador');
+
+  useEffect(() => {
+    const focusTimer = window.setTimeout(() => {
+      setFocus('identificador');
+    }, 0);
+    return () => window.clearTimeout(focusTimer);
+  }, [setFocus]);
+
+  useEffect(() => {
+    if (!(errors.identificador || identificadorError)) return;
+    identificadorSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setFocus('identificador');
+  }, [errors.identificador, identificadorError, setFocus]);
+
+  useEffect(() => {
+    if (identificador) {
+      trigger('identificador');
+    }
+  }, [identificador, tipoCliente, trigger]);
 
   const onSubmit = async (data: CustomerForm) => {
     try {
       setIdentificadorError(null);
+      setSubmitError(null);
       
       const payload = {
         ...data,
@@ -62,8 +99,9 @@ export default function CustomerFormPage() {
     } catch (error: any) {
       if (error.response?.data?.identificador) {
         setIdentificadorError(error.response.data.identificador[0]);
+        setSubmitError(null);
       } else {
-        console.error('Error creating customer:', error);
+        setSubmitError(getApiErrorMessage(error, 'No se pudo crear el cliente.'));
       }
     }
   };
@@ -88,6 +126,11 @@ export default function CustomerFormPage() {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+        {submitError && (
+          <div className="rounded-xl border border-[var(--color-danger-border)] bg-[var(--color-danger-bg)] px-4 py-3 text-sm font-medium text-[var(--color-danger)]">
+            {submitError}
+          </div>
+        )}
         <div className="form-card">
           <div className="form-section-title flex items-center gap-2">
             <User size={16} /> Información Principal
@@ -102,7 +145,7 @@ export default function CustomerFormPage() {
               </Select>
             </div>
 
-            <div className="form-field">
+            <div ref={identificadorSectionRef} className="form-field">
               <Label required>
                 <div className="flex items-center gap-1.5">
                   <Fingerprint size={14} className="text-[var(--gray-400)]" />
@@ -113,7 +156,13 @@ export default function CustomerFormPage() {
                 type="text"
                 placeholder={tipoCliente === 'PERSONA' ? 'Ej. 12345678' : 'Ej. 20123456789'}
                 error={!!(errors.identificador || identificadorError)}
-                {...register('identificador')}
+                {...identificadorField}
+                autoFocus
+                onChange={(event) => {
+                  identificadorField.onChange(event);
+                  if (identificadorError) setIdentificadorError(null);
+                  if (submitError) setSubmitError(null);
+                }}
               />
               {(errors.identificador || identificadorError) && (
                 <span className="form-error">

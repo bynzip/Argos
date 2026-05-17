@@ -77,11 +77,7 @@ export const useRegistrarPago = (ticketId: string) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: FormData) => {
-      const response = await axios.post(`/api/finance/tickets/${ticketId}/pagos/`, data, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const response = await axios.post(`/api/finance/tickets/${ticketId}/pagos/`, data);
       return response.data;
     },
     onSuccess: () => {

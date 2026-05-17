@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, CheckCircle2, FileText, Plus, Save, Send, ShieldCheck, Ticket as TicketIcon, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronDown, FileText, GitBranch, Plus, Save, Send, ShieldCheck, Ticket as TicketIcon, XCircle } from 'lucide-react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { Button } from '../../components/ui/Button';
@@ -9,7 +9,8 @@ import { Label } from '../../components/ui/Label';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Select } from '../../components/ui/Select';
 import { Textarea } from '../../components/ui/Textarea';
-import { useCustomers, PaginatedResponse as CustomerPaginated } from '../../hooks/useCustomers';
+import { getApiErrorMessage } from '../../lib/apiErrors';
+import { useCustomer, useCustomers, PaginatedResponse as CustomerPaginated } from '../../hooks/useCustomers';
 import { useProducts, Product, PaginatedResponse as ProductPaginated } from '../../hooks/useProducts';
 import {
   downloadQuotePdf,
@@ -42,6 +43,35 @@ const createEmptyLine = (): QuoteLine => ({
   descuento_linea: '0',
   supply_status: 'NOT_APPLICABLE',
   orden: 0,
+});
+
+const buildQuoteDraftSignature = (
+  form: {
+    customer: string;
+    device: string;
+    source_ticket: string;
+    descuento: string;
+    igv_rate: string;
+    valido_hasta: string;
+    condiciones: string;
+    notas: string;
+  },
+  lines: QuoteLine[],
+  attachments: File[],
+) => JSON.stringify({
+  form,
+  lines: lines.map((line) => ({
+    line_type: line.line_type,
+    product: line.product ?? null,
+    service: line.service ?? null,
+    descripcion: line.descripcion,
+    cantidad: line.cantidad,
+    precio_unitario: line.precio_unitario,
+    descuento_linea: line.descuento_linea,
+    supply_status: line.supply_status ?? 'NOT_APPLICABLE',
+    orden: line.orden ?? 0,
+  })),
+  attachments: attachments.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
 });
 
 export default function QuoteEditorPage() {
@@ -93,6 +123,12 @@ export default function QuoteEditorPage() {
   const [attachments, setAttachments] = useState<File[]>([]);
   const [rejectReason, setRejectReason] = useState('');
   const [amountNotes, setAmountNotes] = useState('');
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [draftSaved, setDraftSaved] = useState(false);
+  const [savedDraftSignature, setSavedDraftSignature] = useState('');
+  const [showVersionsMenu, setShowVersionsMenu] = useState(false);
+  const selectedCustomerId = form.customer ? parseInt(form.customer) : null;
+  const { data: selectedCustomerDetail } = useCustomer(selectedCustomerId);
 
   useEffect(() => {
     if (ticket) {
@@ -126,16 +162,62 @@ export default function QuoteEditorPage() {
           orden: line.orden ?? index,
         }))
       );
+      setAttachments([]);
+      setDraftSaved(false);
+      setShowVersionsMenu(false);
     }
   }, [quote]);
 
-  const selectedCustomer = useMemo(
-    () => customers.find((customer: any) => String(customer.id) === form.customer),
-    [customers, form.customer]
-  );
-  const devices = selectedCustomer?.devices || (ticket?.device ? [ticket.device] : []);
+  useEffect(() => {
+    if (!quote) return;
+    const normalizedForm = {
+      customer: String(quote.customer.id),
+      device: quote.device?.id ? String(quote.device.id) : '',
+      source_ticket: quote.source_ticket?.id || '',
+      descuento: quote.descuento,
+      igv_rate: quote.igv_rate,
+      valido_hasta: quote.valido_hasta || '',
+      condiciones: quote.condiciones || '',
+      notas: quote.notas || '',
+    };
+    const normalizedLines = quote.lines.map((line, index) => ({
+      ...line,
+      cantidad: String(line.cantidad),
+      precio_unitario: String(line.precio_unitario),
+      descuento_linea: String(line.descuento_linea),
+      orden: line.orden ?? index,
+    }));
+    setSavedDraftSignature(buildQuoteDraftSignature(normalizedForm, normalizedLines, []));
+  }, [quote]);
+
+  useEffect(() => {
+    if (!draftSaved) return;
+    const timer = window.setTimeout(() => setDraftSaved(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [draftSaved]);
+
+  const devices = selectedCustomerDetail?.devices || (ticket?.device ? [ticket.device] : []);
   const isDraft = !isEditing || quote?.estado === 'DRAFT';
   const isAdmin = user?.is_superuser || user?.role === 'Administrador';
+  const isReceptionist = user?.role === 'Recepcionista';
+  const isHistoricalVersion = !!quote && !quote.is_active_version;
+  const canEditDraft = isDraft && !isHistoricalVersion;
+  const canEditDiscounts = canEditDraft && !isReceptionist && quote?.estado !== 'APPROVED';
+  const currentDraftSignature = useMemo(
+    () => buildQuoteDraftSignature(form, lines, attachments),
+    [attachments, form, lines],
+  );
+  const hasDraftChanges = !isEditing || currentDraftSignature !== savedDraftSignature;
+  const versionHistory = useMemo(
+    () => [...(quote?.version_history || [])].sort((left, right) => right.version - left.version),
+    [quote?.version_history],
+  );
+
+  useEffect(() => {
+    if (!draftSaved || currentDraftSignature !== savedDraftSignature || !isEditing) {
+      setDraftSaved(false);
+    }
+  }, [currentDraftSignature, draftSaved, isEditing, savedDraftSignature]);
 
   const totals = useMemo(() => {
     const subtotal = lines.reduce((acc, line) => {
@@ -156,6 +238,20 @@ export default function QuoteEditorPage() {
   }, [lines, form.descuento, form.igv_rate]);
 
   const onSubmit = async () => {
+    setSubmitError(null);
+    if (!form.customer) {
+      setSubmitError('Debes seleccionar un cliente antes de guardar la cotización.');
+      return;
+    }
+    if (lines.some((line) => !/^[1-9]\d*$/.test(String(line.cantidad || '').trim()))) {
+      setSubmitError('Todas las líneas deben tener una cantidad entera positiva.');
+      return;
+    }
+    if (lines.some((line) => parseFloat(line.descuento_linea || '0') < 0) || parseFloat(form.descuento || '0') < 0) {
+      setSubmitError('Los descuentos no pueden ser negativos.');
+      return;
+    }
+
     const payload = {
       customer: parseInt(form.customer),
       device: form.device ? parseInt(form.device) : null,
@@ -172,11 +268,18 @@ export default function QuoteEditorPage() {
       attachments,
     };
 
-    if (isEditing && quote) {
-      await updateQuote.mutateAsync(payload);
-    } else {
-      const created = await createQuote.mutateAsync(payload);
-      navigate(`/quotes/${created.id}`);
+    try {
+      if (isEditing && quote) {
+        await updateQuote.mutateAsync(payload);
+        setAttachments([]);
+        setSavedDraftSignature(buildQuoteDraftSignature(form, lines, []));
+        setDraftSaved(true);
+      } else {
+        const created = await createQuote.mutateAsync(payload);
+        navigate(`/quotes/${created.id}`);
+      }
+    } catch (error: any) {
+      setSubmitError(getApiErrorMessage(error, 'No se pudo guardar la cotización.'));
     }
   };
 
@@ -196,11 +299,36 @@ export default function QuoteEditorPage() {
         subtitle={quote?.source_ticket ? `Ligada al ticket ${quote.source_ticket.folio}` : 'Cotización directa o ligada a ticket.'}
         actions={(
           <div className="flex flex-wrap gap-2">
-            {quote && quote.source_ticket && (
-              <Button variant="secondary" onClick={() => navigate(`/tickets/${quote.source_ticket?.id}`)}>
-                <TicketIcon size={16} className="mr-2" />
-                Ver ticket
-              </Button>
+            {quote && versionHistory.length > 0 && (
+              <div className="relative">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-full px-4"
+                  onClick={() => setShowVersionsMenu((prev) => !prev)}
+                >
+                  <GitBranch size={16} className="mr-1" />
+                  v{quote.version} {quote.is_active_version ? 'Activa' : 'Histórica'}
+                  <ChevronDown size={16} className="ml-1" />
+                </Button>
+                {showVersionsMenu && (
+                  <div className="absolute right-0 top-full z-20 mt-2 w-72 rounded-2xl border border-[var(--gray-200)] bg-white p-2 shadow-[0_12px_32px_rgba(15,23,42,0.14)]">
+                    {versionHistory.map((item) => (
+                      <Link
+                        key={item.id}
+                        to={`/quotes/${item.id}`}
+                        onClick={() => setShowVersionsMenu(false)}
+                        className="flex items-center justify-between rounded-xl px-3 py-2 text-sm hover:bg-[var(--gray-50)]"
+                      >
+                        <span className="font-semibold text-[var(--gray-800)]">
+                          v{item.version} {item.is_active_version ? '(activa)' : '(histórica)'}
+                        </span>
+                        <span className="text-[12px] text-[var(--gray-500)]">{item.estado}</span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
             {quote && (
               <Button
@@ -211,25 +339,31 @@ export default function QuoteEditorPage() {
                 Descargar PDF
               </Button>
             )}
-            {isDraft && (
-              <Button onClick={onSubmit} disabled={createQuote.isPending || updateQuote.isPending}>
+            {canEditDraft && (
+              <Button onClick={onSubmit} disabled={createQuote.isPending || updateQuote.isPending || !hasDraftChanges}>
                 <Save size={16} className="mr-2" />
-                {isEditing ? 'Guardar borrador' : 'Crear cotización'}
+                {createQuote.isPending || updateQuote.isPending
+                  ? 'Guardando...'
+                  : draftSaved
+                    ? 'Guardado OK'
+                    : isEditing
+                      ? 'Guardar borrador'
+                      : 'Crear cotización'}
               </Button>
             )}
-            {quote?.estado === 'DRAFT' && (
+            {quote?.estado === 'DRAFT' && quote.is_active_version && (
               <Button variant="secondary" onClick={() => sendQuote.mutate(quote.id)}>
                 <Send size={16} className="mr-2" />
                 Marcar enviada
               </Button>
             )}
-            {quote?.estado === 'SENT' && (
+            {false && (
               <>
-                <Button variant="secondary" onClick={() => approveQuote.mutate(quote.id)}>
+                <Button variant="secondary" onClick={() => approveQuote.mutate(quote!.id)}>
                   <CheckCircle2 size={16} className="mr-2" />
                   Aprobar
                 </Button>
-                <Button variant="ghost" onClick={() => rejectQuote.mutate({ id: quote.id, motivo: rejectReason || 'Cliente rechazó la cotización' })}>
+                <Button variant="ghost" onClick={() => rejectQuote.mutate({ id: quote!.id, motivo: rejectReason || 'Cliente rechazó la cotización' })}>
                   <XCircle size={16} className="mr-2" />
                   Rechazar
                 </Button>
@@ -250,6 +384,23 @@ export default function QuoteEditorPage() {
           </div>
         )}
       />
+
+      {quote?.source_ticket && (
+        <div className="-mt-4">
+          <Link
+            to={`/tickets/${quote.source_ticket.id}`}
+            className="text-sm font-medium text-[var(--color-brand-blue)] hover:underline"
+          >
+            Ir al ticket {quote.source_ticket.folio}
+          </Link>
+        </div>
+      )}
+
+      {submitError && (
+        <div className="rounded-xl border border-[var(--color-danger-border)] bg-[var(--color-danger-bg)] px-4 py-3 text-sm font-medium text-[var(--color-danger)]">
+          {submitError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
         <div className="xl:col-span-8 space-y-8">
@@ -310,7 +461,7 @@ export default function QuoteEditorPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Líneas de cotización</CardTitle>
-              {isDraft && (
+              {canEditDraft && (
                 <Button variant="secondary" size="sm" onClick={() => setLines((prev) => [...prev, createEmptyLine()])}>
                   <Plus size={16} className="mr-2" />
                   Agregar línea
@@ -325,7 +476,7 @@ export default function QuoteEditorPage() {
                       <Label>Tipo</Label>
                       <Select
                         value={line.line_type}
-                        disabled={!isDraft}
+                        disabled={!canEditDraft}
                         onChange={(e) => {
                           const next = [...lines];
                           next[index] = {
@@ -345,7 +496,7 @@ export default function QuoteEditorPage() {
                       <Label>{line.line_type === 'PRODUCT' ? 'Producto' : 'Servicio'}</Label>
                       <Select
                         value={String(line.line_type === 'PRODUCT' ? line.product || '' : line.service || '')}
-                        disabled={!isDraft}
+                        disabled={!canEditDraft}
                         onChange={(e) => {
                           const next = [...lines];
                           if (line.line_type === 'PRODUCT') {
@@ -378,11 +529,12 @@ export default function QuoteEditorPage() {
                     </div>
                     <div>
                       <Label>Cantidad</Label>
-                      <Input
-                        type="number"
-                        step="0.001"
-                        value={line.cantidad}
-                        disabled={!isDraft}
+                        <Input
+                          type="number"
+                          step="1"
+                          min="1"
+                          value={line.cantidad}
+                          disabled={!canEditDraft}
                         onChange={(e) => {
                           const next = [...lines];
                           next[index] = { ...next[index], cantidad: e.target.value };
@@ -396,7 +548,7 @@ export default function QuoteEditorPage() {
                         type="number"
                         step="0.01"
                         value={line.precio_unitario}
-                        disabled={!isDraft}
+                        disabled={!canEditDraft}
                         onChange={(e) => {
                           const next = [...lines];
                           next[index] = { ...next[index], precio_unitario: e.target.value };
@@ -406,14 +558,15 @@ export default function QuoteEditorPage() {
                     </div>
                     <div>
                       <Label>Desc. línea</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={line.descuento_linea}
-                        disabled={!isDraft}
-                        onChange={(e) => {
-                          const next = [...lines];
-                          next[index] = { ...next[index], descuento_linea: e.target.value };
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={line.descuento_linea}
+                          min="0"
+                          disabled={!canEditDiscounts}
+                          onChange={(e) => {
+                            const next = [...lines];
+                            next[index] = { ...next[index], descuento_linea: e.target.value };
                           setLines(next);
                         }}
                       />
@@ -423,7 +576,7 @@ export default function QuoteEditorPage() {
                       <Textarea
                         rows={2}
                         value={line.descripcion}
-                        disabled={!isDraft}
+                        disabled={!canEditDraft}
                         onChange={(e) => {
                           const next = [...lines];
                           next[index] = { ...next[index], descripcion: e.target.value };
@@ -432,7 +585,7 @@ export default function QuoteEditorPage() {
                       />
                     </div>
                   </div>
-                  {isDraft && lines.length > 1 && (
+                  {canEditDraft && lines.length > 1 && (
                     <div className="flex justify-end">
                       <Button variant="ghost" size="sm" onClick={() => setLines((prev) => prev.filter((_, lineIndex) => lineIndex !== index))}>
                         Quitar línea
@@ -452,7 +605,7 @@ export default function QuoteEditorPage() {
               <Input
                 type="file"
                 multiple
-                disabled={!isDraft}
+                disabled={!canEditDraft}
                 onChange={(e) => setAttachments(Array.from(e.target.files || []))}
               />
               {quote?.attachments?.length ? (
@@ -491,7 +644,8 @@ export default function QuoteEditorPage() {
                   type="number"
                   step="0.01"
                   value={form.descuento}
-                  disabled={!isDraft}
+                  min="0"
+                  disabled={!canEditDiscounts}
                   onChange={(e) => setForm((prev) => ({ ...prev, descuento: e.target.value }))}
                 />
               </div>
@@ -547,34 +701,35 @@ export default function QuoteEditorPage() {
                 )}
 
                 {quote.estado === 'SENT' && (
-                  <div>
-                    <Label>Motivo de rechazo</Label>
-                    <Textarea rows={3} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
+                  <div className="space-y-3 rounded-2xl border border-[var(--gray-200)] bg-[var(--gray-50)] p-4">
+                    <div className="text-sm font-semibold text-[var(--gray-800)]">Respuesta del cliente</div>
+                    <div className="grid gap-3">
+                      <Button
+                        variant="secondary"
+                        className="justify-start border-[var(--color-success)] text-[var(--color-success)] hover:bg-[rgba(34,197,94,0.08)]"
+                        onClick={() => approveQuote.mutate(quote.id)}
+                      >
+                        <CheckCircle2 size={16} className="mr-2" />
+                        Registrar aprobación del cliente
+                      </Button>
+                      <Button
+                        variant="danger"
+                        className="justify-start"
+                        onClick={() => rejectQuote.mutate({ id: quote.id, motivo: rejectReason || 'Cliente rechazó la cotización' })}
+                      >
+                        <XCircle size={16} className="mr-2" />
+                        Registrar rechazo del cliente
+                      </Button>
+                    </div>
+                    <div>
+                      <Label>Motivo de rechazo</Label>
+                      <Textarea rows={3} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
+                    </div>
                   </div>
                 )}
               </CardContent>
             </Card>
           )}
-
-          {quote?.version_history?.length ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Versiones</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {quote.version_history.map((item) => (
-                  <Link
-                    key={item.id}
-                    to={`/quotes/${item.id}`}
-                    className="flex items-center justify-between rounded-lg border border-[var(--gray-200)] px-3 py-2 hover:bg-[var(--gray-50)]"
-                  >
-                    <span className="font-medium">v{item.version}</span>
-                    <span className="text-[12px] text-[var(--gray-500)]">{item.estado}</span>
-                  </Link>
-                ))}
-              </CardContent>
-            </Card>
-          ) : null}
 
           {serviceCategories.length > 0 && (
             <Card>

@@ -165,9 +165,7 @@ export const useCreateQuote = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: QuotePayload) => {
-      const response = await api.post('/api/quotes/', toFormData(payload), {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const response = await api.post('/api/quotes/', toFormData(payload));
       return response.data as Quote;
     },
     onSuccess: () => {
@@ -192,9 +190,7 @@ export const useUpdateQuote = (id: number | string) => {
         notas: payload.notas,
         lines: payload.lines || [],
         attachments: payload.attachments,
-      }), {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      }));
       return response.data as Quote;
     },
     onSuccess: () => {

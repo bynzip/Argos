@@ -7,6 +7,7 @@ import { ReservationModal } from '../../components/inventory/ReservationModal';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
+import { getApiErrorMessage, resolveMediaUrl } from '../../lib/apiErrors';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { PriorityBadge } from '../../components/ui/PriorityBadge';
 import { Textarea } from '../../components/ui/Textarea';
@@ -76,6 +77,9 @@ export default function TicketDetailPage() {
   const [solucionInput, setSolucionInput] = useState('');
   const [newChecklistItem, setNewChecklistItem] = useState('');
   const [warrantyProblem, setWarrantyProblem] = useState('');
+  const [checklistFiles, setChecklistFiles] = useState<Record<number, File[]>>({});
+  const [checklistFeedback, setChecklistFeedback] = useState<string | null>(null);
+  const [technicalSaved, setTechnicalSaved] = useState(false);
 
   const isRecep = user?.role === 'Recepcionista' || user?.is_superuser;
   const isTech = user?.role === 'Técnico' || user?.is_superuser;
@@ -94,7 +98,14 @@ export default function TicketDetailPage() {
     setSolucionInput(ticket.solucion || '');
     setMontoEstimadoInput(ticket.monto_estimado || '');
     setTotalInput(ticket.total || '0.00');
+    setTechnicalSaved(false);
   }, [ticket]);
+
+  useEffect(() => {
+    if (!technicalSaved) return;
+    const timer = window.setTimeout(() => setTechnicalSaved(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [technicalSaved]);
 
   if (isLoading) {
     return <div className="p-12 text-center">Cargando ticket...</div>;
@@ -113,6 +124,12 @@ export default function TicketDetailPage() {
   const total = parseFloat(ticket.total || '0');
   const saldoPendiente = total - pagosConfirmados;
   const allowedNextStatuses = VALID_TRANSITIONS[ticket.estado] || [];
+  const hasTechnicalChanges =
+    diagnosticoInput !== (ticket.diagnostico || '') ||
+    solucionInput !== (ticket.solucion || '');
+  const orderedTransitions = [...(ticket.transitions || [])].sort(
+    (left: any, right: any) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
+  );
 
   const handleTransition = (newStatus: string) => {
     transitionMutation.mutate(
@@ -131,7 +148,12 @@ export default function TicketDetailPage() {
         diagnostico: diagnosticoInput,
         solucion: solucionInput,
       },
-      { onSuccess: () => refetch() },
+      {
+        onSuccess: () => {
+          setTechnicalSaved(true);
+          refetch();
+        },
+      },
     );
   };
 
@@ -170,13 +192,53 @@ export default function TicketDetailPage() {
   const handleToggleChecklist = (item: any) => {
     const data = new FormData();
     data.append('completado', String(!item.completado));
+    (checklistFiles[item.id] || []).forEach((file) => data.append('evidences', file));
     updateChecklistItemMutation.mutate(
       {
         ticketId: ticket.id,
         checklistId: item.id,
         data,
       },
-      { onSuccess: () => refetch() },
+      {
+        onSuccess: () => {
+          setChecklistFeedback(null);
+          setChecklistFiles((prev) => ({ ...prev, [item.id]: [] }));
+          refetch();
+        },
+        onError: (error: any) => {
+          setChecklistFeedback(getApiErrorMessage(error, 'No se pudo actualizar el checklist.'));
+        },
+      },
+    );
+  };
+
+  const handleChecklistFilesChange = (itemId: number, files: FileList | null) => {
+    setChecklistFiles((prev) => ({
+      ...prev,
+      [itemId]: files ? Array.from(files) : [],
+    }));
+  };
+
+  const handleUploadChecklistEvidence = (item: any) => {
+    if (!(checklistFiles[item.id] || []).length) return;
+    const data = new FormData();
+    (checklistFiles[item.id] || []).forEach((file) => data.append('evidences', file));
+    updateChecklistItemMutation.mutate(
+      {
+        ticketId: ticket.id,
+        checklistId: item.id,
+        data,
+      },
+      {
+        onSuccess: () => {
+          setChecklistFeedback(null);
+          setChecklistFiles((prev) => ({ ...prev, [item.id]: [] }));
+          refetch();
+        },
+        onError: (error: any) => {
+          setChecklistFeedback(getApiErrorMessage(error, 'No se pudo subir la evidencia del checklist.'));
+        },
+      },
     );
   };
 
@@ -246,6 +308,34 @@ export default function TicketDetailPage() {
             </CardContent>
           </Card>
 
+          {(ticket.evidences || []).length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>Evidencias del ticket</CardTitle></CardHeader>
+              <CardContent className="pt-6">
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                  {(ticket.evidences || []).map((evidence: any) => (
+                    <a
+                      key={evidence.id}
+                      href={resolveMediaUrl(evidence.archivo)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="overflow-hidden rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)]"
+                    >
+                      <img
+                        src={resolveMediaUrl(evidence.archivo)}
+                        alt={evidence.nombre_archivo || 'Evidencia'}
+                        className="h-28 w-full object-cover"
+                      />
+                      <div className="truncate px-3 py-2 text-xs text-[var(--gray-600)]">
+                        {evidence.nombre_archivo || 'Evidencia'}
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader><CardTitle>Diagnóstico y solución</CardTitle></CardHeader>
             <CardContent className="pt-6 space-y-4">
@@ -267,8 +357,8 @@ export default function TicketDetailPage() {
               </div>
               {(isTech || isAdmin) && (
                 <div className="flex justify-end">
-                  <Button onClick={handleSaveTechnicalDetails} disabled={updateTechnicalDetailsMutation.isPending}>
-                    {updateTechnicalDetailsMutation.isPending ? 'Guardando...' : 'Guardar detalle técnico'}
+                  <Button onClick={handleSaveTechnicalDetails} disabled={updateTechnicalDetailsMutation.isPending || !hasTechnicalChanges}>
+                    {updateTechnicalDetailsMutation.isPending ? 'Guardando...' : technicalSaved ? 'Guardado OK' : 'Guardar detalle tecnico'}
                   </Button>
                 </div>
               )}
@@ -281,24 +371,77 @@ export default function TicketDetailPage() {
               <CardTitle>Checklist post-servicio</CardTitle>
             </CardHeader>
             <CardContent className="pt-6 space-y-4">
+              {checklistFeedback && (
+                <div className="rounded-xl border border-[var(--color-danger-border)] bg-[var(--color-danger-bg)] px-4 py-3 text-sm text-[var(--color-danger)]">
+                  {checklistFeedback}
+                </div>
+              )}
               {(ticket.checklist_items || []).length === 0 && (
                 <div className="text-sm text-[var(--gray-500)]">Sin items todavía. Los obligatorios bloquean el paso a listo.</div>
               )}
               {(ticket.checklist_items || []).map((item: any) => (
-                <div key={item.id} className="flex justify-between items-center gap-3 p-4 rounded-xl border border-[var(--gray-200)]">
+                <div key={item.id} className="space-y-4 p-4 rounded-xl border border-[var(--gray-200)]">
                   <div>
                     <div className="font-semibold text-[var(--gray-800)]">{item.nombre}</div>
                     <div className="text-[12px] text-[var(--gray-500)]">
                       {item.requerido ? 'Obligatorio' : 'Opcional'} · {item.completado ? 'Completado' : 'Pendiente'}
                     </div>
                   </div>
+                  {(item.evidences || []).length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-[11px] font-bold uppercase text-[var(--gray-400)]">Evidencias</div>
+                      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                        {(item.evidences || []).map((evidence: any) => (
+                          <a
+                            key={evidence.id}
+                            href={resolveMediaUrl(evidence.archivo)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="overflow-hidden rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)]"
+                          >
+                            <img
+                              src={resolveMediaUrl(evidence.archivo)}
+                              alt={evidence.nombre_archivo || 'Evidencia de checklist'}
+                              className="h-28 w-full object-cover"
+                            />
+                            <div className="truncate px-3 py-2 text-xs text-[var(--gray-600)]">
+                              {evidence.nombre_archivo || 'Evidencia'}
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {(isTech || isAdmin) && (
                     <Button size="sm" variant={item.completado ? 'ghost' : 'secondary'} onClick={() => handleToggleChecklist(item)}>
                       {item.completado ? 'Reabrir' : 'Completar'}
                     </Button>
                   )}
+                  {(isTech || isAdmin) && (
+                    <div className="space-y-3 rounded-xl bg-[var(--gray-50)] p-3">
+                      <Input
+                        type="file"
+                        accept="image/png,image/jpeg"
+                        multiple
+                        onChange={(e) => handleChecklistFilesChange(item.id, e.target.files)}
+                      />
+                      {(checklistFiles[item.id] || []).length > 0 && (
+                        <div className="flex flex-col gap-3 text-sm text-[var(--gray-600)] md:flex-row md:items-center md:justify-between">
+                          <span>{(checklistFiles[item.id] || []).length} archivo(s) listos para subir.</span>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleUploadChecklistEvidence(item)}
+                            disabled={updateChecklistItemMutation.isPending}
+                          >
+                            Subir evidencia
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              ))}
+                ))}
               {(isTech || isAdmin) && (
                 <div className="flex gap-3">
                   <Input value={newChecklistItem} onChange={(e) => setNewChecklistItem(e.target.value)} placeholder="Nuevo item obligatorio" />
@@ -476,8 +619,9 @@ export default function TicketDetailPage() {
               <History className="h-5 w-5 text-[var(--gray-400)]" />
               <CardTitle>Timeline</CardTitle>
             </CardHeader>
-            <CardContent className="pt-6 space-y-3">
-              {(ticket.transitions || []).slice().reverse().map((transition: any) => (
+            <CardContent className="pt-6">
+              <div className="max-h-[420px] space-y-3 overflow-y-auto pr-2">
+                {orderedTransitions.map((transition: any) => (
                 <div key={transition.id} className="p-3 rounded-xl bg-[var(--gray-50)] border border-[var(--gray-100)]">
                   <div className="font-semibold text-[var(--gray-800)]">{statusLabels[transition.estado_nuevo] || transition.estado_nuevo}</div>
                   <div className="text-[12px] text-[var(--gray-500)]">
@@ -486,6 +630,7 @@ export default function TicketDetailPage() {
                   {transition.motivo && <div className="text-[12px] text-[var(--gray-500)] mt-1">{transition.motivo}</div>}
                 </div>
               ))}
+              </div>
             </CardContent>
           </Card>
         </div>

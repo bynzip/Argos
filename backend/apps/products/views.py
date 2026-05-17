@@ -169,7 +169,18 @@ class StockReservationViewSet(
             user=request.user,
             notes=serializer.validated_data.get('notas', ''),
         )
-        return Response(self.get_serializer(reservation).data, status=status.HTTP_201_CREATED)
+        response_data = self.get_serializer(reservation).data
+        if getattr(reservation, 'was_partial', False):
+            response_data.update({
+                'was_partial': True,
+                'requested_quantity': str(reservation.requested_quantity),
+                'missing_quantity': str(reservation.missing_quantity),
+                'detail': (
+                    f"Reserva parcial creada. Se reservaron {reservation.cantidad} de "
+                    f"{reservation.requested_quantity}."
+                ),
+            })
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
     def release(self, request, pk=None):

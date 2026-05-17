@@ -4,9 +4,11 @@ from django.core.exceptions import ValidationError
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from apps.core.models import Notification
 from apps.core.test_utils import create_user_with_role
 from apps.customers.models import Customer
 from apps.products.models import InventoryMovement, Product, StockItem, StockReservation, Warehouse
+from apps.quotes.models import Quote, QuoteLine
 from apps.tickets.models import Ticket
 from apps.tickets.services.ticket_service import transition_ticket
 
@@ -61,6 +63,32 @@ class InventoryFlowTests(APITestCase):
             reservado=Decimal('0.000'),
             costo_promedio=Decimal('40.0000'),
         )
+        self.quote = Quote.objects.create(
+            folio='COT-INV-0001',
+            customer=self.customer,
+            source_ticket=self.ticket,
+            created_by=self.inventory_user,
+            estado=Quote.QuoteStatus.DRAFT,
+            descuento=Decimal('0.00'),
+            igv_rate=Decimal('18.00'),
+            subtotal=Decimal('0.00'),
+            igv_amount=Decimal('0.00'),
+            total=Decimal('0.00'),
+        )
+        self.quote.base_quote = self.quote
+        self.quote.save(update_fields=['base_quote'])
+        self.quote_line = QuoteLine.objects.create(
+            quote=self.quote,
+            line_type=QuoteLine.LineType.PRODUCT,
+            product=self.product,
+            descripcion='Teclado Laptop',
+            cantidad=Decimal('8.000'),
+            precio_unitario=Decimal('80.00'),
+            descuento_linea=Decimal('0.00'),
+            total_linea=Decimal('640.00'),
+            supply_status=QuoteLine.SupplyStatus.NOT_APPLICABLE,
+            orden=0,
+        )
 
     def test_create_reservation_updates_reserved_stock(self):
         response = self.client.post('/api/products/reservations/', {
@@ -75,15 +103,51 @@ class InventoryFlowTests(APITestCase):
         self.assertEqual(self.stock_item.reservado, Decimal('2.000'))
         self.assertEqual(self.stock_item.disponible, Decimal('3.000'))
 
-    def test_cannot_reserve_more_than_available(self):
+    def test_partial_reservation_marks_ticket_waiting_parts_and_pending_order(self):
         response = self.client.post('/api/products/reservations/', {
             'ticket_id': self.ticket.id,
             'stock_item_id': self.stock_item.id,
             'cantidad': '8.000',
         }, format='json')
 
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(response.data['was_partial'])
+        self.assertEqual(response.data['requested_quantity'], '8.000')
+        self.assertEqual(response.data['missing_quantity'], '3.000')
+        self.ticket.refresh_from_db()
+        self.quote_line.refresh_from_db()
+        self.assertEqual(self.ticket.estado, Ticket.TicketStatus.WAITING_PARTS)
+        self.assertEqual(self.quote_line.supply_status, QuoteLine.SupplyStatus.PENDING_ORDER)
+        self.assertTrue(
+            self.ticket.transitions.filter(
+                estado_nuevo=Ticket.TicketStatus.WAITING_PARTS,
+                fue_automatico=True,
+            ).exists()
+        )
+        self.assertTrue(
+            Notification.objects.filter(
+                user=self.inventory_user,
+                message__icontains=self.ticket.folio,
+            ).filter(message__icontains='Falta stock').exists()
+        )
+
+    def test_zero_stock_reservation_returns_error_and_marks_out_of_stock(self):
+        self.stock_item.cantidad = Decimal('0.000')
+        self.stock_item.save(update_fields=['cantidad', 'updated_at'])
+
+        response = self.client.post('/api/products/reservations/', {
+            'ticket_id': self.ticket.id,
+            'stock_item_id': self.stock_item.id,
+            'cantidad': '2.000',
+        }, format='json')
+
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('cantidad', response.data)
+        self.assertIn('No hay stock disponible', str(response.data))
+        self.ticket.refresh_from_db()
+        self.quote_line.refresh_from_db()
+        self.assertEqual(self.ticket.estado, Ticket.TicketStatus.WAITING_PARTS)
+        self.assertEqual(self.quote_line.supply_status, QuoteLine.SupplyStatus.OUT_OF_STOCK)
+        self.assertEqual(self.ticket.stock_reservations.count(), 0)
 
     def test_release_reservation_restores_available_stock(self):
         reservation = StockReservation.objects.create(

@@ -1,8 +1,10 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { useState } from 'react';
 import { useCreateDevice } from '../../hooks/useCustomers';
 import { X, Smartphone, Save } from 'lucide-react';
+import { getApiErrorMessage } from '../../lib/apiErrors';
 
 const deviceSchema = z.object({
   tipo_equipo: z.string().min(1, 'El tipo es requerido'),
@@ -21,6 +23,7 @@ interface AddDeviceModalProps {
 
 export default function AddDeviceModal({ customerId, onClose }: AddDeviceModalProps) {
   const createDevice = useCreateDevice(customerId);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const {
     register,
@@ -32,10 +35,11 @@ export default function AddDeviceModal({ customerId, onClose }: AddDeviceModalPr
 
   const onSubmit = async (data: DeviceForm) => {
     try {
+      setSubmitError(null);
       await createDevice.mutateAsync(data);
       onClose();
-    } catch (error) {
-      console.error('Error adding device:', error);
+    } catch (error: any) {
+      setSubmitError(getApiErrorMessage(error, 'No se pudo registrar el equipo.'));
     }
   };
 
@@ -53,6 +57,11 @@ export default function AddDeviceModal({ customerId, onClose }: AddDeviceModalPr
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-5">
+          {submitError && (
+            <div className="rounded-xl border border-[var(--color-danger-border)] bg-[var(--color-danger-bg)] px-4 py-3 text-sm font-medium text-[var(--color-danger)]">
+              {submitError}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2 sm:col-span-1">
               <label className="form-label">Tipo de Equipo *</label>

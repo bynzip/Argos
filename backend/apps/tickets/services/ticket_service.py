@@ -5,6 +5,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.core.audit import log_audit
+from apps.core.notifications import create_role_notifications
 from apps.core.utils import generate_folio
 from apps.tickets.models import Ticket, TicketChecklistEvidence, TicketChecklistItem, TicketSubareaMovement, TicketTransition
 from apps.users.permissions import require_permission
@@ -183,6 +184,15 @@ def transition_ticket(ticket, new_status, user, motivo=None):
             cambiado_por=user,
             motivo=motivo
         )
+        if new_status == Ticket.TicketStatus.READY:
+            create_role_notifications(
+                role_names='Recepcionista',
+                message=(
+                    f"El ticket {ticket.folio} de {ticket.customer.nombre} está listo para entregar. "
+                    f"Saldo pendiente: S/ {ticket.saldo_pendiente:.2f}."
+                ),
+                include_superusers=True,
+            )
         log_audit(module='tickets', action='STATUS_CHANGE', user=user, obj=ticket, before_data={'estado': current_status}, after_data={'estado': new_status})
 
         return ticket

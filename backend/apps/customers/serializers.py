@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.db import IntegrityError
 from .models import Customer, Device
 # Removed TicketListSerializer import here to avoid circular imports
 
@@ -37,15 +38,48 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
         tickets = obj.tickets.select_related('customer', 'device', 'assigned_to').order_by('-created_at')
         return TicketListSerializer(tickets, many=True).data
         
-    def validate_identificador(self, value):
-        """Valida unicidad del identificador excluyendo los registros con soft delete (manejado parcialmente por el UniqueConstraint de BD, pero se agrega a nivel serializer para dar un mensaje más amigable)."""
-        request = self.context.get('request')
-        query = Customer.objects.filter(identificador=value)
-        
-        # Si es un PATCH/PUT, ignorar al propio cliente
+    def validate(self, attrs):
+        tipo_cliente = attrs.get('tipo_cliente') or getattr(self.instance, 'tipo_cliente', None)
+        identificador = (
+            attrs.get('identificador')
+            or getattr(self.instance, 'identificador', '')
+        ).strip()
+
+        if tipo_cliente not in {'PERSONA', 'EMPRESA'}:
+            raise serializers.ValidationError({'tipo_cliente': 'Debes seleccionar un tipo de cliente válido.'})
+
+        if not identificador.isdigit():
+            raise serializers.ValidationError({
+                'identificador': 'El identificador solo debe contener dígitos numéricos.'
+            })
+
+        expected_length = 8 if tipo_cliente == 'PERSONA' else 11
+        document_name = 'DNI' if tipo_cliente == 'PERSONA' else 'RUC'
+        if len(identificador) != expected_length:
+            raise serializers.ValidationError({
+                'identificador': f'El {document_name} debe tener exactamente {expected_length} dígitos.'
+            })
+
+        query = Customer.objects.filter(
+            tipo_cliente=tipo_cliente,
+            identificador=identificador,
+        )
         if self.instance:
             query = query.exclude(pk=self.instance.pk)
-            
+
         if query.exists():
-            raise serializers.ValidationError("Este DNI/RUC ya se encuentra registrado en un cliente activo.")
-        return value
+            raise serializers.ValidationError({
+                'identificador': f'Este {document_name} ya se encuentra registrado en un cliente activo.'
+            })
+
+        attrs['identificador'] = identificador
+        return attrs
+
+    def create(self, validated_data):
+        try:
+            return super().create(validated_data)
+        except IntegrityError:
+            doc = 'DNI' if validated_data.get('tipo_cliente') == 'PERSONA' else 'RUC'
+            raise serializers.ValidationError({
+                'identificador': f'Este {doc} ya se encuentra registrado en un cliente activo.'
+            })

@@ -202,3 +202,58 @@ class QuoteFlowTests(APITestCase):
         self.assertEqual(response['Content-Type'], 'application/pdf')
         self.assertIn('.pdf', response['Content-Disposition'])
         self.assertTrue(response.content.startswith(b'%PDF-1.4'))
+
+    def test_rejects_decimal_line_quantity(self):
+        response = self.client.post(
+            '/api/quotes/',
+            self._quote_payload(
+                lines=[
+                    {
+                        'line_type': 'SERVICE',
+                        'service': self.service.id,
+                        'descripcion': 'Servicio técnico',
+                        'cantidad': '1.5',
+                        'precio_unitario': '120.00',
+                        'descuento_linea': '0.00',
+                    }
+                ],
+            ),
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('cantidad entera positiva', str(response.data))
+
+    def test_rejects_negative_discount(self):
+        response = self.client.post(
+            '/api/quotes/',
+            self._quote_payload(descuento='-5.00'),
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('descuento no puede ser negativo', str(response.data))
+
+    def test_receptionist_cannot_apply_direct_discounts(self):
+        response = self.client.post(
+            '/api/quotes/',
+            self._quote_payload(descuento='10.00'),
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('no puede aplicar descuentos directamente', str(response.data))
+
+    def test_approved_quote_cannot_be_edited(self):
+        create_response = self.client.post('/api/quotes/', self._quote_payload(), format='json')
+        quote_id = create_response.data['id']
+        self.client.post(f'/api/quotes/{quote_id}/send/')
+        self.client.post(f'/api/quotes/{quote_id}/approve/')
+
+        update_response = self.client.patch(
+            f'/api/quotes/{quote_id}/',
+            self._quote_payload(descuento='0.00'),
+            format='json',
+        )
+
+        self.assertEqual(update_response.status_code, status.HTTP_400_BAD_REQUEST)

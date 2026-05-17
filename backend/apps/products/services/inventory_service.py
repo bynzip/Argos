@@ -5,6 +5,8 @@ from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
 
+from apps.core.audit import log_audit
+from apps.core.notifications import create_role_notifications
 from apps.products.models import InventoryMovement, Product, StockItem, StockReservation, Warehouse
 from apps.tickets.models import Ticket
 
@@ -125,27 +127,135 @@ def ensure_ticket_can_reserve(ticket):
         })
 
 
-@transaction.atomic
+def sync_ticket_quote_supply_status(ticket):
+    try:
+        from apps.quotes.models import QuoteLine
+        from apps.quotes.services import get_active_ticket_quote
+    except ImportError:
+        return
+
+    quote = get_active_ticket_quote(ticket)
+    if not quote:
+        return
+
+    reserved_by_product = {
+        row['stock_item__product_id']: row['total']
+        for row in ticket.stock_reservations.filter(
+            estado=StockReservation.ReservationStatus.ACTIVE
+        ).values('stock_item__product_id').annotate(total=Sum('cantidad'))
+    }
+    remaining_reserved = {
+        product_id: Decimal(str(total))
+        for product_id, total in reserved_by_product.items()
+    }
+    updated_lines = []
+
+    for line in quote.lines.select_related('product').all():
+        desired_status = QuoteLine.SupplyStatus.NOT_APPLICABLE
+        if line.line_type == QuoteLine.LineType.PRODUCT and line.product_id:
+            available_for_line = remaining_reserved.get(line.product_id, Decimal('0.000'))
+            if available_for_line >= line.cantidad:
+                desired_status = QuoteLine.SupplyStatus.RESERVED
+                remaining_reserved[line.product_id] = available_for_line - line.cantidad
+            elif available_for_line > 0:
+                desired_status = QuoteLine.SupplyStatus.PENDING_ORDER
+                remaining_reserved[line.product_id] = Decimal('0.000')
+            else:
+                desired_status = QuoteLine.SupplyStatus.OUT_OF_STOCK
+
+        if line.supply_status != desired_status:
+            line.supply_status = desired_status
+            updated_lines.append(line)
+
+    if updated_lines:
+        from apps.quotes.models import QuoteLine
+        QuoteLine.objects.bulk_update(updated_lines, ['supply_status'])
+
+
+def mark_ticket_waiting_parts(*, ticket, user, product_name, requested_quantity, reserved_quantity):
+    if ticket.estado != Ticket.TicketStatus.WAITING_PARTS:
+        previous_status = ticket.estado
+        ticket.estado = Ticket.TicketStatus.WAITING_PARTS
+        ticket.save(update_fields=['estado', 'updated_at'])
+        from apps.tickets.models import TicketTransition
+        TicketTransition.objects.create(
+            ticket=ticket,
+            estado_anterior=previous_status,
+            estado_nuevo=Ticket.TicketStatus.WAITING_PARTS,
+            cambiado_por=user,
+            motivo='Cambio automático por faltante de stock',
+            fue_automatico=True,
+        )
+        log_audit(
+            module='tickets',
+            action='STATUS_CHANGE',
+            user=user,
+            obj=ticket,
+            before_data={'estado': previous_status},
+            after_data={'estado': Ticket.TicketStatus.WAITING_PARTS},
+        )
+
+    missing_quantity = (requested_quantity - reserved_quantity).quantize(QTY_QUANTIZE, rounding=ROUND_HALF_UP)
+    create_role_notifications(
+        role_names='Almacenero',
+        message=(
+            f"Falta stock de {product_name} para el ticket {ticket.folio}. "
+            f"Reservado: {reserved_quantity}. Pendiente: {missing_quantity}."
+        ),
+        include_superusers=True,
+    )
+
+
 def reserve_stock(*, stock_item, ticket, quantity, user, notes=''):
     ensure_ticket_can_reserve(ticket)
     quantity = decimalize_quantity(quantity)
 
-    locked_stock_item = StockItem.objects.select_for_update().select_related('product', 'warehouse').get(pk=stock_item.pk)
-    available = locked_stock_item.disponible
-    if quantity > available:
+    with transaction.atomic():
+        locked_stock_item = StockItem.objects.select_for_update().select_related('product', 'warehouse').get(pk=stock_item.pk)
+        available = locked_stock_item.disponible
+        reserved_quantity = min(quantity, available)
+        product_name = locked_stock_item.product.nombre
+
+        reservation = None
+        if reserved_quantity > 0:
+            reservation = StockReservation.objects.create(
+                stock_item=locked_stock_item,
+                ticket=ticket,
+                cantidad=reserved_quantity,
+                reservado_por=user,
+                notas=notes or '',
+            )
+            locked_stock_item.reservado = (locked_stock_item.reservado + reserved_quantity).quantize(QTY_QUANTIZE, rounding=ROUND_HALF_UP)
+            locked_stock_item.save(update_fields=['reservado', 'updated_at'])
+
+    if reserved_quantity <= 0:
+        mark_ticket_waiting_parts(
+            ticket=ticket,
+            user=user,
+            product_name=product_name,
+            requested_quantity=quantity,
+            reserved_quantity=Decimal('0.000'),
+        )
+        sync_ticket_quote_supply_status(ticket)
         raise ValidationError({
-            'cantidad': f'No hay stock disponible suficiente. Disponible actual: {available}.'
+            'detail': (
+                f"No hay stock disponible para {product_name}. "
+                f"Faltan {quantity} unidades para el ticket {ticket.folio}."
+            )
         })
 
-    reservation = StockReservation.objects.create(
-        stock_item=locked_stock_item,
-        ticket=ticket,
-        cantidad=quantity,
-        reservado_por=user,
-        notas=notes or '',
-    )
-    locked_stock_item.reservado = (locked_stock_item.reservado + quantity).quantize(QTY_QUANTIZE, rounding=ROUND_HALF_UP)
-    locked_stock_item.save(update_fields=['reservado', 'updated_at'])
+    if reserved_quantity < quantity:
+        mark_ticket_waiting_parts(
+            ticket=ticket,
+            user=user,
+            product_name=product_name,
+            requested_quantity=quantity,
+            reserved_quantity=reserved_quantity,
+        )
+    sync_ticket_quote_supply_status(ticket)
+    reservation.was_partial = reserved_quantity < quantity
+    reservation.requested_quantity = quantity
+    reservation.missing_quantity = (quantity - reserved_quantity).quantize(QTY_QUANTIZE, rounding=ROUND_HALF_UP)
     return reservation
 
 
@@ -167,6 +277,7 @@ def release_reservation(*, reservation, user=None, notes=''):
     if notes:
         locked_reservation.notas = f"{locked_reservation.notas}\n{notes}".strip()
     locked_reservation.save(update_fields=['estado', 'liberado_el', 'notas'])
+    sync_ticket_quote_supply_status(locked_reservation.ticket)
     return locked_reservation
 
 
@@ -206,6 +317,7 @@ def consume_reservation(*, reservation, user=None, notes=''):
         reference_id=locked_reservation.ticket_id,
         notes=notes or f'Consumo de reserva para ticket {locked_reservation.ticket.folio}',
     )
+    sync_ticket_quote_supply_status(locked_reservation.ticket)
     return locked_reservation
 
 
@@ -317,4 +429,3 @@ def get_ticket_reserved_products(ticket):
     return ticket.stock_reservations.filter(
         estado=StockReservation.ReservationStatus.ACTIVE
     ).values('stock_item__product_id').annotate(total=Sum('cantidad'))
-

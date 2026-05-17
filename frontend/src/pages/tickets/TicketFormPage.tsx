@@ -13,6 +13,7 @@ import { Input } from '../../components/ui/Input';
 import { Label } from '../../components/ui/Label';
 import { Select } from '../../components/ui/Select';
 import { Textarea } from '../../components/ui/Textarea';
+import { getApiErrorMessage } from '../../lib/apiErrors';
 // import { cn } from '../../lib/utils';
 
 const accessorySchema = z.object({
@@ -40,6 +41,7 @@ const TicketFormPage = () => {
     : customersResponse?.results || [];
     
   const [files, setFiles] = useState<File[]>([]);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   
   const { register, control, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -63,6 +65,7 @@ const TicketFormPage = () => {
   const devices = selectedCustomerDetail?.devices || [];
 
   const onSubmit = async (data: FormData) => {
+    setSubmitError(null);
     const formData = new FormData();
     formData.append('customer_id', data.customer_id);
     formData.append('descripcion_problema', data.descripcion_problema);
@@ -83,7 +86,10 @@ const TicketFormPage = () => {
     createMutation.mutate(formData, {
       onSuccess: (result) => {
         navigate(`/tickets/${result.id}`);
-      }
+      },
+      onError: (error: any) => {
+        setSubmitError(getApiErrorMessage(error, 'No se pudo crear el ticket. Verifica los datos e inténtalo nuevamente.'));
+      },
     });
   };
 
@@ -106,6 +112,11 @@ const TicketFormPage = () => {
       </div>
       
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+        {submitError && (
+          <div className="rounded-xl border border-[var(--color-danger-border)] bg-[var(--color-danger-bg)] px-4 py-3 text-sm font-medium text-[var(--color-danger)]">
+            {submitError}
+          </div>
+        )}
         
         <div className="form-card">
           <div className="form-section-title flex items-center gap-2">

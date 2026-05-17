@@ -6,6 +6,7 @@ import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
 import { Select } from '../ui/Select';
 import { Textarea } from '../ui/Textarea';
+import { getApiErrorMessage } from '../../lib/apiErrors';
 import { useQuote } from '../../hooks/useQuotes';
 import { useCreateReservation, useStockItems } from '../../hooks/useInventory';
 
@@ -32,6 +33,7 @@ export function ReservationModal({ ticketId, activeQuoteId, onClose }: Reservati
   const [selectedStockItem, setSelectedStockItem] = useState<string>('');
   const [cantidad, setCantidad] = useState('1.000');
   const [notas, setNotas] = useState('');
+  const [feedback, setFeedback] = useState<string | null>(null);
 
   const availableProducts = useMemo(() => {
     const map = new Map<number, { id: number; label: string }>();
@@ -60,13 +62,22 @@ export function ReservationModal({ ticketId, activeQuoteId, onClose }: Reservati
 
   const handleReserve = async () => {
     if (!selectedStockItem) return;
-    await createReservation.mutateAsync({
-      ticket_id: ticketId,
-      stock_item_id: parseInt(selectedStockItem),
-      cantidad,
-      notas,
-    });
-    onClose();
+    try {
+      setFeedback(null);
+      const result = await createReservation.mutateAsync({
+        ticket_id: ticketId,
+        stock_item_id: parseInt(selectedStockItem),
+        cantidad,
+        notas,
+      });
+      if (result.was_partial) {
+        setFeedback(result.detail || 'La reserva fue parcial por falta de stock.');
+        return;
+      }
+      onClose();
+    } catch (error: any) {
+      setFeedback(getApiErrorMessage(error, 'No se pudo crear la reserva.'));
+    }
   };
 
   return (
@@ -77,6 +88,11 @@ export function ReservationModal({ ticketId, activeQuoteId, onClose }: Reservati
           <Button variant="ghost" onClick={onClose}>Cerrar</Button>
         </CardHeader>
         <CardContent className="pt-6 space-y-6">
+          {feedback && (
+            <div className="rounded-xl border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] px-4 py-3 text-sm font-medium text-[var(--color-warning)]">
+              {feedback}
+            </div>
+          )}
           {suggestedProductLines.length > 0 && (
             <div className="space-y-3">
               <h3 className="text-sm font-bold text-[var(--gray-700)]">Sugerencias desde la cotización aprobada</h3>

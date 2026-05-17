@@ -97,11 +97,7 @@ export const useCreateTicket = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: FormData) => {
-      const response = await axios.post('/api/tickets/', data, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const response = await axios.post('/api/tickets/', data);
       return response.data;
     },
     onSuccess: () => {
@@ -166,9 +162,7 @@ export const useAddChecklistItem = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ ticketId, data }: { ticketId: string; data: FormData }) => {
-      const response = await axios.post(`/api/tickets/${ticketId}/add_checklist_item/`, data, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const response = await axios.post(`/api/tickets/${ticketId}/add_checklist_item/`, data);
       return response.data;
     },
     onSuccess: (_, variables) => {
@@ -182,9 +176,7 @@ export const useUpdateChecklistItem = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ ticketId, checklistId, data }: { ticketId: string; checklistId: number; data: FormData }) => {
-      const response = await axios.patch(`/api/tickets/${ticketId}/checklist-items/${checklistId}/`, data, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const response = await axios.patch(`/api/tickets/${ticketId}/checklist-items/${checklistId}/`, data);
       return response.data;
     },
     onSuccess: (_, variables) => {

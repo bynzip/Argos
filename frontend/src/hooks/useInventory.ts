@@ -38,6 +38,10 @@ export interface StockReservation {
   consumido_el?: string | null;
   liberado_el?: string | null;
   created_at: string;
+  was_partial?: boolean;
+  requested_quantity?: string;
+  missing_quantity?: string;
+  detail?: string;
 }
 
 export interface InventoryMovement {

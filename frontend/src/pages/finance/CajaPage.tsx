@@ -8,6 +8,7 @@ import { Label } from '../../components/ui/Label';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Textarea } from '../../components/ui/Textarea';
 import { useAbrirCaja, useCajaStatus, useCerrarCaja } from '../../hooks/useFinance';
+import { getApiErrorMessage } from '../../lib/apiErrors';
 import { cn } from '../../lib/utils';
 import { useCajaStore } from '../../store/cajaStore';
 
@@ -20,6 +21,7 @@ export default function CajaPage() {
   const [openingAmount, setOpeningAmount] = useState<string>('0.00');
   const [declaredAmount, setDeclaredAmount] = useState<string>('0.00');
   const [closingNotes, setClosingNotes] = useState<string>('');
+  const [closingError, setClosingError] = useState<string | null>(null);
 
   useEffect(() => {
     if (caja && caja.estado === 'OPEN') {
@@ -42,9 +44,15 @@ export default function CajaPage() {
 
   const handleClose = (e: React.FormEvent) => {
     e.preventDefault();
+    setClosingError(null);
     cerrarCajaMutation.mutate(
       { declaredAmount: parseFloat(declaredAmount), notes: closingNotes },
-      { onSuccess: () => refetch() }
+      {
+        onSuccess: () => refetch(),
+        onError: (error: any) => {
+          setClosingError(getApiErrorMessage(error, 'No se pudo completar el cierre de caja.'));
+        },
+      }
     );
   };
 
@@ -83,6 +91,8 @@ export default function CajaPage() {
   const cashExpected = caja
     ? parseFloat(caja.opening_amount) + (caja.ingresos_por_metodo?.find((i) => i.metodo_pago === 'CASH')?.total || 0)
     : 0;
+  const declaredAmountNumber = parseFloat(declaredAmount || '0');
+  const hasDifference = !Number.isNaN(declaredAmountNumber) && declaredAmountNumber !== cashExpected;
 
   if (!caja || caja.estado !== 'OPEN') {
     return (
@@ -304,7 +314,7 @@ export default function CajaPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>Notas de Cierre (Opcional)</Label>
+                  <Label required={hasDifference}>Notas de Cierre {hasDifference ? '(Obligatoria por diferencia)' : '(Opcional)'}</Label>
                   <Textarea
                     rows={3}
                     value={closingNotes}
@@ -323,10 +333,10 @@ export default function CajaPage() {
                   {cerrarCajaMutation.isPending ? 'Procesando Cierre...' : 'Cerrar Caja de Turno'}
                 </Button>
 
-                {cerrarCajaMutation.isError && (
+                {closingError && (
                   <div className="p-3 bg-[var(--color-danger-bg)] border border-[var(--color-danger-border)] rounded-lg flex gap-2 items-center text-[var(--color-danger)] text-xs font-medium">
                     <AlertTriangle size={16} />
-                    No se pudo completar el cierre. Verifica tu conexión.
+                    {closingError}
                   </div>
                 )}
               </form>

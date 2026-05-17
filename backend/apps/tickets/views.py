@@ -134,7 +134,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                 subido_por=request.user
             )
 
-        return Response(TicketDetailSerializer(ticket).data, status=status.HTTP_201_CREATED)
+        return Response(self.get_serializer(ticket).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
     def transition(self, request, pk=None):
@@ -146,7 +146,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'new_status es obligatorio'}, status=status.HTTP_400_BAD_REQUEST)
 
         ticket = transition_ticket(ticket=ticket, new_status=new_status, user=request.user, motivo=motivo)
-        return Response(TicketDetailSerializer(ticket).data)
+        return Response(self.get_serializer(ticket).data)
 
     @action(detail=True, methods=['patch'])
     def assign(self, request, pk=None):
@@ -161,7 +161,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Técnico no encontrado'}, status=status.HTTP_400_BAD_REQUEST)
 
         ticket = assign_ticket(ticket, technician, request.user)
-        return Response(TicketDetailSerializer(ticket).data)
+        return Response(self.get_serializer(ticket).data)
 
     @action(detail=True, methods=['patch'])
     def update_amounts(self, request, pk=None):
@@ -177,7 +177,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             total=total,
             motivo=motivo
         )
-        return Response(TicketDetailSerializer(ticket).data)
+        return Response(self.get_serializer(ticket).data)
 
     @action(detail=True, methods=['patch'])
     def update_technical_details(self, request, pk=None):
@@ -188,7 +188,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             diagnostico=request.data.get('diagnostico'),
             solucion=request.data.get('solucion'),
         )
-        return Response(TicketDetailSerializer(ticket).data)
+        return Response(self.get_serializer(ticket).data)
 
     @action(detail=True, methods=['post'])
     def add_checklist_item(self, request, pk=None):
@@ -196,6 +196,7 @@ class TicketViewSet(viewsets.ModelViewSet):
         nombre = (request.data.get('nombre') or '').strip()
         if not nombre:
             return Response({'detail': 'nombre es obligatorio'}, status=status.HTTP_400_BAD_REQUEST)
+        validate_evidence_files(request.FILES.getlist('evidences'))
 
         create_checklist_item(
             ticket=ticket,
@@ -207,7 +208,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             evidence_files=request.FILES.getlist('evidences'),
         )
         ticket.refresh_from_db()
-        return Response(TicketDetailSerializer(ticket).data, status=status.HTTP_201_CREATED)
+        return Response(self.get_serializer(ticket).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['patch'], url_path=r'checklist-items/(?P<checklist_id>[^/.]+)')
     def update_checklist_item(self, request, pk=None, checklist_id=None):
@@ -221,6 +222,7 @@ class TicketViewSet(viewsets.ModelViewSet):
         completado = None
         if completado_raw is not None:
             completado = str(completado_raw).lower() in {'1', 'true', 'yes', 'si'}
+        validate_evidence_files(request.FILES.getlist('evidences'))
 
         update_checklist_item(
             checklist_item=checklist_item,
@@ -230,7 +232,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             evidence_files=request.FILES.getlist('evidences'),
         )
         ticket.refresh_from_db()
-        return Response(TicketDetailSerializer(ticket).data)
+        return Response(self.get_serializer(ticket).data)
 
     @action(detail=True, methods=['patch'])
     def move_subarea(self, request, pk=None):
@@ -248,7 +250,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             notas=request.data.get('notas', ''),
         )
         ticket.refresh_from_db()
-        return Response(TicketDetailSerializer(ticket).data)
+        return Response(self.get_serializer(ticket).data)
 
     @action(detail=True, methods=['post'])
     def create_warranty(self, request, pk=None):
@@ -263,4 +265,4 @@ class TicketViewSet(viewsets.ModelViewSet):
             descripcion_problema=descripcion_problema,
             prioridad=request.data.get('prioridad') or ticket.prioridad,
         )
-        return Response(TicketDetailSerializer(warranty_ticket).data, status=status.HTTP_201_CREATED)
+        return Response(self.get_serializer(warranty_ticket).data, status=status.HTTP_201_CREATED)

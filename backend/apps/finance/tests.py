@@ -4,9 +4,10 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from apps.core.models import Notification
 from apps.core.test_utils import create_user_with_role
 from apps.customers.models import Customer
-from apps.finance.models import Receipt
+from apps.finance.models import CashClosure, Receipt
 from apps.tickets.models import Ticket
 
 
@@ -136,3 +137,49 @@ class FinanceFlowTests(APITestCase):
 
         self.ticket.refresh_from_db()
         self.assertEqual(self.ticket.saldo_pendiente, Decimal('70.00'))
+
+    def test_cannot_close_cash_with_pending_receipts(self):
+        self.open_cash()
+        voucher = SimpleUploadedFile('voucher.png', PNG_BYTES, content_type='image/png')
+        self.client.post(
+            f'/api/finance/tickets/{self.ticket.id}/pagos/',
+            {
+                'amount': '30.00',
+                'metodo_pago': 'YAPE',
+                'referencia': 'PEND-001',
+                'voucher_file': voucher,
+            },
+            format='multipart'
+        )
+
+        response = self.client.post('/api/finance/caja/cerrar/', {'declared_amount': '50.00'}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('pagos digitales pendientes', str(response.data))
+
+    def test_cannot_close_cash_with_difference_without_note(self):
+        self.open_cash()
+
+        response = self.client.post('/api/finance/caja/cerrar/', {'declared_amount': '40.00'}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('nota de cierre', str(response.data))
+        self.assertTrue(CashClosure.objects.filter(user=self.receptionist, estado=CashClosure.Status.OPEN).exists())
+
+    def test_close_cash_with_difference_and_note_notifies_admin(self):
+        self.open_cash()
+
+        response = self.client.post(
+            '/api/finance/caja/cerrar/',
+            {'declared_amount': '40.00', 'notes': 'Faltante detectado en conteo final'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['difference'], '-10.00')
+        self.assertTrue(
+            Notification.objects.filter(
+                user=self.admin,
+                message__icontains='diferencia de S/ -10.00',
+            ).exists()
+        )

@@ -23,6 +23,24 @@ def decimalize(value, field_name):
         raise ValidationError({field_name: f"El campo {field_name} tiene un valor inválido."}) from exc
 
 
+def get_user_role_name(user):
+    if getattr(user, 'is_superuser', False):
+        return 'Administrador'
+    user_role = user.user_roles.select_related('role').first()
+    return user_role.role.nombre if user_role else ''
+
+
+def validate_discount_permissions(*, user, descuento, normalized_lines):
+    if get_user_role_name(user) != 'Recepcionista':
+        return
+
+    has_line_discount = any(line['descuento_linea'] > 0 for line in normalized_lines)
+    if Decimal(str(descuento)) > 0 or has_line_discount:
+        raise ValidationError({
+            'descuento': 'La recepcionista no puede aplicar descuentos directamente. Usa el flujo de Solicitar descuento.'
+        })
+
+
 def get_company_profile():
     profile = CompanyProfile.objects.first()
     if profile:
@@ -71,6 +89,8 @@ def parse_quote_lines_payload(lines_raw):
         cantidad = decimalize(line.get('cantidad', 1), 'cantidad')
         if cantidad <= 0:
             raise ValidationError({'lines': f'La línea {index + 1} debe tener cantidad mayor a 0.'})
+        if cantidad != cantidad.to_integral_value():
+            raise ValidationError({'lines': f'La línea {index + 1} debe tener una cantidad entera positiva.'})
 
         precio_unitario = decimalize(line.get('precio_unitario', 0), 'precio_unitario')
         descuento_linea = decimalize(line.get('descuento_linea', 0), 'descuento_linea')
@@ -120,6 +140,8 @@ def calculate_quote_totals(lines, descuento, igv_rate):
 
     subtotal = subtotal.quantize(MONEY_QUANTIZE, rounding=ROUND_HALF_UP)
     descuento = Decimal(str(descuento)).quantize(MONEY_QUANTIZE, rounding=ROUND_HALF_UP)
+    if descuento < 0:
+        raise ValidationError({'descuento': 'El descuento no puede ser negativo.'})
     if descuento > subtotal:
         raise ValidationError({'descuento': 'El descuento no puede superar el subtotal.'})
 
@@ -286,6 +308,7 @@ def create_quote(*, user, customer, device=None, source_ticket=None, lines=None,
     quote.save(update_fields=['base_quote'])
 
     normalized_lines = parse_quote_lines_payload(lines)
+    validate_discount_permissions(user=user, descuento=descuento, normalized_lines=normalized_lines)
     create_quote_lines(quote, normalized_lines)
     create_quote_attachments(quote, attachments or [], user)
     return quote
@@ -298,8 +321,22 @@ def update_quote(*, quote, user, lines=None, descuento=None, igv_rate=None, vali
     if not quote.is_active_version:
         raise ValidationError({'detail': 'Solo la versión activa más reciente puede editarse.'})
 
+    normalized_lines = None
+    if lines is not None:
+        normalized_lines = parse_quote_lines_payload(lines)
+
+    next_discount = quote.descuento if descuento is None else decimalize(descuento, 'descuento')
+    validate_discount_permissions(
+        user=user,
+        descuento=next_discount,
+        normalized_lines=normalized_lines or [
+            {'descuento_linea': line.descuento_linea}
+            for line in quote.lines.all()
+        ],
+    )
+
     if descuento is not None:
-        quote.descuento = decimalize(descuento, 'descuento')
+        quote.descuento = next_discount
     if igv_rate is not None:
         quote.igv_rate = decimalize(igv_rate, 'igv_rate')
     if valido_hasta is not None:
@@ -310,9 +347,8 @@ def update_quote(*, quote, user, lines=None, descuento=None, igv_rate=None, vali
         quote.notas = notas
     quote.save()
 
-    if lines is not None:
+    if normalized_lines is not None:
         quote.lines.all().delete()
-        normalized_lines = parse_quote_lines_payload(lines)
         create_quote_lines(quote, normalized_lines)
 
     create_quote_attachments(quote, attachments or [], user)
