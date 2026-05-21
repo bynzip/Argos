@@ -2,7 +2,7 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import F, Sum
 from django.utils import timezone
 
 from apps.core.audit import log_audit
@@ -429,3 +429,153 @@ def get_ticket_reserved_products(ticket):
     return ticket.stock_reservations.filter(
         estado=StockReservation.ReservationStatus.ACTIVE
     ).values('stock_item__product_id').annotate(total=Sum('cantidad'))
+
+
+def get_quote_product_lines(quote):
+    return list(
+        quote.lines.filter(line_type='PRODUCT', product__isnull=False)
+        .select_related('product')
+        .order_by('orden', 'id')
+    )
+
+
+def get_available_stock_items_for_product(product):
+    return list(
+        StockItem.objects.select_for_update()
+        .select_related('product', 'warehouse')
+        .filter(product=product, cantidad__gt=F('reservado'))
+        .order_by('warehouse__nombre', 'id')
+    )
+
+
+@transaction.atomic
+def reserve_quote_materials_for_ticket(*, ticket, quote, user):
+    lines = get_quote_product_lines(quote)
+    if not lines:
+        return []
+
+    reservations = []
+    for line in lines:
+        remaining = decimalize_quantity(line.cantidad)
+        active_total = ticket.stock_reservations.filter(
+            estado=StockReservation.ReservationStatus.ACTIVE,
+            stock_item__product=line.product,
+        ).aggregate(total=Sum('cantidad'))['total'] or Decimal('0.000')
+        remaining = max(Decimal('0.000'), (remaining - active_total).quantize(QTY_QUANTIZE, rounding=ROUND_HALF_UP))
+        if remaining <= 0:
+            continue
+
+        stock_items = get_available_stock_items_for_product(line.product)
+        if not stock_items:
+            mark_ticket_waiting_parts(
+                ticket=ticket,
+                user=user,
+                product_name=line.product.nombre,
+                requested_quantity=decimalize_quantity(line.cantidad),
+                reserved_quantity=active_total,
+            )
+            sync_ticket_quote_supply_status(ticket)
+            raise ValidationError({
+                'detail': f'No hay stock disponible para {line.product.nombre}. El ticket paso a espera de repuestos.'
+            })
+
+        reserved_for_line = Decimal('0.000')
+        for stock_item in stock_items:
+            if remaining <= 0:
+                break
+            available = stock_item.disponible
+            if available <= 0:
+                continue
+            to_reserve = min(remaining, available).quantize(QTY_QUANTIZE, rounding=ROUND_HALF_UP)
+            reservation = reserve_stock(
+                stock_item=stock_item,
+                ticket=ticket,
+                quantity=to_reserve,
+                user=user,
+                notes=f'Reserva automatica desde cotizacion {quote.folio}',
+            )
+            reservations.append(reservation)
+            reserved_for_line += reservation.cantidad
+            remaining = max(Decimal('0.000'), (remaining - reservation.cantidad).quantize(QTY_QUANTIZE, rounding=ROUND_HALF_UP))
+
+        if remaining > 0:
+            mark_ticket_waiting_parts(
+                ticket=ticket,
+                user=user,
+                product_name=line.product.nombre,
+                requested_quantity=decimalize_quantity(line.cantidad),
+                reserved_quantity=active_total + reserved_for_line,
+            )
+            sync_ticket_quote_supply_status(ticket)
+            raise ValidationError({
+                'detail': f'No se pudo reservar todo el material para {line.product.nombre}. El ticket paso a espera de repuestos.'
+            })
+
+    sync_ticket_quote_supply_status(ticket)
+    return reservations
+
+
+@transaction.atomic
+def consume_reserved_quote_materials_for_ticket(*, ticket, user):
+    consumed = []
+    for reservation in ticket.stock_reservations.filter(estado=StockReservation.ReservationStatus.ACTIVE).order_by('created_at'):
+        consumed.append(
+            consume_reservation(
+                reservation=reservation,
+                user=user,
+                notes=f'Consumo automatico al marcar listo el ticket {ticket.folio}',
+            )
+        )
+    return consumed
+
+
+@transaction.atomic
+def consume_direct_quote_stock(*, quote, user):
+    existing_exit = InventoryMovement.objects.filter(
+        reference_type='Quote',
+        reference_id=str(quote.id),
+        movement_type=InventoryMovement.MovementType.EXIT,
+    ).exists()
+    if existing_exit:
+        return []
+
+    lines = get_quote_product_lines(quote)
+    consumed_movements = []
+    for line in lines:
+        remaining = decimalize_quantity(line.cantidad)
+        stock_items = get_available_stock_items_for_product(line.product)
+        if not stock_items:
+            raise ValidationError({
+                'detail': f'No hay stock disponible para completar la venta directa de {line.product.nombre}.'
+            })
+
+        for stock_item in stock_items:
+            if remaining <= 0:
+                break
+            available = stock_item.disponible
+            if available <= 0:
+                continue
+            to_consume = min(remaining, available).quantize(QTY_QUANTIZE, rounding=ROUND_HALF_UP)
+            stock_item.cantidad = (stock_item.cantidad - to_consume).quantize(QTY_QUANTIZE, rounding=ROUND_HALF_UP)
+            stock_item.save(update_fields=['cantidad', 'updated_at'])
+            consumed_movements.append(
+                record_inventory_movement(
+                    product=stock_item.product,
+                    warehouse=stock_item.warehouse,
+                    movement_type=InventoryMovement.MovementType.EXIT,
+                    quantity=to_consume,
+                    user=user,
+                    unit_cost=stock_item.costo_promedio or stock_item.product.precio_costo,
+                    reference_type='Quote',
+                    reference_id=quote.id,
+                    notes=f'Consumo directo por cobro de cotizacion {quote.folio}',
+                )
+            )
+            remaining = max(Decimal('0.000'), (remaining - to_consume).quantize(QTY_QUANTIZE, rounding=ROUND_HALF_UP))
+
+        if remaining > 0:
+            raise ValidationError({
+                'detail': f'No hay stock suficiente para completar la venta directa de {line.product.nombre}.'
+            })
+
+    return consumed_movements

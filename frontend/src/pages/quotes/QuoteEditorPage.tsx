@@ -1,7 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, CheckCircle2, ChevronDown, FileText, GitBranch, Plus, Save, Send, ShieldCheck, Ticket as TicketIcon, XCircle } from 'lucide-react';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  CreditCard,
+  FileText,
+  Plus,
+  Save,
+  Send,
+  ShieldCheck,
+  Ticket as TicketIcon,
+  XCircle,
+} from 'lucide-react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
+import { PaymentDetailsModal } from '../../components/finance/PaymentDetailsModal';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
@@ -14,6 +26,7 @@ import { useCustomer, useCustomers, PaginatedResponse as CustomerPaginated } fro
 import { useProducts, Product, PaginatedResponse as ProductPaginated } from '../../hooks/useProducts';
 import {
   downloadQuotePdf,
+  PaginatedResponse,
   QuoteLine,
   useApproveAmountQuote,
   useApproveQuote,
@@ -24,10 +37,8 @@ import {
   useRejectAmountQuote,
   useRejectQuote,
   useSendQuote,
-  useServiceCategories,
   useServices,
   Service,
-  PaginatedResponse,
   useUpdateQuote,
 } from '../../hooks/useQuotes';
 import { useTicket } from '../../hooks/useTickets';
@@ -45,34 +56,18 @@ const createEmptyLine = (): QuoteLine => ({
   orden: 0,
 });
 
-const buildQuoteDraftSignature = (
-  form: {
-    customer: string;
-    device: string;
-    source_ticket: string;
-    descuento: string;
-    igv_rate: string;
-    valido_hasta: string;
-    condiciones: string;
-    notas: string;
-  },
-  lines: QuoteLine[],
-  attachments: File[],
-) => JSON.stringify({
-  form,
-  lines: lines.map((line) => ({
-    line_type: line.line_type,
-    product: line.product ?? null,
-    service: line.service ?? null,
-    descripcion: line.descripcion,
-    cantidad: line.cantidad,
-    precio_unitario: line.precio_unitario,
-    descuento_linea: line.descuento_linea,
-    supply_status: line.supply_status ?? 'NOT_APPLICABLE',
-    orden: line.orden ?? 0,
-  })),
-  attachments: attachments.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
-});
+const normalizeQuantityForInput = (value: string | number) => {
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && Number.isInteger(numeric)) {
+    return String(numeric);
+  }
+  return String(value);
+};
+
+const money = (value: string | number | null | undefined) => {
+  const numeric = Number.parseFloat(String(value ?? 0));
+  return Number.isFinite(numeric) ? numeric : 0;
+};
 
 export default function QuoteEditorPage() {
   const navigate = useNavigate();
@@ -87,7 +82,6 @@ export default function QuoteEditorPage() {
   const { data: customerResponse } = useCustomers({ page_size: 100 });
   const { data: productsResponse } = useProducts({ page_size: 100 });
   const { data: servicesResponse } = useServices({ page_size: 100 });
-  const { data: serviceCategories = [] } = useServiceCategories();
 
   const createQuote = useCreateQuote();
   const updateQuote = useUpdateQuote(id || '');
@@ -110,291 +104,271 @@ export default function QuoteEditorPage() {
     : Array.isArray(servicesResponse) ? servicesResponse : [];
 
   const [form, setForm] = useState({
+    quote_type: 'REPAIR' as 'REPAIR' | 'DIRECT',
     customer: '',
     device: '',
     source_ticket: ticketId || '',
     descuento: '0',
     igv_rate: '18',
     valido_hasta: '',
-    condiciones: '',
     notas: '',
   });
   const [lines, setLines] = useState<QuoteLine[]>([createEmptyLine()]);
   const [attachments, setAttachments] = useState<File[]>([]);
-  const [rejectReason, setRejectReason] = useState('');
   const [amountNotes, setAmountNotes] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [draftSaved, setDraftSaved] = useState(false);
-  const [savedDraftSignature, setSavedDraftSignature] = useState('');
-  const [showVersionsMenu, setShowVersionsMenu] = useState(false);
-  const selectedCustomerId = form.customer ? parseInt(form.customer) : null;
+  const [showPaymentDetails, setShowPaymentDetails] = useState(false);
+  const [selectedVersionId, setSelectedVersionId] = useState('');
+
+  const selectedCustomerId = form.customer ? parseInt(form.customer, 10) : null;
   const { data: selectedCustomerDetail } = useCustomer(selectedCustomerId);
 
   useEffect(() => {
-    if (ticket) {
-      setForm((prev) => ({
-        ...prev,
-        customer: String(ticket.customer?.id || ''),
-        device: ticket.device?.id ? String(ticket.device.id) : '',
-        source_ticket: ticket.id,
-      }));
-    }
+    if (!ticket) return;
+    setForm((prev) => ({
+      ...prev,
+      customer: String(ticket.customer?.id || ''),
+      device: ticket.device?.id ? String(ticket.device.id) : '',
+      source_ticket: ticket.id,
+    }));
   }, [ticket]);
 
   useEffect(() => {
-    if (quote) {
-      setForm({
-        customer: String(quote.customer.id),
-        device: quote.device?.id ? String(quote.device.id) : '',
-        source_ticket: quote.source_ticket?.id || '',
-        descuento: quote.descuento,
-        igv_rate: quote.igv_rate,
-        valido_hasta: quote.valido_hasta || '',
-        condiciones: quote.condiciones || '',
-        notas: quote.notas || '',
-      });
-      setLines(
-        quote.lines.map((line, index) => ({
-          ...line,
-          cantidad: String(line.cantidad),
-          precio_unitario: String(line.precio_unitario),
-          descuento_linea: String(line.descuento_linea),
-          orden: line.orden ?? index,
-        }))
-      );
-      setAttachments([]);
-      setDraftSaved(false);
-      setShowVersionsMenu(false);
-    }
-  }, [quote]);
-
-  useEffect(() => {
     if (!quote) return;
-    const normalizedForm = {
+    setSelectedVersionId(String(quote.id));
+    setForm({
+      quote_type: quote.quote_type,
       customer: String(quote.customer.id),
       device: quote.device?.id ? String(quote.device.id) : '',
       source_ticket: quote.source_ticket?.id || '',
       descuento: quote.descuento,
       igv_rate: quote.igv_rate,
       valido_hasta: quote.valido_hasta || '',
-      condiciones: quote.condiciones || '',
       notas: quote.notas || '',
-    };
-    const normalizedLines = quote.lines.map((line, index) => ({
-      ...line,
-      cantidad: String(line.cantidad),
-      precio_unitario: String(line.precio_unitario),
-      descuento_linea: String(line.descuento_linea),
-      orden: line.orden ?? index,
-    }));
-    setSavedDraftSignature(buildQuoteDraftSignature(normalizedForm, normalizedLines, []));
+    });
+    setLines(
+      quote.lines.map((line, index) => ({
+        ...line,
+        cantidad: normalizeQuantityForInput(line.cantidad),
+        precio_unitario: String(line.precio_unitario),
+        descuento_linea: String(line.descuento_linea),
+        orden: line.orden ?? index,
+      })),
+    );
+    setAttachments([]);
   }, [quote]);
-
-  useEffect(() => {
-    if (!draftSaved) return;
-    const timer = window.setTimeout(() => setDraftSaved(false), 2000);
-    return () => window.clearTimeout(timer);
-  }, [draftSaved]);
 
   const devices = selectedCustomerDetail?.devices || (ticket?.device ? [ticket.device] : []);
   const isDraft = !isEditing || quote?.estado === 'DRAFT';
   const isAdmin = user?.is_superuser || user?.role === 'Administrador';
   const isReceptionist = user?.role === 'Recepcionista';
-  const isHistoricalVersion = !!quote && !quote.is_active_version;
-  const canEditDraft = isDraft && !isHistoricalVersion;
-  const canEditDiscounts = canEditDraft && !isReceptionist && quote?.estado !== 'APPROVED';
-  const currentDraftSignature = useMemo(
-    () => buildQuoteDraftSignature(form, lines, attachments),
-    [attachments, form, lines],
-  );
-  const hasDraftChanges = !isEditing || currentDraftSignature !== savedDraftSignature;
-  const versionHistory = useMemo(
-    () => [...(quote?.version_history || [])].sort((left, right) => right.version - left.version),
-    [quote?.version_history],
-  );
-
-  useEffect(() => {
-    if (!draftSaved || currentDraftSignature !== savedDraftSignature || !isEditing) {
-      setDraftSaved(false);
-    }
-  }, [currentDraftSignature, draftSaved, isEditing, savedDraftSignature]);
+  const hasCommercialActivity = (quote?.receipts?.length || 0) > 0 || (quote?.payment_schedules?.length || 0) > 0;
+  const canEditDraft = isDraft && (!quote || (quote.is_active_version && !hasCommercialActivity));
+  const canEditDiscounts = canEditDraft && !isReceptionist;
+  const canCreateVersion = !!quote && quote.is_active_version && ['DRAFT', 'SENT', 'APPROVED', 'REJECTED'].includes(quote.estado) && !hasCommercialActivity;
 
   const totals = useMemo(() => {
     const subtotal = lines.reduce((acc, line) => {
-      const qty = parseFloat(line.cantidad || '0');
-      const price = parseFloat(line.precio_unitario || '0');
-      const discount = parseFloat(line.descuento_linea || '0');
+      const qty = money(line.cantidad);
+      const price = money(line.precio_unitario);
+      const discount = money(line.descuento_linea);
       return acc + Math.max(0, (qty * price) - discount);
     }, 0);
-    const descuento = parseFloat(form.descuento || '0');
+    const descuento = money(form.descuento);
     const taxable = Math.max(0, subtotal - descuento);
-    const igv = taxable * (parseFloat(form.igv_rate || '0') / 100);
+    const igv = taxable * (money(form.igv_rate) / 100);
     return {
       subtotal,
       descuento,
       igv,
       total: taxable + igv,
     };
-  }, [lines, form.descuento, form.igv_rate]);
+  }, [form.descuento, form.igv_rate, lines]);
+
+  const summaryLines = useMemo(() => (
+    lines.map((line, index) => {
+      const selectedProduct = line.product ? products.find((item) => item.id === line.product) : null;
+      const selectedService = line.service ? services.find((item) => item.id === line.service) : null;
+      const label =
+        line.descripcion?.trim() ||
+        line.product_name ||
+        line.service_name ||
+        selectedProduct?.nombre ||
+        selectedService?.nombre ||
+        `${line.line_type === 'PRODUCT' ? 'Producto' : 'Servicio'} ${index + 1}`;
+
+      const lineTotal = Math.max(0, (money(line.cantidad) * money(line.precio_unitario)) - money(line.descuento_linea));
+      return {
+        key: `${line.line_type}-${index}-${label}`,
+        label,
+        qty: normalizeQuantityForInput(line.cantidad),
+        total: lineTotal,
+      };
+    })
+  ), [lines, products, services]);
+
+  const headerSubtitle = useMemo(() => {
+    const sourceTicket = quote?.source_ticket || (ticket ? { id: ticket.id, folio: ticket.folio } : null);
+    if (!sourceTicket) {
+      return 'Centro comercial para precio, cuotas y cobro.';
+    }
+
+    return (
+      <span>
+        Ligada al ticket{' '}
+        <Link to={`/tickets/${sourceTicket.id}`} className="font-semibold text-[var(--color-brand-blue)] hover:underline">
+          {sourceTicket.folio}
+        </Link>
+      </span>
+    );
+  }, [quote?.source_ticket, ticket]);
+
+  const latestApproval = useMemo(() => {
+    if (!quote?.approvals?.length) return null;
+    return [...quote.approvals].sort(
+      (left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
+    )[0];
+  }, [quote?.approvals]);
+
+  const isDirty = useMemo(() => {
+    if (!quote) {
+      return (
+        form.customer !== '' ||
+        form.device !== '' ||
+        form.descuento !== '0' ||
+        form.igv_rate !== '18' ||
+        form.valido_hasta !== '' ||
+        form.notas !== '' ||
+        lines.length !== 1 ||
+        lines[0]?.descripcion !== '' ||
+        lines[0]?.cantidad !== '1' ||
+        lines[0]?.precio_unitario !== '0' ||
+        lines[0]?.descuento_linea !== '0' ||
+        attachments.length > 0
+      );
+    }
+
+    const currentState = JSON.stringify({
+      form,
+      lines: lines.map((line, index) => ({
+        line_type: line.line_type,
+        product: line.product || null,
+        service: line.service || null,
+        descripcion: line.descripcion || '',
+        cantidad: normalizeQuantityForInput(line.cantidad),
+        precio_unitario: String(line.precio_unitario),
+        descuento_linea: String(line.descuento_linea),
+        supply_status: line.supply_status || 'NOT_APPLICABLE',
+        orden: line.orden ?? index,
+      })),
+      attachments: attachments.map((file) => file.name),
+    });
+
+    const originalState = JSON.stringify({
+      form: {
+        quote_type: quote.quote_type,
+        customer: String(quote.customer.id),
+        device: quote.device?.id ? String(quote.device.id) : '',
+        source_ticket: quote.source_ticket?.id || '',
+        descuento: quote.descuento,
+        igv_rate: quote.igv_rate,
+        valido_hasta: quote.valido_hasta || '',
+        notas: quote.notas || '',
+      },
+      lines: quote.lines.map((line, index) => ({
+        line_type: line.line_type,
+        product: line.product || null,
+        service: line.service || null,
+        descripcion: line.descripcion || '',
+        cantidad: normalizeQuantityForInput(line.cantidad),
+        precio_unitario: String(line.precio_unitario),
+        descuento_linea: String(line.descuento_linea),
+        supply_status: line.supply_status || 'NOT_APPLICABLE',
+        orden: line.orden ?? index,
+      })),
+      attachments: [],
+    });
+
+    return currentState !== originalState;
+  }, [attachments, form, lines, quote]);
 
   const onSubmit = async () => {
     setSubmitError(null);
-    if (!form.customer) {
-      setSubmitError('Debes seleccionar un cliente antes de guardar la cotización.');
+    if (form.quote_type === 'REPAIR' && !form.customer && !form.source_ticket) {
+      setSubmitError('Debes seleccionar un cliente o partir desde un ticket para una cotizacion de reparacion.');
+      return;
+    }
+    if (lines.length === 0) {
+      setSubmitError('Debes agregar al menos una linea.');
       return;
     }
     if (lines.some((line) => !/^[1-9]\d*$/.test(String(line.cantidad || '').trim()))) {
-      setSubmitError('Todas las líneas deben tener una cantidad entera positiva.');
-      return;
-    }
-    if (lines.some((line) => parseFloat(line.descuento_linea || '0') < 0) || parseFloat(form.descuento || '0') < 0) {
-      setSubmitError('Los descuentos no pueden ser negativos.');
+      setSubmitError('Todas las lineas deben tener una cantidad entera positiva.');
       return;
     }
 
     const payload = {
-      customer: parseInt(form.customer),
-      device: form.device ? parseInt(form.device) : null,
+      quote_type: form.quote_type,
+      customer: form.customer ? parseInt(form.customer, 10) : null,
+      device: form.device ? parseInt(form.device, 10) : null,
       source_ticket: form.source_ticket || null,
       descuento: form.descuento,
       igv_rate: form.igv_rate,
       valido_hasta: form.valido_hasta,
-      condiciones: form.condiciones,
       notas: form.notas,
-      lines: lines.map((line, index) => ({
-        ...line,
-        orden: index,
-      })),
+      lines: lines.map((line, index) => ({ ...line, orden: index })),
       attachments,
     };
 
     try {
       if (isEditing && quote) {
         await updateQuote.mutateAsync(payload);
-        setAttachments([]);
-        setSavedDraftSignature(buildQuoteDraftSignature(form, lines, []));
-        setDraftSaved(true);
       } else {
         const created = await createQuote.mutateAsync(payload);
         navigate(`/quotes/${created.id}`);
       }
     } catch (error: any) {
-      setSubmitError(getApiErrorMessage(error, 'No se pudo guardar la cotización.'));
+      setSubmitError(getApiErrorMessage(error, 'No se pudo guardar la cotizacion.'));
     }
   };
 
   if (isEditing && isLoading) {
-    return <div className="p-12 text-center">Cargando cotización...</div>;
+    return <div className="p-12 text-center">Cargando cotizacion...</div>;
   }
 
   return (
-    <div className="p-8 max-w-[1400px] mx-auto space-y-8">
+    <div className="mx-auto max-w-[1480px] space-y-8 p-8">
       <Button variant="ghost" size="sm" onClick={() => navigate('/quotes')}>
         <ArrowLeft size={16} className="mr-2" />
         Volver a cotizaciones
       </Button>
 
       <PageHeader
-        title={quote ? `${quote.folio} · v${quote.version}` : 'Nueva cotización'}
-        subtitle={quote?.source_ticket ? `Ligada al ticket ${quote.source_ticket.folio}` : 'Cotización directa o ligada a ticket.'}
+        title={quote ? `${quote.folio} · v${quote.version}` : 'Nueva cotizacion'}
+        subtitle={headerSubtitle}
         actions={(
           <div className="flex flex-wrap gap-2">
-            {quote && versionHistory.length > 0 && (
-              <div className="relative">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="rounded-full px-4"
-                  onClick={() => setShowVersionsMenu((prev) => !prev)}
-                >
-                  <GitBranch size={16} className="mr-1" />
-                  v{quote.version} {quote.is_active_version ? 'Activa' : 'Histórica'}
-                  <ChevronDown size={16} className="ml-1" />
-                </Button>
-                {showVersionsMenu && (
-                  <div className="absolute right-0 top-full z-20 mt-2 w-72 rounded-2xl border border-[var(--gray-200)] bg-white p-2 shadow-[0_12px_32px_rgba(15,23,42,0.14)]">
-                    {versionHistory.map((item) => (
-                      <Link
-                        key={item.id}
-                        to={`/quotes/${item.id}`}
-                        onClick={() => setShowVersionsMenu(false)}
-                        className="flex items-center justify-between rounded-xl px-3 py-2 text-sm hover:bg-[var(--gray-50)]"
-                      >
-                        <span className="font-semibold text-[var(--gray-800)]">
-                          v{item.version} {item.is_active_version ? '(activa)' : '(histórica)'}
-                        </span>
-                        <span className="text-[12px] text-[var(--gray-500)]">{item.estado}</span>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
             {quote && (
-              <Button
-                variant="secondary"
-                onClick={() => downloadQuotePdf(quote.id, quote.folio, quote.version)}
-              >
+              <Button variant="secondary" onClick={() => downloadQuotePdf(quote.id, quote.folio, quote.version)}>
                 <FileText size={16} className="mr-2" />
-                Descargar PDF
+                PDF
               </Button>
             )}
-            {canEditDraft && (
-              <Button onClick={onSubmit} disabled={createQuote.isPending || updateQuote.isPending || !hasDraftChanges}>
+            {!isEditing && canEditDraft && (
+              <Button variant="secondary" onClick={onSubmit} disabled={createQuote.isPending || updateQuote.isPending}>
                 <Save size={16} className="mr-2" />
-                {createQuote.isPending || updateQuote.isPending
-                  ? 'Guardando...'
-                  : draftSaved
-                    ? 'Guardado OK'
-                    : isEditing
-                      ? 'Guardar borrador'
-                      : 'Crear cotización'}
-              </Button>
-            )}
-            {quote?.estado === 'DRAFT' && quote.is_active_version && (
-              <Button variant="secondary" onClick={() => sendQuote.mutate(quote.id)}>
-                <Send size={16} className="mr-2" />
-                Marcar enviada
-              </Button>
-            )}
-            {false && (
-              <>
-                <Button variant="secondary" onClick={() => approveQuote.mutate(quote!.id)}>
-                  <CheckCircle2 size={16} className="mr-2" />
-                  Aprobar
-                </Button>
-                <Button variant="ghost" onClick={() => rejectQuote.mutate({ id: quote!.id, motivo: rejectReason || 'Cliente rechazó la cotización' })}>
-                  <XCircle size={16} className="mr-2" />
-                  Rechazar
-                </Button>
-              </>
-            )}
-            {quote && quote.is_active_version && ['DRAFT', 'SENT', 'APPROVED'].includes(quote.estado) && (
-              <Button variant="ghost" onClick={() => createVersion.mutate(quote.id, { onSuccess: (next) => navigate(`/quotes/${next.id}`) })}>
-                <Plus size={16} className="mr-2" />
-                Nueva versión
+                {isEditing ? 'Guardar borrador' : 'Crear cotizacion'}
               </Button>
             )}
             {quote?.estado === 'APPROVED' && !quote.source_ticket && (
               <Button variant="secondary" onClick={() => convertToTicket.mutate(quote.id, { onSuccess: (data) => navigate(`/tickets/${data.ticket_id}`) })}>
                 <TicketIcon size={16} className="mr-2" />
-                Convertir en ticket
+                Convertir a ticket
               </Button>
             )}
           </div>
         )}
       />
-
-      {quote?.source_ticket && (
-        <div className="-mt-4">
-          <Link
-            to={`/tickets/${quote.source_ticket.id}`}
-            className="text-sm font-medium text-[var(--color-brand-blue)] hover:underline"
-          >
-            Ir al ticket {quote.source_ticket.folio}
-          </Link>
-        </div>
-      )}
 
       {submitError && (
         <div className="rounded-xl border border-[var(--color-danger-border)] bg-[var(--color-danger-bg)] px-4 py-3 text-sm font-medium text-[var(--color-danger)]">
@@ -402,21 +376,34 @@ export default function QuoteEditorPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-        <div className="xl:col-span-8 space-y-8">
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-12">
+        <div className="space-y-8 xl:col-span-8">
           <Card>
-            <CardHeader>
+            <CardHeader className="px-6 py-4">
               <CardTitle>Datos generales</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <CardContent className="grid grid-cols-1 gap-4 pt-4 md:grid-cols-2">
+              <div>
+                <Label>Tipo de cotizacion</Label>
+                <Select
+                  value={form.quote_type}
+                  disabled={!!quote}
+                  onChange={(event) => setForm((prev) => ({ ...prev, quote_type: event.target.value as 'REPAIR' | 'DIRECT' }))}
+                >
+                  <option value="REPAIR">Reparacion</option>
+                  <option value="DIRECT">Directa</option>
+                </Select>
+              </div>
               <div>
                 <Label>Cliente</Label>
                 <Select
                   value={form.customer}
                   disabled={!!ticket || !!quote?.source_ticket}
-                  onChange={(e) => setForm((prev) => ({ ...prev, customer: e.target.value, device: '' }))}
+                  onChange={(event) => setForm((prev) => ({ ...prev, customer: event.target.value, device: '' }))}
                 >
-                  <option value="">Selecciona cliente...</option>
+                  <option value="">
+                    {form.quote_type === 'DIRECT' ? 'Cliente generico del sistema' : 'Selecciona cliente...'}
+                  </option>
                   {customers.map((customer: any) => (
                     <option key={customer.id} value={customer.id}>
                       {customer.nombre} · {customer.identificador}
@@ -424,64 +411,75 @@ export default function QuoteEditorPage() {
                   ))}
                 </Select>
               </div>
+
+              {(form.quote_type === 'REPAIR' || form.source_ticket) && (
+                <div>
+                  <Label>Dispositivo</Label>
+                  <Select
+                    value={form.device}
+                    disabled={!!ticket || !!quote?.source_ticket}
+                    onChange={(event) => setForm((prev) => ({ ...prev, device: event.target.value }))}
+                  >
+                    <option value="">Sin dispositivo</option>
+                    {devices.map((device: any) => (
+                      <option key={device.id} value={device.id}>
+                        {device.marca} {device.modelo}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              )}
+
               <div>
-                <Label>Dispositivo</Label>
-                <Select
-                  value={form.device}
-                  disabled={!!ticket || !!quote?.source_ticket}
-                  onChange={(e) => setForm((prev) => ({ ...prev, device: e.target.value }))}
-                >
-                  <option value="">Sin dispositivo</option>
-                  {devices.map((device: any) => (
-                    <option key={device.id} value={device.id}>
-                      {device.marca} {device.modelo}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <Label>Válido hasta</Label>
-                <Input type="date" value={form.valido_hasta} onChange={(e) => setForm((prev) => ({ ...prev, valido_hasta: e.target.value }))} />
+                <Label>Valido hasta</Label>
+                <Input type="date" value={form.valido_hasta} onChange={(event) => setForm((prev) => ({ ...prev, valido_hasta: event.target.value }))} />
               </div>
               <div>
                 <Label>IGV (%)</Label>
-                <Input type="number" step="0.01" value={form.igv_rate} onChange={(e) => setForm((prev) => ({ ...prev, igv_rate: e.target.value }))} />
+                <Input type="number" step="0.01" value={form.igv_rate} onChange={(event) => setForm((prev) => ({ ...prev, igv_rate: event.target.value }))} />
+              </div>
+              <div>
+                <Label>Descuento global</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.descuento}
+                  disabled={!canEditDiscounts}
+                  onChange={(event) => setForm((prev) => ({ ...prev, descuento: event.target.value }))}
+                />
               </div>
               <div className="md:col-span-2">
-                <Label>Condiciones</Label>
-                <Textarea rows={3} value={form.condiciones} onChange={(e) => setForm((prev) => ({ ...prev, condiciones: e.target.value }))} />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Notas internas</Label>
-                <Textarea rows={3} value={form.notas} onChange={(e) => setForm((prev) => ({ ...prev, notas: e.target.value }))} />
+                <Label>Notas</Label>
+                <Textarea rows={3} value={form.notas} onChange={(event) => setForm((prev) => ({ ...prev, notas: event.target.value }))} />
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Líneas de cotización</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between px-6 py-4">
+              <CardTitle>Lineas de cotizacion</CardTitle>
               {canEditDraft && (
                 <Button variant="secondary" size="sm" onClick={() => setLines((prev) => [...prev, createEmptyLine()])}>
                   <Plus size={16} className="mr-2" />
-                  Agregar línea
+                  Agregar linea
                 </Button>
               )}
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 pt-4">
               {lines.map((line, index) => (
-                <div key={index} className="border border-[var(--gray-200)] rounded-xl p-4 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                <div key={index} className="space-y-4 rounded-xl border border-[var(--gray-200)] p-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
                     <div>
                       <Label>Tipo</Label>
                       <Select
                         value={line.line_type}
                         disabled={!canEditDraft}
-                        onChange={(e) => {
+                        onChange={(event) => {
                           const next = [...lines];
                           next[index] = {
                             ...next[index],
-                            line_type: e.target.value as 'PRODUCT' | 'SERVICE',
+                            line_type: event.target.value as 'PRODUCT' | 'SERVICE',
                             product: null,
                             service: null,
                           };
@@ -497,21 +495,21 @@ export default function QuoteEditorPage() {
                       <Select
                         value={String(line.line_type === 'PRODUCT' ? line.product || '' : line.service || '')}
                         disabled={!canEditDraft}
-                        onChange={(e) => {
+                        onChange={(event) => {
                           const next = [...lines];
                           if (line.line_type === 'PRODUCT') {
-                            const product = products.find((item) => item.id === parseInt(e.target.value));
+                            const product = products.find((item) => item.id === parseInt(event.target.value, 10));
                             next[index] = {
                               ...next[index],
-                              product: e.target.value ? parseInt(e.target.value) : null,
+                              product: event.target.value ? parseInt(event.target.value, 10) : null,
                               descripcion: next[index].descripcion || product?.nombre || '',
                               precio_unitario: next[index].precio_unitario === '0' ? product?.precio_venta || '0' : next[index].precio_unitario,
                             };
                           } else {
-                            const service = services.find((item) => item.id === parseInt(e.target.value));
+                            const service = services.find((item) => item.id === parseInt(event.target.value, 10));
                             next[index] = {
                               ...next[index],
-                              service: e.target.value ? parseInt(e.target.value) : null,
+                              service: event.target.value ? parseInt(event.target.value, 10) : null,
                               descripcion: next[index].descripcion || service?.nombre || '',
                               precio_unitario: next[index].precio_unitario === '0' ? service?.precio_base || '0' : next[index].precio_unitario,
                             };
@@ -521,65 +519,63 @@ export default function QuoteEditorPage() {
                       >
                         <option value="">Selecciona...</option>
                         {(line.line_type === 'PRODUCT' ? products : services).map((item: any) => (
-                          <option key={item.id} value={item.id}>
-                            {item.nombre}
-                          </option>
+                          <option key={item.id} value={item.id}>{item.nombre}</option>
                         ))}
                       </Select>
                     </div>
                     <div>
                       <Label>Cantidad</Label>
-                        <Input
-                          type="number"
-                          step="1"
-                          min="1"
-                          value={line.cantidad}
-                          disabled={!canEditDraft}
-                        onChange={(e) => {
+                      <Input
+                        type="number"
+                        step="1"
+                        min="1"
+                        value={line.cantidad}
+                        disabled={!canEditDraft}
+                        onChange={(event) => {
                           const next = [...lines];
-                          next[index] = { ...next[index], cantidad: e.target.value };
+                          next[index] = { ...next[index], cantidad: event.target.value };
                           setLines(next);
                         }}
                       />
                     </div>
                     <div>
-                      <Label>P. Unitario</Label>
+                      <Label>P. unitario</Label>
                       <Input
                         type="number"
                         step="0.01"
                         value={line.precio_unitario}
                         disabled={!canEditDraft}
-                        onChange={(e) => {
+                        onChange={(event) => {
                           const next = [...lines];
-                          next[index] = { ...next[index], precio_unitario: e.target.value };
+                          next[index] = { ...next[index], precio_unitario: event.target.value };
                           setLines(next);
                         }}
                       />
                     </div>
                     <div>
-                      <Label>Desc. línea</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={line.descuento_linea}
-                          min="0"
-                          disabled={!canEditDiscounts}
-                          onChange={(e) => {
-                            const next = [...lines];
-                            next[index] = { ...next[index], descuento_linea: e.target.value };
+                      <Label>Desc. linea</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={line.descuento_linea}
+                        disabled={!canEditDiscounts}
+                        onChange={(event) => {
+                          const next = [...lines];
+                          next[index] = { ...next[index], descuento_linea: event.target.value };
                           setLines(next);
                         }}
                       />
                     </div>
                     <div className="md:col-span-6">
-                      <Label>Descripción</Label>
+                      <Label>Descripcion</Label>
                       <Textarea
                         rows={2}
                         value={line.descripcion}
                         disabled={!canEditDraft}
-                        onChange={(e) => {
+                        onChange={(event) => {
                           const next = [...lines];
-                          next[index] = { ...next[index], descripcion: e.target.value };
+                          next[index] = { ...next[index], descripcion: event.target.value };
                           setLines(next);
                         }}
                       />
@@ -588,7 +584,7 @@ export default function QuoteEditorPage() {
                   {canEditDraft && lines.length > 1 && (
                     <div className="flex justify-end">
                       <Button variant="ghost" size="sm" onClick={() => setLines((prev) => prev.filter((_, lineIndex) => lineIndex !== index))}>
-                        Quitar línea
+                        Quitar linea
                       </Button>
                     </div>
                   )}
@@ -597,27 +593,185 @@ export default function QuoteEditorPage() {
             </CardContent>
           </Card>
 
+        </div>
+
+        <div className="space-y-8 xl:col-span-4">
           <Card>
-            <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between px-6 py-3">
+                <CardTitle>Versiones</CardTitle>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="h-8 w-8 rounded-full p-0"
+                  disabled={!canCreateVersion}
+                  title={canCreateVersion ? 'Crear nueva version' : 'No se puede crear una nueva version en este estado'}
+                  onClick={() => {
+                    if (!quote || !canCreateVersion) return;
+                    setSubmitError(null);
+                    createVersion.mutate(quote.id, {
+                      onSuccess: (next) => navigate(`/quotes/${next.id}`),
+                      onError: (error) => setSubmitError(getApiErrorMessage(error, 'No se pudo crear una nueva version.')),
+                    });
+                  }}
+                >
+                  <Plus size={16} />
+                </Button>
+              </CardHeader>
+              <CardContent className="pt-6">
+              <Select
+                value={selectedVersionId}
+                onChange={(event) => {
+                  setSelectedVersionId(event.target.value);
+                  navigate(`/quotes/${event.target.value}`);
+                }}
+              >
+                {(quote?.version_history || []).map((version) => (
+                  <option key={version.id} value={version.id}>
+                    v{version.version} · {version.estado}{version.is_active_version ? ' · Activa' : ''}
+                  </option>
+                ))}
+              </Select>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="px-6 py-4">
+              <CardTitle>Resumen comercial</CardTitle>
+            </CardHeader>
+              <CardContent className="space-y-4 pt-4">
+                <div className="space-y-3">
+                {summaryLines.map((line) => (
+                  <div key={line.key} className="flex items-center justify-between gap-3 text-sm text-[var(--gray-700)]">
+                    <div className="min-w-0 truncate">
+                      {line.label} <span className="text-[var(--gray-500)]">({line.qty})</span>
+                    </div>
+                    <div className="shrink-0 font-semibold text-[var(--gray-800)]">S/ {line.total.toFixed(2)}</div>
+                  </div>
+                ))}
+              </div>
+
+              {totals.descuento > 0 && (
+                <div className="flex justify-between text-sm text-[var(--gray-600)]">
+                  <span>Descuento global</span>
+                  <span className="font-semibold">- S/ {totals.descuento.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm text-[var(--gray-600)]">
+                <span>IGV</span>
+                <span className="font-semibold">S/ {totals.igv.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between border-t border-[var(--gray-100)] pt-4">
+                <span className="font-extrabold text-[var(--gray-800)]">Total</span>
+                <span className="text-[22px] font-black text-[var(--color-brand-blue)]">S/ {totals.total.toFixed(2)}</span>
+              </div>
+
+              {quote && (
+                <Button variant="secondary" className="w-full" onClick={() => setShowPaymentDetails(true)}>
+                  <CreditCard size={16} className="mr-2" />
+                  Detalles de pago
+                </Button>
+              )}
+
+              {!quote && (
+                <div className="rounded-xl border border-dashed border-[var(--gray-200)] bg-[var(--gray-50)] px-4 py-4 text-sm text-[var(--gray-500)]">
+                  Guarda la cotizacion para habilitar cuotas, historial de pagos y cobros.
+                </div>
+              )}
+
+              {quote?.requires_amount_approval && (
+                <div className="rounded-lg border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] p-3 text-xs font-medium text-[var(--color-warning)]">
+                  Esta cotizacion requiere aprobacion administrativa por monto.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {quote && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between px-6 py-4">
+                <CardTitle>Estado actual</CardTitle>
+                <div className="text-xs font-medium text-[var(--gray-500)]">
+                  {new Date(quote.created_at).toLocaleDateString('es-PE')}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-6">
+                <div className="rounded-xl border border-[var(--gray-100)] bg-[var(--gray-50)] px-4 py-3">
+                  <div className="font-semibold text-[var(--gray-800)]">{quote.estado}</div>
+                </div>
+                {(quote.estado === 'DRAFT' && quote.is_active_version) || quote.estado === 'SENT' ? (
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {quote.estado === 'DRAFT' && quote.is_active_version && (
+                      <Button
+                        variant="secondary"
+                        className="w-full"
+                        onClick={onSubmit}
+                        disabled={!isDirty || createQuote.isPending || updateQuote.isPending}
+                        title={isDirty ? 'Guardar cambios del borrador' : 'No hay cambios para guardar'}
+                      >
+                        Guardar borrador
+                      </Button>
+                    )}
+                    {quote.estado === 'DRAFT' && quote.is_active_version && (
+                      <Button variant="secondary" className="w-full" onClick={() => sendQuote.mutate(quote.id)}>
+                        <Send size={16} className="mr-2" />
+                        Enviar
+                      </Button>
+                    )}
+                    {quote.estado === 'SENT' && (
+                      <>
+                        <Button variant="secondary" className="w-full" onClick={() => approveQuote.mutate(quote.id)}>
+                          <CheckCircle2 size={16} className="mr-2" />
+                          Aprobar
+                        </Button>
+                        <Button variant="danger" className="w-full" onClick={() => rejectQuote.mutate({ id: quote.id, motivo: 'Cliente rechazo la cotizacion' })}>
+                          <XCircle size={16} className="mr-2" />
+                          Rechazar
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                ) : null}
+                {latestApproval && (
+                  <div className="rounded-xl border border-[var(--gray-100)] bg-[var(--gray-50)] px-4 py-3">
+                    <div className="text-sm font-semibold text-[var(--gray-800)]">{latestApproval.estado}</div>
+                    <div className="mt-1 text-xs text-[var(--gray-500)]">{new Date(latestApproval.created_at).toLocaleDateString('es-PE')}</div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {quote?.requires_amount_approval && isAdmin && quote.latest_amount_approval_status === 'PENDING' && (
+            <Card>
+              <CardHeader className="px-6 py-4">
+                <CardTitle>Aprobacion administrativa</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Textarea rows={3} value={amountNotes} onChange={(event) => setAmountNotes(event.target.value)} placeholder="Notas..." />
+                <div className="flex gap-2">
+                  <Button variant="secondary" onClick={() => approveAmount.mutate({ id: quote.id, notas: amountNotes })}>
+                    <ShieldCheck size={16} className="mr-2" />
+                    Aprobar monto
+                  </Button>
+                  <Button variant="ghost" onClick={() => rejectAmount.mutate({ id: quote.id, notas: amountNotes })}>
+                    <XCircle size={16} className="mr-2" />
+                    Rechazar monto
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader className="px-6 py-4">
               <CardTitle>Adjuntos</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <Input
-                type="file"
-                multiple
-                disabled={!canEditDraft}
-                onChange={(e) => setAttachments(Array.from(e.target.files || []))}
-              />
+            <CardContent className="space-y-4 pt-6">
+              <Input type="file" multiple disabled={!canEditDraft} onChange={(event) => setAttachments(Array.from(event.target.files || []))} />
               {quote?.attachments?.length ? (
                 <div className="flex flex-wrap gap-2">
                   {quote.attachments.map((attachment) => (
-                    <a
-                      key={attachment.id}
-                      href={attachment.archivo}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[12px] font-medium px-3 py-2 rounded-lg border border-[var(--gray-200)] bg-[var(--gray-50)]"
-                    >
+                    <a key={attachment.id} href={attachment.archivo} target="_blank" rel="noreferrer" className="rounded-lg border border-[var(--gray-200)] bg-[var(--gray-50)] px-3 py-2 text-xs font-medium hover:border-[var(--gray-300)]">
                       {attachment.nombre_archivo}
                     </a>
                   ))}
@@ -626,127 +780,11 @@ export default function QuoteEditorPage() {
             </CardContent>
           </Card>
         </div>
-
-        <div className="xl:col-span-4 space-y-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center gap-2">
-              <FileText size={18} className="text-[var(--gray-400)]" />
-              <CardTitle>Resumen</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-between text-sm">
-                <span>Subtotal</span>
-                <span className="font-bold">S/ {totals.subtotal.toFixed(2)}</span>
-              </div>
-              <div>
-                <Label>Descuento global</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={form.descuento}
-                  min="0"
-                  disabled={!canEditDiscounts}
-                  onChange={(e) => setForm((prev) => ({ ...prev, descuento: e.target.value }))}
-                />
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>IGV</span>
-                <span className="font-bold">S/ {totals.igv.toFixed(2)}</span>
-              </div>
-              <div className="pt-4 border-t border-[var(--gray-100)] flex justify-between">
-                <span className="font-extrabold">Total</span>
-                <span className="font-black text-[22px] text-[var(--color-brand-blue)]">S/ {totals.total.toFixed(2)}</span>
-              </div>
-              {quote?.requires_amount_approval && (
-                <div className="p-3 rounded-lg border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] text-[12px] text-[var(--color-warning)] font-medium">
-                  Esta cotización supera el umbral y requiere aprobación administrativa antes de enviarse.
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {quote && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Control interno</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-sm">
-                  <span className="text-[var(--gray-500)]">Estado:</span>{' '}
-                  <span className="font-bold">{quote.estado}</span>
-                </div>
-                <div className="text-sm">
-                  <span className="text-[var(--gray-500)]">Aprobación por monto:</span>{' '}
-                  <span className="font-bold">{quote.latest_amount_approval_status || 'No requerida'}</span>
-                </div>
-                {quote.requires_amount_approval && isAdmin && quote.latest_amount_approval_status === 'PENDING' && (
-                  <div className="space-y-3">
-                    <Textarea
-                      rows={3}
-                      value={amountNotes}
-                      onChange={(e) => setAmountNotes(e.target.value)}
-                      placeholder="Notas de aprobación o rechazo..."
-                    />
-                    <div className="flex gap-2">
-                      <Button variant="secondary" onClick={() => approveAmount.mutate({ id: quote.id, notas: amountNotes })}>
-                        <ShieldCheck size={16} className="mr-2" />
-                        Aprobar monto
-                      </Button>
-                      <Button variant="ghost" onClick={() => rejectAmount.mutate({ id: quote.id, notas: amountNotes })}>
-                        <XCircle size={16} className="mr-2" />
-                        Rechazar monto
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {quote.estado === 'SENT' && (
-                  <div className="space-y-3 rounded-2xl border border-[var(--gray-200)] bg-[var(--gray-50)] p-4">
-                    <div className="text-sm font-semibold text-[var(--gray-800)]">Respuesta del cliente</div>
-                    <div className="grid gap-3">
-                      <Button
-                        variant="secondary"
-                        className="justify-start border-[var(--color-success)] text-[var(--color-success)] hover:bg-[rgba(34,197,94,0.08)]"
-                        onClick={() => approveQuote.mutate(quote.id)}
-                      >
-                        <CheckCircle2 size={16} className="mr-2" />
-                        Registrar aprobación del cliente
-                      </Button>
-                      <Button
-                        variant="danger"
-                        className="justify-start"
-                        onClick={() => rejectQuote.mutate({ id: quote.id, motivo: rejectReason || 'Cliente rechazó la cotización' })}
-                      >
-                        <XCircle size={16} className="mr-2" />
-                        Registrar rechazo del cliente
-                      </Button>
-                    </div>
-                    <div>
-                      <Label>Motivo de rechazo</Label>
-                      <Textarea rows={3} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {serviceCategories.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Categorías de servicio</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
-                {serviceCategories.map((category) => (
-                  <span key={category.id} className="px-3 py-1 rounded-full text-[12px] font-medium bg-[var(--gray-50)] border border-[var(--gray-200)]">
-                    {category.nombre}
-                  </span>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-        </div>
       </div>
+
+      {quote && showPaymentDetails && (
+        <PaymentDetailsModal quote={quote} onClose={() => setShowPaymentDetails(false)} isAdmin={isAdmin} />
+      )}
     </div>
   );
 }

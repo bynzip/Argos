@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
 
 export interface CashClosure {
@@ -14,8 +14,8 @@ export interface CashClosure {
   closing_notes: string | null;
   total_dia?: number;
   pending_total?: number;
-  ingresos_por_metodo?: { metodo_pago: string, total: number }[];
-  pendientes_por_metodo?: { metodo_pago: string, total: number }[];
+  ingresos_por_metodo?: { metodo_pago: string; total: number }[];
+  pendientes_por_metodo?: { metodo_pago: string; total: number }[];
   receipts?: any[];
 }
 
@@ -38,12 +38,12 @@ export const useCajaStatus = () => {
         return response.data as CashClosure;
       } catch (error: any) {
         if (error.response && error.response.status === 404) {
-          return null; // No caja is open
+          return null;
         }
         throw error;
       }
     },
-    retry: false
+    retry: false,
   });
 };
 
@@ -63,7 +63,7 @@ export const useAbrirCaja = () => {
 export const useCerrarCaja = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ declaredAmount, notes }: { declaredAmount: number, notes?: string }) => {
+    mutationFn: async ({ declaredAmount, notes }: { declaredAmount: number; notes?: string }) => {
       const response = await axios.post('/api/finance/caja/cerrar/', { declared_amount: declaredAmount, notes });
       return response.data;
     },
@@ -73,15 +73,16 @@ export const useCerrarCaja = () => {
   });
 };
 
-export const useRegistrarPago = (ticketId: string) => {
+export const useRegistrarPago = (quoteId: number | string) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: FormData) => {
-      const response = await axios.post(`/api/finance/tickets/${ticketId}/pagos/`, data);
+      const response = await axios.post(`/api/finance/quotes/${quoteId}/pagos/`, data);
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tickets', ticketId] });
+      queryClient.invalidateQueries({ queryKey: ['quotes', quoteId] });
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
       queryClient.invalidateQueries({ queryKey: ['caja'] });
     },
   });
@@ -90,55 +91,58 @@ export const useRegistrarPago = (ticketId: string) => {
 export const useConfirmarPago = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (receiptId: number) => {
-      const response = await axios.post(`/api/finance/pagos/${receiptId}/confirm/`);
+    mutationFn: async ({ receiptId, schedule_items }: { receiptId: number; schedule_items?: Array<{ schedule_id: number; amount: string }> }) => {
+      const response = await axios.post(`/api/finance/pagos/${receiptId}/confirm/`, schedule_items ? { schedule_items } : {});
       return response.data;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quotes'] });
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
       queryClient.invalidateQueries({ queryKey: ['caja'] });
     },
   });
 };
 
-export const useTicketSchedules = (ticketId?: string) => {
+export const useQuoteSchedules = (quoteId?: number | string) => {
   return useQuery({
-    queryKey: ['ticket-schedules', ticketId],
+    queryKey: ['quote-schedules', quoteId],
     queryFn: async () => {
-      const response = await axios.get(`/api/finance/tickets/${ticketId}/schedules/`);
+      const response = await axios.get(`/api/finance/quotes/${quoteId}/schedules/`);
       return response.data as PaymentSchedule[];
     },
-    enabled: !!ticketId,
+    enabled: !!quoteId,
   });
 };
 
-export const useCreateTicketSchedules = (ticketId: string) => {
+export const useCreateQuoteSchedules = (quoteId: number | string) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (installments: Array<{ amount: string; due_date: string }>) => {
-      const response = await axios.post(`/api/finance/tickets/${ticketId}/schedules/`, { installments });
+      const response = await axios.post(`/api/finance/quotes/${quoteId}/schedules/`, { installments });
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ticket-schedules', ticketId] });
-      queryClient.invalidateQueries({ queryKey: ['tickets', ticketId] });
+      queryClient.invalidateQueries({ queryKey: ['quote-schedules', quoteId] });
+      queryClient.invalidateQueries({ queryKey: ['quotes', quoteId] });
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
     },
   });
 };
 
-export const useReprogramSchedule = (ticketId: string) => {
+export const useReprogramSchedule = (quoteId: number | string) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ scheduleId, new_date, motivo }: { scheduleId: number; new_date: string; motivo: string }) => {
-      const response = await axios.post(`/api/finance/tickets/${ticketId}/schedules/${scheduleId}/reprogram/`, {
+      const response = await axios.post(`/api/finance/quotes/${quoteId}/schedules/${scheduleId}/reprogram/`, {
         new_date,
         motivo,
       });
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ticket-schedules', ticketId] });
-      queryClient.invalidateQueries({ queryKey: ['tickets', ticketId] });
+      queryClient.invalidateQueries({ queryKey: ['quote-schedules', quoteId] });
+      queryClient.invalidateQueries({ queryKey: ['quotes', quoteId] });
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
     },
   });
 };

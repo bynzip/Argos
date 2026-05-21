@@ -10,6 +10,7 @@ from apps.customers.models import Customer, Device
 from apps.tickets.models import Ticket
 from apps.tickets.views import TicketPagination
 from apps.users.permissions import RolePermission
+from apps.customers.services import get_or_create_generic_customer
 
 from .pdf_utils import build_quote_pdf_lines, generate_simple_pdf
 from .models import Quote
@@ -49,7 +50,7 @@ class QuoteViewSet(viewsets.ModelViewSet):
         'download_pdf': ['quotes.view_detail', 'quotes.view_draft'],
     }
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['estado', 'customer', 'source_ticket', 'is_active_version']
+    filterset_fields = ['estado', 'customer', 'source_ticket', 'is_active_version', 'quote_type']
     search_fields = ['folio', 'customer__nombre', 'customer__identificador']
     ordering_fields = ['created_at', 'valido_hasta', 'total', 'version']
 
@@ -69,15 +70,17 @@ class QuoteViewSet(viewsets.ModelViewSet):
         customer_id = request.data.get('customer')
         device_id = request.data.get('device')
         source_ticket_id = request.data.get('source_ticket')
+        quote_type = request.data.get('quote_type') or Quote.QuoteType.REPAIR
         lines = request.data.get('lines')
 
-        if not customer_id:
-            return Response({'detail': 'customer es obligatorio'}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            customer = Customer.objects.get(id=customer_id)
-        except Customer.DoesNotExist:
-            return Response({'detail': 'Cliente no encontrado'}, status=status.HTTP_400_BAD_REQUEST)
+        customer = None
+        if customer_id:
+            try:
+                customer = Customer.objects.get(id=customer_id)
+            except Customer.DoesNotExist:
+                return Response({'detail': 'Cliente no encontrado'}, status=status.HTTP_400_BAD_REQUEST)
+        elif quote_type == Quote.QuoteType.DIRECT:
+            customer = get_or_create_generic_customer()
 
         device = None
         if device_id:
@@ -98,25 +101,52 @@ class QuoteViewSet(viewsets.ModelViewSet):
             customer=customer,
             device=device,
             source_ticket=source_ticket,
+            quote_type=quote_type,
             lines=lines,
             descuento=request.data.get('descuento', 0),
             igv_rate=request.data.get('igv_rate'),
             valido_hasta=request.data.get('valido_hasta'),
-            condiciones=request.data.get('condiciones', ''),
             notas=request.data.get('notas', ''),
             attachments=request.FILES.getlist('attachments'),
         )
         return Response(QuoteDetailSerializer(quote).data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, *args, **kwargs):
+        customer = None
+        customer_id = request.data.get('customer')
+        if customer_id:
+            try:
+                customer = Customer.objects.get(id=customer_id)
+            except Customer.DoesNotExist:
+                return Response({'detail': 'Cliente no encontrado'}, status=status.HTTP_400_BAD_REQUEST)
+
+        device = None
+        device_id = request.data.get('device')
+        if device_id:
+            try:
+                device = Device.objects.get(id=device_id)
+            except Device.DoesNotExist:
+                return Response({'detail': 'Dispositivo no encontrado'}, status=status.HTTP_400_BAD_REQUEST)
+
+        source_ticket = None
+        source_ticket_id = request.data.get('source_ticket')
+        if source_ticket_id:
+            try:
+                source_ticket = Ticket.objects.get(id=source_ticket_id)
+            except Ticket.DoesNotExist:
+                return Response({'detail': 'Ticket no encontrado'}, status=status.HTTP_400_BAD_REQUEST)
+
         quote = update_quote(
             quote=self.get_object(),
             user=request.user,
+            customer=customer,
+            device=device,
+            source_ticket=source_ticket,
+            quote_type=request.data.get('quote_type'),
             lines=request.data.get('lines'),
             descuento=request.data.get('descuento'),
             igv_rate=request.data.get('igv_rate'),
             valido_hasta=request.data.get('valido_hasta'),
-            condiciones=request.data.get('condiciones'),
             notas=request.data.get('notas'),
             attachments=request.FILES.getlist('attachments'),
         )
@@ -194,11 +224,11 @@ class TicketQuoteViewSet(viewsets.ViewSet):
             customer=ticket.customer,
             device=ticket.device,
             source_ticket=ticket,
+            quote_type=request.data.get('quote_type') or Quote.QuoteType.REPAIR,
             lines=request.data.get('lines'),
             descuento=request.data.get('descuento', 0),
             igv_rate=request.data.get('igv_rate'),
             valido_hasta=request.data.get('valido_hasta'),
-            condiciones=request.data.get('condiciones', ''),
             notas=request.data.get('notas', ''),
             attachments=request.FILES.getlist('attachments'),
         )

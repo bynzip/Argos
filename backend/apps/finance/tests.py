@@ -8,6 +8,7 @@ from apps.core.models import Notification
 from apps.core.test_utils import create_user_with_role
 from apps.customers.models import Customer
 from apps.finance.models import CashClosure, Receipt
+from apps.quotes.models import Quote
 from apps.tickets.models import Ticket
 
 
@@ -42,6 +43,23 @@ class FinanceFlowTests(APITestCase):
             total=Decimal('100.00'),
             created_by=self.receptionist,
         )
+        self.quote = Quote.objects.create(
+            folio='COT-2025-1000',
+            version=1,
+            customer=self.customer,
+            source_ticket=self.ticket,
+            created_by=self.receptionist,
+            quote_type=Quote.QuoteType.REPAIR,
+            estado=Quote.QuoteStatus.APPROVED,
+            subtotal=Decimal('100.00'),
+            descuento=Decimal('0.00'),
+            igv_rate=Decimal('0.00'),
+            igv_amount=Decimal('0.00'),
+            total=Decimal('100.00'),
+            is_active_version=True,
+        )
+        self.quote.base_quote = self.quote
+        self.quote.save(update_fields=['base_quote'])
 
     def open_cash(self):
         self.client.force_authenticate(self.receptionist)
@@ -51,16 +69,17 @@ class FinanceFlowTests(APITestCase):
     def test_cannot_register_payment_without_open_cash(self):
         self.client.force_authenticate(self.receptionist)
         response = self.client.post(
-            f'/api/finance/tickets/{self.ticket.id}/pagos/',
+            f'/api/finance/quotes/{self.quote.id}/pagos/',
             {'amount': '10.00', 'metodo_pago': 'CASH'},
             format='multipart'
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('abrir tu caja', str(response.data))
 
     def test_cash_payment_is_confirmed_and_reduces_balance(self):
         self.open_cash()
         response = self.client.post(
-            f'/api/finance/tickets/{self.ticket.id}/pagos/',
+            f'/api/finance/quotes/{self.quote.id}/pagos/',
             {'amount': '40.00', 'metodo_pago': 'CASH'},
             format='multipart'
         )
@@ -73,7 +92,7 @@ class FinanceFlowTests(APITestCase):
         self.open_cash()
         voucher = SimpleUploadedFile('voucher.png', PNG_BYTES, content_type='image/png')
         response = self.client.post(
-            f'/api/finance/tickets/{self.ticket.id}/pagos/',
+            f'/api/finance/quotes/{self.quote.id}/pagos/',
             {
                 'amount': '30.00',
                 'metodo_pago': 'YAPE',
@@ -93,7 +112,7 @@ class FinanceFlowTests(APITestCase):
         second_voucher = SimpleUploadedFile('voucher2.png', PNG_BYTES, content_type='image/png')
 
         first_response = self.client.post(
-            f'/api/finance/tickets/{self.ticket.id}/pagos/',
+            f'/api/finance/quotes/{self.quote.id}/pagos/',
             {
                 'amount': '20.00',
                 'metodo_pago': 'YAPE',
@@ -105,7 +124,7 @@ class FinanceFlowTests(APITestCase):
         self.assertEqual(first_response.status_code, status.HTTP_201_CREATED)
 
         second_response = self.client.post(
-            f'/api/finance/tickets/{self.ticket.id}/pagos/',
+            f'/api/finance/quotes/{self.quote.id}/pagos/',
             {
                 'amount': '20.00',
                 'metodo_pago': 'PLIN',
@@ -120,7 +139,7 @@ class FinanceFlowTests(APITestCase):
         self.open_cash()
         voucher = SimpleUploadedFile('voucher.png', PNG_BYTES, content_type='image/png')
         response = self.client.post(
-            f'/api/finance/tickets/{self.ticket.id}/pagos/',
+            f'/api/finance/quotes/{self.quote.id}/pagos/',
             {
                 'amount': '30.00',
                 'metodo_pago': 'YAPE',
@@ -142,7 +161,7 @@ class FinanceFlowTests(APITestCase):
         self.open_cash()
         voucher = SimpleUploadedFile('voucher.png', PNG_BYTES, content_type='image/png')
         self.client.post(
-            f'/api/finance/tickets/{self.ticket.id}/pagos/',
+            f'/api/finance/quotes/{self.quote.id}/pagos/',
             {
                 'amount': '30.00',
                 'metodo_pago': 'YAPE',

@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.finance.models import CocheraCharge, Discount, PaymentReversal, PaymentSchedule, Receipt
+from apps.quotes.models import Quote
 from apps.tickets.models import Ticket
 from apps.users.permissions import RolePermission
 
@@ -26,8 +27,8 @@ from .services import (
     generate_storage_charges,
     get_open_cash_closure,
     open_cash_closure,
-    reprogram_schedule,
     register_payment,
+    reprogram_schedule,
     request_discount,
     request_reversal,
 )
@@ -82,6 +83,8 @@ class PaymentViewSet(viewsets.ViewSet):
     required_permissions = {
         'list': ['finance.view_receipts'],
         'create': ['finance.register_payment'],
+        'list_for_quote': ['finance.view_receipts'],
+        'create_for_quote': ['finance.register_payment'],
         'confirm': ['finance.confirm_payment'],
     }
 
@@ -90,10 +93,22 @@ class PaymentViewSet(viewsets.ViewSet):
         return Response(ReceiptSerializer(receipts, many=True).data)
 
     def create(self, request, ticket_id=None):
+        return Response(
+            {'detail': 'El cobro directo desde ticket ya no esta permitido. Registra el pago desde la cotizacion.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    @action(detail=False, methods=['get'], url_path=r'quotes/(?P<quote_id>[^/.]+)/pagos')
+    def list_for_quote(self, request, quote_id=None):
+        receipts = Receipt.objects.filter(quote_id=quote_id).order_by('-created_at')
+        return Response(ReceiptSerializer(receipts, many=True).data)
+
+    @action(detail=False, methods=['post'], url_path=r'quotes/(?P<quote_id>[^/.]+)/pagos')
+    def create_for_quote(self, request, quote_id=None):
         try:
-            ticket = Ticket.objects.get(id=ticket_id)
-        except Ticket.DoesNotExist:
-            return Response({'detail': 'Ticket no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+            quote = Quote.objects.get(id=quote_id)
+        except Quote.DoesNotExist:
+            return Response({'detail': 'Cotizacion no encontrada'}, status=status.HTTP_404_NOT_FOUND)
 
         amount = request.data.get('amount')
         metodo_pago = request.data.get('metodo_pago')
@@ -108,11 +123,12 @@ class PaymentViewSet(viewsets.ViewSet):
         try:
             amount_decimal = Decimal(str(amount))
         except ValueError:
-            return Response({'detail': 'Monto inválido'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': 'Monto invalido'}, status=status.HTTP_400_BAD_REQUEST)
 
         receipt = register_payment(
             user=request.user,
-            ticket=ticket,
+            quote=quote,
+            ticket=quote.source_ticket,
             amount=amount_decimal,
             metodo_pago=metodo_pago,
             referencia=referencia,
@@ -139,6 +155,9 @@ class PaymentScheduleViewSet(viewsets.ViewSet):
         'list': ['finance.view_receipts', 'finance.manage_schedules'],
         'create': ['finance.manage_schedules'],
         'reprogram': ['finance.manage_schedules'],
+        'list_for_quote': ['finance.view_receipts', 'finance.manage_schedules'],
+        'create_for_quote': ['finance.manage_schedules'],
+        'reprogram_for_quote': ['finance.manage_schedules'],
     }
 
     def list(self, request, ticket_id=None):
@@ -146,19 +165,50 @@ class PaymentScheduleViewSet(viewsets.ViewSet):
         return Response(PaymentScheduleSerializer(schedules, many=True).data)
 
     def create(self, request, ticket_id=None):
+        return Response(
+            {'detail': 'Las cuotas ahora deben crearse desde la cotizacion.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    @action(detail=False, methods=['get'], url_path=r'quotes/(?P<quote_id>[^/.]+)/schedules')
+    def list_for_quote(self, request, quote_id=None):
+        schedules = PaymentSchedule.objects.filter(quote_id=quote_id).order_by('numero_cuota')
+        return Response(PaymentScheduleSerializer(schedules, many=True).data)
+
+    @action(detail=False, methods=['post'], url_path=r'quotes/(?P<quote_id>[^/.]+)/schedules')
+    def create_for_quote(self, request, quote_id=None):
         try:
-            ticket = Ticket.objects.get(pk=ticket_id)
-        except Ticket.DoesNotExist:
-            return Response({'detail': 'Ticket no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+            quote = Quote.objects.get(pk=quote_id)
+        except Quote.DoesNotExist:
+            return Response({'detail': 'Cotizacion no encontrada'}, status=status.HTTP_404_NOT_FOUND)
 
         installments = request.data.get('installments') or []
-        schedules = create_payment_schedule(ticket=ticket, user=request.user, installments=installments)
+        schedules = create_payment_schedule(
+            quote=quote,
+            ticket=quote.source_ticket,
+            user=request.user,
+            installments=installments,
+        )
         return Response(PaymentScheduleSerializer(schedules, many=True).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
     def reprogram(self, request, pk=None, ticket_id=None):
         try:
             schedule = PaymentSchedule.objects.get(pk=pk, ticket_id=ticket_id)
+        except PaymentSchedule.DoesNotExist:
+            return Response({'detail': 'Cuota no encontrada'}, status=status.HTTP_404_NOT_FOUND)
+        schedule = reprogram_schedule(
+            schedule=schedule,
+            user=request.user,
+            new_date=request.data.get('new_date'),
+            motivo=request.data.get('motivo', ''),
+        )
+        return Response(PaymentScheduleSerializer(schedule).data)
+
+    @action(detail=False, methods=['post'], url_path=r'quotes/(?P<quote_id>[^/.]+)/schedules/(?P<schedule_id>[^/.]+)/reprogram')
+    def reprogram_for_quote(self, request, quote_id=None, schedule_id=None):
+        try:
+            schedule = PaymentSchedule.objects.get(pk=schedule_id, quote_id=quote_id)
         except PaymentSchedule.DoesNotExist:
             return Response({'detail': 'Cuota no encontrada'}, status=status.HTTP_404_NOT_FOUND)
         schedule = reprogram_schedule(

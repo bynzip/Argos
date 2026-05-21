@@ -501,6 +501,7 @@ class Command(BaseCommand):
                 device=ticket.device,
                 source_ticket=ticket,
                 created_by=self.users['recep_demo'],
+                quote_type=Quote.QuoteType.REPAIR,
                 estado=quote_statuses[index],
                 subtotal=subtotal,
                 descuento=descuento,
@@ -508,7 +509,6 @@ class Command(BaseCommand):
                 igv_amount=igv,
                 total=total,
                 valido_hasta=timezone.localdate() + timedelta(days=10 - index),
-                condiciones='Pago 50% adelanto para repuestos especiales.',
                 notas='Cotizacion demo de Fase 1.',
                 is_active_version=True,
             )
@@ -557,7 +557,34 @@ class Command(BaseCommand):
         )
         financing_tickets = self.tickets[3:8]
         for index, ticket in enumerate(financing_tickets):
+            quote = (
+                Quote.objects.filter(source_ticket=ticket, is_active_version=True)
+                .order_by('-created_at')
+                .first()
+            )
+            if not quote:
+                quote = Quote.objects.create(
+                    folio=generate_folio('COT'),
+                    version=1,
+                    customer=ticket.customer,
+                    device=ticket.device,
+                    source_ticket=ticket,
+                    created_by=self.users['recep_demo'],
+                    quote_type=Quote.QuoteType.REPAIR,
+                    estado=Quote.QuoteStatus.APPROVED,
+                    subtotal=ticket.total,
+                    descuento=Decimal('0.00'),
+                    igv_rate=Decimal('0.00'),
+                    igv_amount=Decimal('0.00'),
+                    total=ticket.total,
+                    valido_hasta=timezone.localdate() + timedelta(days=15),
+                    notas='Cotizacion demo autogenerada para flujo financiero.',
+                    is_active_version=True,
+                )
+                quote.base_quote = quote
+                quote.save(update_fields=['base_quote'])
             schedules = create_payment_schedule(
+                quote=quote,
                 ticket=ticket,
                 user=self.users['admin'],
                 installments=[
@@ -569,6 +596,7 @@ class Command(BaseCommand):
                 folio=generate_folio('RC'),
                 cash_closure=closure,
                 ticket=ticket,
+                quote=quote,
                 tipo_recibo=Receipt.ReceiptType.ADVANCE if index % 2 == 0 else Receipt.ReceiptType.PAYMENT,
                 metodo_pago=Receipt.PaymentMethod.CASH,
                 amount=Decimal('120.00'),
@@ -587,6 +615,7 @@ class Command(BaseCommand):
                     folio=generate_folio('RC'),
                     cash_closure=closure,
                     ticket=ticket,
+                    quote=quote,
                     tipo_recibo=Receipt.ReceiptType.INSTALLMENT,
                     metodo_pago=Receipt.PaymentMethod.TRANSFER,
                     amount=Decimal('95.00'),

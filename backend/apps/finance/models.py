@@ -2,6 +2,7 @@ from django.db import models
 from django.conf import settings
 from apps.tickets.models import Ticket
 from django.utils import timezone
+from apps.quotes.models import Quote
 
 class CashClosure(models.Model):
     class Status(models.TextChoices):
@@ -58,6 +59,7 @@ class Receipt(models.Model):
     folio = models.CharField(max_length=20, unique=True)
     cash_closure = models.ForeignKey(CashClosure, on_delete=models.RESTRICT, related_name='receipts')
     ticket = models.ForeignKey(Ticket, on_delete=models.SET_NULL, null=True, blank=True, related_name='receipts')
+    quote = models.ForeignKey(Quote, on_delete=models.SET_NULL, null=True, blank=True, related_name='receipts')
 
     tipo_recibo = models.CharField(max_length=20, choices=ReceiptType.choices, default=ReceiptType.PAYMENT)
     metodo_pago = models.CharField(max_length=20, choices=PaymentMethod.choices)
@@ -78,6 +80,7 @@ class Receipt(models.Model):
         indexes = [
             models.Index(fields=['folio']),
             models.Index(fields=['ticket']),
+            models.Index(fields=['quote']),
             models.Index(fields=['estado']),
             models.Index(fields=['cash_closure']),
         ]
@@ -124,6 +127,7 @@ class PaymentReversal(models.Model):
 
 class PaymentSchedule(models.Model):
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='schedules')
+    quote = models.ForeignKey(Quote, on_delete=models.CASCADE, null=True, blank=True, related_name='schedules')
     numero_cuota = models.IntegerField()
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     monto_pagado = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
@@ -139,6 +143,7 @@ class PaymentSchedule(models.Model):
         db_table = 'payment_schedules'
         indexes = [
             models.Index(fields=['ticket']),
+            models.Index(fields=['quote']),
             models.Index(fields=['due_date']),
             models.Index(fields=['esta_pagado']),
         ]

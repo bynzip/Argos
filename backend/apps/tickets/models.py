@@ -76,9 +76,18 @@ class Ticket(SoftDeleteModel):
     @property
     def saldo_pendiente(self):
         from apps.finance.models import Receipt
-        pagos_confirmados = self.receipts.filter(estado=Receipt.ReceiptStatus.CONFIRMED).aggregate(
-            total=models.Sum('amount')
-        )['total'] or 0
+        from apps.quotes.services import get_active_ticket_quote
+
+        active_quote = get_active_ticket_quote(self)
+        if active_quote:
+            pagos_confirmados = active_quote.receipts.filter(
+                estado=Receipt.ReceiptStatus.CONFIRMED
+            ).aggregate(total=models.Sum('amount'))['total'] or 0
+            return active_quote.total - pagos_confirmados
+
+        pagos_confirmados = self.receipts.filter(
+            estado=Receipt.ReceiptStatus.CONFIRMED
+        ).aggregate(total=models.Sum('amount'))['total'] or 0
         return self.total - pagos_confirmados
 
 class TicketAccessory(models.Model):
@@ -153,6 +162,37 @@ class TicketChecklistItem(models.Model):
 
     def __str__(self):
         return f'{self.ticket.folio} - {self.nombre}'
+
+
+class ChecklistTemplate(models.Model):
+    nombre = models.CharField(max_length=150, unique=True)
+    descripcion = models.TextField(blank=True)
+    activo = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'checklist_templates'
+        ordering = ['nombre']
+
+    def __str__(self):
+        return self.nombre
+
+
+class ChecklistTemplateItem(models.Model):
+    template = models.ForeignKey(ChecklistTemplate, on_delete=models.CASCADE, related_name='items')
+    nombre = models.CharField(max_length=150)
+    requerido = models.BooleanField(default=True)
+    orden = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'checklist_template_items'
+        ordering = ['orden', 'id']
+
+    def __str__(self):
+        return f'{self.template.nombre} - {self.nombre}'
 
 
 class TicketChecklistEvidence(models.Model):

@@ -7,6 +7,10 @@ from apps.services.models import Service
 
 
 class Quote(SoftDeleteModel):
+    class QuoteType(models.TextChoices):
+        REPAIR = 'REPAIR', 'Reparacion'
+        DIRECT = 'DIRECT', 'Directa'
+
     class QuoteStatus(models.TextChoices):
         DRAFT = 'DRAFT', 'Borrador'
         SENT = 'SENT', 'Enviada'
@@ -28,6 +32,7 @@ class Quote(SoftDeleteModel):
         blank=True,
         related_name='created_quotes',
     )
+    quote_type = models.CharField(max_length=20, choices=QuoteType.choices, default=QuoteType.REPAIR)
     estado = models.CharField(max_length=20, choices=QuoteStatus.choices, default=QuoteStatus.DRAFT)
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     igv_rate = models.DecimalField(max_digits=5, decimal_places=2, default=18)
@@ -35,7 +40,6 @@ class Quote(SoftDeleteModel):
     descuento = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     valido_hasta = models.DateField(null=True, blank=True)
-    condiciones = models.TextField(blank=True, null=True)
     notas = models.TextField(blank=True, null=True)
     is_active_version = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -55,6 +59,15 @@ class Quote(SoftDeleteModel):
 
     def __str__(self):
         return f"{self.folio} v{self.version}"
+
+    @property
+    def saldo_pendiente(self):
+        from apps.finance.models import Receipt
+
+        pagos_confirmados = self.receipts.filter(
+            estado=Receipt.ReceiptStatus.CONFIRMED
+        ).aggregate(total=models.Sum('amount'))['total'] or 0
+        return self.total - pagos_confirmados
 
 
 class QuoteLine(models.Model):
@@ -161,4 +174,3 @@ class QuoteToTicket(models.Model):
     class Meta:
         db_table = 'quote_to_tickets'
         unique_together = ('quote', 'ticket')
-

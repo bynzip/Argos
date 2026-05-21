@@ -2,6 +2,8 @@ from rest_framework import serializers
 from apps.customers.serializers import CustomerListSerializer, DeviceSerializer
 from apps.users.serializers import UserSerializer
 from .models import (
+    ChecklistTemplate,
+    ChecklistTemplateItem,
     Ticket,
     TicketAccessory,
     TicketChecklistEvidence,
@@ -60,6 +62,20 @@ class TicketChecklistItemSerializer(serializers.ModelSerializer):
         ]
 
 
+class ChecklistTemplateItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChecklistTemplateItem
+        fields = ['id', 'nombre', 'requerido', 'orden', 'created_at', 'updated_at']
+
+
+class ChecklistTemplateSerializer(serializers.ModelSerializer):
+    items = ChecklistTemplateItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ChecklistTemplate
+        fields = ['id', 'nombre', 'descripcion', 'activo', 'items', 'created_at', 'updated_at']
+
+
 class TicketSubareaMovementSerializer(serializers.ModelSerializer):
     movido_por = UserSerializer(read_only=True)
 
@@ -74,7 +90,7 @@ class TicketListSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Ticket
-        fields = ['id', 'folio', 'customer', 'device', 'assigned_to', 'estado', 'prioridad', 'monto_estimado', 'monto_aprobado', 'total', 'created_at']
+        fields = ['id', 'folio', 'customer', 'device', 'assigned_to', 'estado', 'prioridad', 'monto_estimado', 'monto_aprobado', 'total', 'created_at', 'es_garantia']
 
 class TicketDetailSerializer(serializers.ModelSerializer):
     customer = CustomerListSerializer(read_only=True)
@@ -94,6 +110,7 @@ class TicketDetailSerializer(serializers.ModelSerializer):
     payment_schedules = serializers.SerializerMethodField()
     cochera_charges = serializers.SerializerMethodField()
     discounts = serializers.SerializerMethodField()
+    has_linked_quote = serializers.SerializerMethodField()
     
     class Meta:
         model = Ticket
@@ -101,6 +118,13 @@ class TicketDetailSerializer(serializers.ModelSerializer):
 
     def get_receipts(self, obj):
         from apps.finance.serializers import ReceiptSerializer
+        try:
+            from apps.quotes.services import get_active_ticket_quote
+            quote = get_active_ticket_quote(obj)
+        except Exception:
+            quote = None
+        if quote:
+            return ReceiptSerializer(quote.receipts.all().order_by('-created_at'), many=True).data
         return ReceiptSerializer(obj.receipts.all().order_by('-created_at'), many=True).data
 
     def get_active_quote(self, obj):
@@ -145,6 +169,11 @@ class TicketDetailSerializer(serializers.ModelSerializer):
     def get_payment_schedules(self, obj):
         try:
             from apps.finance.serializers import PaymentScheduleSerializer
+            from apps.quotes.services import get_active_ticket_quote
+
+            quote = get_active_ticket_quote(obj)
+            if quote:
+                return PaymentScheduleSerializer(quote.schedules.all().order_by('numero_cuota'), many=True).data
             return PaymentScheduleSerializer(obj.schedules.all().order_by('numero_cuota'), many=True).data
         except Exception:
             return []
@@ -162,3 +191,9 @@ class TicketDetailSerializer(serializers.ModelSerializer):
             return DiscountSerializer(obj.discounts.all().order_by('-created_at'), many=True).data
         except Exception:
             return []
+
+    def get_has_linked_quote(self, obj):
+        try:
+            return obj.quotes.exists()
+        except Exception:
+            return False

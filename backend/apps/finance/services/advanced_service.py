@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.core.audit import log_audit
@@ -31,6 +32,33 @@ def parse_schedule_items(schedule_items_raw):
     return schedule_items_raw
 
 
+def validate_schedule_items_for_receipt(*, receipt, parsed_items):
+    validated_items = []
+    for raw_item in parsed_items:
+        schedule_filter = get_schedule_scope_filter(quote=receipt.quote, ticket=receipt.ticket)
+        schedule = PaymentSchedule.objects.select_for_update().get(schedule_filter, pk=raw_item['schedule_id'])
+        amount = Decimal(str(raw_item['amount']))
+        saldo = schedule.amount - schedule.monto_pagado
+        if amount <= 0:
+            raise ValidationError({'amount': 'El monto aplicado debe ser mayor a 0.'})
+        if amount > saldo:
+            raise ValidationError({'amount': f'El monto aplicado supera el saldo de la cuota {schedule.numero_cuota}.'})
+        validated_items.append((schedule, amount))
+    return validated_items
+
+
+@transaction.atomic
+def persist_receipt_schedule_items(*, receipt, schedule_items):
+    parsed_items = parse_schedule_items(schedule_items)
+    if not parsed_items:
+        return receipt
+
+    receipt.schedule_items.all().delete()
+    for schedule, amount in validate_schedule_items_for_receipt(receipt=receipt, parsed_items=parsed_items):
+        ReceiptScheduleItem.objects.create(receipt=receipt, cuota=schedule, monto_aplicado=amount)
+    return receipt
+
+
 def sync_customer_morosidad(customer: Customer):
     today = timezone.now().date()
     overdue_exists = PaymentSchedule.objects.filter(
@@ -50,44 +78,73 @@ def sync_customer_morosidad(customer: Customer):
     return customer
 
 
+def get_schedule_scope_filter(*, quote=None, ticket=None):
+    if quote:
+        return Q(quote=quote)
+    if ticket:
+        return Q(ticket=ticket)
+    raise ValidationError({'detail': 'No existe un contexto valido para cuotas.'})
+
+
+def get_customer_for_finance_context(*, quote=None, ticket=None):
+    if quote:
+        return quote.customer
+    if ticket:
+        return ticket.customer
+    return None
+
+
 @transaction.atomic
 def apply_receipt_to_schedules(*, receipt, schedule_items):
     parsed_items = parse_schedule_items(schedule_items)
-    if not parsed_items:
+    existing_items = list(receipt.schedule_items.select_related('cuota').all())
+
+    if parsed_items:
+        if existing_items:
+            receipt.schedule_items.all().delete()
+            existing_items = []
+        for schedule, amount in validate_schedule_items_for_receipt(receipt=receipt, parsed_items=parsed_items):
+            existing_items.append(
+                ReceiptScheduleItem.objects.create(receipt=receipt, cuota=schedule, monto_aplicado=amount)
+            )
+
+    if not existing_items:
         return receipt
 
-    for raw_item in parsed_items:
-        schedule = PaymentSchedule.objects.select_for_update().get(ticket=receipt.ticket, pk=raw_item['schedule_id'])
-        amount = Decimal(str(raw_item['amount']))
+    for item in existing_items:
+        schedule_filter = get_schedule_scope_filter(quote=receipt.quote, ticket=receipt.ticket)
+        schedule = PaymentSchedule.objects.select_for_update().get(schedule_filter, pk=item.cuota_id)
+        amount = Decimal(str(item.monto_aplicado))
         saldo = schedule.amount - schedule.monto_pagado
         if amount <= 0:
             raise ValidationError({'amount': 'El monto aplicado debe ser mayor a 0.'})
         if amount > saldo:
             raise ValidationError({'amount': f'El monto aplicado supera el saldo de la cuota {schedule.numero_cuota}.'})
-
-        ReceiptScheduleItem.objects.create(receipt=receipt, cuota=schedule, monto_aplicado=amount)
         schedule.monto_pagado += amount
         if schedule.monto_pagado >= schedule.amount:
             schedule.esta_pagado = True
             schedule.pagado_el = timezone.now()
         schedule.save(update_fields=['monto_pagado', 'esta_pagado', 'pagado_el', 'updated_at'])
 
-    if receipt.ticket_id:
-        sync_customer_morosidad(receipt.ticket.customer)
+    customer = get_customer_for_finance_context(quote=receipt.quote, ticket=receipt.ticket)
+    if customer:
+        sync_customer_morosidad(customer)
     return receipt
 
 
 @transaction.atomic
-def create_payment_schedule(*, ticket, user, installments):
+def create_payment_schedule(*, quote=None, ticket=None, user, installments):
     require_permission(user, 'finance.manage_schedules')
     if not installments:
         raise ValidationError({'installments': 'Debes enviar al menos una cuota.'})
 
-    ticket.schedules.all().delete()
+    schedule_filter = get_schedule_scope_filter(quote=quote, ticket=ticket)
+    PaymentSchedule.objects.filter(schedule_filter).delete()
     created = []
     for index, raw_installment in enumerate(installments, start=1):
         schedule = PaymentSchedule.objects.create(
             ticket=ticket,
+            quote=quote,
             numero_cuota=index,
             amount=Decimal(str(raw_installment['amount'])),
             due_date=raw_installment['due_date'],
@@ -95,8 +152,11 @@ def create_payment_schedule(*, ticket, user, installments):
         )
         created.append(schedule)
 
-    log_audit(module='finance', action='CREATE', user=user, obj=ticket, after_data={'schedules': len(created)})
-    sync_customer_morosidad(ticket.customer)
+    audit_obj = quote or ticket
+    log_audit(module='finance', action='CREATE', user=user, obj=audit_obj, after_data={'schedules': len(created)})
+    customer = get_customer_for_finance_context(quote=quote, ticket=ticket)
+    if customer:
+        sync_customer_morosidad(customer)
     return created
 
 
@@ -114,7 +174,9 @@ def reprogram_schedule(*, schedule, user, new_date, motivo):
     schedule.due_date = new_date
     schedule.veces_reprogramada += 1
     schedule.save(update_fields=['due_date', 'veces_reprogramada', 'updated_at'])
-    sync_customer_morosidad(schedule.ticket.customer)
+    customer = get_customer_for_finance_context(quote=schedule.quote, ticket=schedule.ticket)
+    if customer:
+        sync_customer_morosidad(customer)
     log_audit(module='finance', action='UPDATE', user=user, obj=schedule, before_data={'due_date': str(previous_date)}, after_data={'due_date': str(schedule.due_date)})
     return schedule
 
@@ -192,8 +254,9 @@ def decide_reversal(*, reversal, user, approve):
             schedule.save(update_fields=['monto_pagado', 'esta_pagado', 'pagado_el', 'updated_at'])
         receipt.estado = Receipt.ReceiptStatus.REVERSED
         receipt.save(update_fields=['estado', 'updated_at'])
-        if receipt.ticket_id:
-            sync_customer_morosidad(receipt.ticket.customer)
+        customer = get_customer_for_finance_context(quote=receipt.quote, ticket=receipt.ticket)
+        if customer:
+            sync_customer_morosidad(customer)
 
     log_audit(module='finance', action='APPROVAL', user=user, obj=reversal, after_data={'estado': reversal.estado})
     return reversal

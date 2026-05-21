@@ -39,7 +39,9 @@ def build_quote_pdf_lines(quote, company_profile):
     if company_profile:
         lines.append(f"RUC: {company_profile.ruc} | Tel: {company_profile.phone} | Email: {company_profile.email}")
     lines.append('')
-    lines.append(f"COTIZACION {quote.folio}  |  Version {quote.version}  |  Estado {quote.get_estado_display()}")
+    lines.append(
+        f"COTIZACION {quote.folio}  |  Tipo {quote.get_quote_type_display()}  |  Version {quote.version}  |  Estado {quote.get_estado_display()}"
+    )
     lines.append(f"Fecha: {quote.created_at:%d/%m/%Y %H:%M}")
     if quote.valido_hasta:
         lines.append(f"Vigencia: {quote.valido_hasta:%d/%m/%Y}")
@@ -81,11 +83,6 @@ def build_quote_pdf_lines(quote, company_profile):
     lines.append(f"IGV ({quote.igv_rate}%): {_format_money(quote.igv_amount)}")
     lines.append(f"TOTAL: {_format_money(quote.total)}")
     lines.append('')
-
-    if quote.condiciones:
-        lines.append('CONDICIONES')
-        _append_wrapped(lines, quote.condiciones, width=82)
-        lines.append('')
 
     if quote.notas:
         lines.append('OBSERVACIONES')

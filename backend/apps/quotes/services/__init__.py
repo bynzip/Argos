@@ -3,6 +3,7 @@ from .quote_service import (
     approve_quote,
     convert_quote_to_ticket,
     create_quote,
+    create_quick_quote_for_ticket,
     create_quote_version,
     get_active_ticket_quote,
     parse_quote_lines_payload,
@@ -12,4 +13,3 @@ from .quote_service import (
     send_quote,
     update_quote,
 )
-

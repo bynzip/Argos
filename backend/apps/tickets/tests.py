@@ -1,10 +1,16 @@
+import json
+
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.core.files.uploadedfile import SimpleUploadedFile
+from decimal import Decimal
 
+from apps.core.models import CompanyProfile
 from apps.core.models import Notification
 from apps.core.test_utils import create_user_with_role
 from apps.customers.models import Customer, Device
+from apps.quotes.models import Quote
+from apps.services.models import Service
 from apps.tickets.models import Ticket, TicketChecklistItem
 
 
@@ -21,7 +27,7 @@ class TicketFlowTests(APITestCase):
         self.receptionist = create_user_with_role(
             'recep',
             'Recepcionista',
-            ['tickets.create', 'tickets.transition_reception', 'tickets.view_list', 'tickets.view_detail']
+            ['tickets.create', 'tickets.transition_reception', 'tickets.view_list', 'tickets.view_detail', 'quotes.create']
         )
         self.technician = create_user_with_role(
             'tech',
@@ -43,6 +49,20 @@ class TicketFlowTests(APITestCase):
             tipo_equipo='Laptop',
             marca='Lenovo',
             modelo='T14'
+        )
+        self.service = Service.objects.create(
+            codigo='SRV-FAST-001',
+            nombre='Revision rapida',
+            precio_base=Decimal('80.00'),
+        )
+        CompanyProfile.objects.create(
+            business_name='Argos',
+            ruc='12345678901',
+            phone='999999999',
+            email='admin@argos.local',
+            quote_approval_threshold_amount=Decimal('1500.00'),
+            quote_default_igv=Decimal('18.00'),
+            quote_default_validity_days=15,
         )
 
     def test_cannot_create_ticket_with_device_from_another_customer(self):
@@ -230,3 +250,123 @@ class TicketFlowTests(APITestCase):
                 message__icontains=ticket.folio,
             ).filter(message__icontains='Saldo pendiente').exists()
         )
+
+    def test_can_assign_quick_amount_and_autoapprove_ticket(self):
+        ticket = Ticket.objects.create(
+            folio='TKT-2025-0004',
+            customer=self.customer,
+            descripcion_problema='Mantenimiento',
+            created_by=self.receptionist,
+            estado=Ticket.TicketStatus.INTAKE,
+        )
+
+        self.client.force_authenticate(self.receptionist)
+        response = self.client.post(
+            f'/api/tickets/{ticket.id}/assign_quick_amount/',
+            {
+                'descuento': '0.00',
+                'igv_rate': '18.00',
+                'lines': [
+                    {
+                        'line_type': 'SERVICE',
+                        'service': self.service.id,
+                        'cantidad': '1',
+                        'precio_unitario': '100.00',
+                        'descuento_linea': '0.00',
+                    }
+                ],
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.estado, Ticket.TicketStatus.APPROVED)
+        self.assertEqual(ticket.total, Decimal('118.00'))
+        self.assertTrue(Quote.objects.filter(source_ticket=ticket, estado=Quote.QuoteStatus.APPROVED).exists())
+
+    def test_quick_amount_rejects_totals_above_threshold(self):
+        ticket = Ticket.objects.create(
+            folio='TKT-2025-0005',
+            customer=self.customer,
+            descripcion_problema='Trabajo mayor',
+            created_by=self.receptionist,
+            estado=Ticket.TicketStatus.INTAKE,
+        )
+
+        self.client.force_authenticate(self.receptionist)
+        response = self.client.post(
+            f'/api/tickets/{ticket.id}/assign_quick_amount/',
+            {
+                'descuento': '0.00',
+                'igv_rate': '18.00',
+                'lines': [
+                    {
+                        'line_type': 'SERVICE',
+                        'service': self.service.id,
+                        'cantidad': '20',
+                        'precio_unitario': '100.00',
+                        'descuento_linea': '0.00',
+                    }
+                ],
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('umbral de aprobacion', str(response.data))
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.estado, Ticket.TicketStatus.INTAKE)
+        self.assertFalse(Quote.objects.filter(source_ticket=ticket).exists())
+
+    def test_warranty_ticket_uses_form_selected_accessories_and_evidences(self):
+        source_ticket = Ticket.objects.create(
+            folio='TKT-2025-0006',
+            customer=self.customer,
+            descripcion_problema='Equipo falla otra vez',
+            created_by=self.receptionist,
+            estado=Ticket.TicketStatus.READY,
+        )
+        source_ticket.accessories.create(nombre='Cargador', condicion='Usado', notas='Original')
+        source_ticket.accessories.create(nombre='Mouse', condicion='Bueno', notas='Inalambrico')
+        source_ticket.evidences.create(
+            archivo=SimpleUploadedFile('equipo-base.png', PNG_BYTES, content_type='image/png'),
+            nombre_archivo='equipo-base.png',
+            tamano_archivo=len(PNG_BYTES),
+            tipo_archivo='image/png',
+            subido_por=self.receptionist,
+        )
+        second_evidence = source_ticket.evidences.create(
+            archivo=SimpleUploadedFile('equipo-extra.png', PNG_BYTES, content_type='image/png'),
+            nombre_archivo='equipo-extra.png',
+            tamano_archivo=len(PNG_BYTES),
+            tipo_archivo='image/png',
+            subido_por=self.receptionist,
+        )
+
+        self.client.force_authenticate(self.receptionist)
+        response = self.client.post(
+            f'/api/tickets/{source_ticket.id}/create_warranty/',
+            {
+                'descripcion_problema': 'Vuelve con el mismo problema',
+                'prioridad': 'HIGH',
+                'accessories': json.dumps([
+                    {'nombre': 'Cargador', 'condicion': 'Usado', 'notas': 'Original'},
+                    {'nombre': 'Sticker garantia', 'condicion': 'Nuevo', 'notas': 'Pegado al equipo'},
+                ]),
+                'inherited_evidence_ids': json.dumps([second_evidence.id]),
+                'evidences': [
+                    SimpleUploadedFile('nueva-foto.png', PNG_BYTES, content_type='image/png'),
+                ],
+            },
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        warranty_ticket = Ticket.objects.get(pk=response.data['id'])
+        self.assertTrue(warranty_ticket.es_garantia)
+        self.assertEqual(warranty_ticket.ticket_padre_id, source_ticket.id)
+        self.assertEqual(warranty_ticket.accessories.count(), 2)
+        self.assertEqual(warranty_ticket.evidences.count(), 2)
+        self.assertEqual(warranty_ticket.accessories.first().nombre, 'Cargador')
+        self.assertTrue(warranty_ticket.accessories.filter(nombre='Sticker garantia').exists())

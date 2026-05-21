@@ -14,7 +14,8 @@ export default function QuoteListPage() {
   const { data, isLoading } = useQuotes({ estado: estado || undefined });
 
   const isPaginated = data && !Array.isArray(data) && 'results' in data;
-  const quotes = isPaginated ? (data as PaginatedResponse<Quote>).results : Array.isArray(data) ? data : [];
+  const allQuotes = isPaginated ? (data as PaginatedResponse<Quote>).results : Array.isArray(data) ? data : [];
+  const quotes = allQuotes.filter((quote) => quote.is_active_version);
 
   return (
     <div className="p-8 max-w-[1400px] mx-auto">

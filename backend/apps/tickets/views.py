@@ -1,4 +1,5 @@
 from django_filters.rest_framework import DjangoFilterBackend
+import json
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
@@ -10,22 +11,27 @@ from apps.users.permissions import RolePermission
 
 from apps.users.models import Subarea
 
-from .models import Ticket, TicketAccessory, TicketChecklistItem, TicketEvidence
-from .serializers import TicketDetailSerializer, TicketListSerializer
+from .models import ChecklistTemplate, Ticket, TicketAccessory, TicketChecklistItem, TicketEvidence
+from .serializers import ChecklistTemplateSerializer, TicketDetailSerializer, TicketListSerializer
 from .services import (
+    apply_checklist_template,
     assign_ticket,
+    create_checklist_template,
     create_ticket,
     create_checklist_item,
     create_warranty_ticket,
     move_ticket_subarea,
     parse_accessories_payload,
+    parse_evidence_ids_payload,
     transition_ticket,
+    update_checklist_template,
     update_checklist_item,
     update_ticket_technical_details,
     validate_evidence_files,
     validate_ticket_device_customer,
 )
 from .services.ticket_service import update_ticket_amounts
+from apps.quotes.services import create_quick_quote_for_ticket
 
 
 class TicketPagination(PageNumberPagination):
@@ -52,25 +58,39 @@ class TicketViewSet(viewsets.ModelViewSet):
         'update_checklist_item': ['tickets.transition_technical'],
         'move_subarea': ['tickets.transition_technical'],
         'create_warranty': ['tickets.create'],
+        'assign_quick_amount': ['quotes.create'],
     }
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = [
         'folio', 'customer__nombre', 'customer__identificador',
         'device__modelo', 'device__marca', 'device__numero_serie'
     ]
-    filterset_fields = ['estado', 'prioridad', 'assigned_to', 'subarea']
+    filterset_fields = ['prioridad', 'assigned_to', 'subarea']
     ordering_fields = ['created_at', 'prioridad']
 
     def get_queryset(self):
         user = self.request.user
+        estados = self.request.query_params.getlist('estado')
+        if len(estados) == 1 and estados[0] and ',' in estados[0]:
+            estados = [estado.strip() for estado in estados[0].split(',') if estado.strip()]
+
         if user.is_superuser:
-            return Ticket.objects.all().order_by('-created_at')
+            queryset = Ticket.objects.all().order_by('-created_at')
+            if estados:
+                queryset = queryset.filter(estado__in=estados)
+            return queryset
 
         user_perms = user.get_permission_codes()
         if 'tickets.view_list' in user_perms:
-            return Ticket.objects.all().order_by('-created_at')
+            queryset = Ticket.objects.all().order_by('-created_at')
+            if estados:
+                queryset = queryset.filter(estado__in=estados)
+            return queryset
         if 'tickets.view_own' in user_perms:
-            return Ticket.objects.filter(assigned_to=user).order_by('-created_at')
+            queryset = Ticket.objects.filter(assigned_to=user).order_by('-created_at')
+            if estados:
+                queryset = queryset.filter(estado__in=estados)
+            return queryset
         return Ticket.objects.none()
 
     def get_serializer_class(self):
@@ -210,13 +230,18 @@ class TicketViewSet(viewsets.ModelViewSet):
         ticket.refresh_from_db()
         return Response(self.get_serializer(ticket).data, status=status.HTTP_201_CREATED)
 
-    @action(detail=True, methods=['patch'], url_path=r'checklist-items/(?P<checklist_id>[^/.]+)')
+    @action(detail=True, methods=['patch', 'delete'], url_path=r'checklist-items/(?P<checklist_id>[^/.]+)')
     def update_checklist_item(self, request, pk=None, checklist_id=None):
         ticket = self.get_object()
         try:
             checklist_item = TicketChecklistItem.objects.get(ticket=ticket, pk=checklist_id)
         except TicketChecklistItem.DoesNotExist:
             return Response({'detail': 'Item de checklist no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.method.lower() == 'delete':
+            checklist_item.delete()
+            ticket.refresh_from_db()
+            return Response(self.get_serializer(ticket).data, status=status.HTTP_200_OK)
 
         completado_raw = request.data.get('completado')
         completado = None
@@ -259,10 +284,104 @@ class TicketViewSet(viewsets.ModelViewSet):
         if not descripcion_problema:
             return Response({'detail': 'descripcion_problema es obligatorio'}, status=status.HTTP_400_BAD_REQUEST)
 
+        accessories = parse_accessories_payload(request.data.get('accessories'))
+        inherited_evidence_ids = parse_evidence_ids_payload(request.data.get('inherited_evidence_ids'))
+        files = request.FILES.getlist('evidences')
+        validate_evidence_files(files)
+
         warranty_ticket = create_warranty_ticket(
             source_ticket=ticket,
             user=request.user,
             descripcion_problema=descripcion_problema,
             prioridad=request.data.get('prioridad') or ticket.prioridad,
+            accessories=accessories,
+            inherited_evidence_ids=inherited_evidence_ids,
+            evidence_files=files,
         )
         return Response(self.get_serializer(warranty_ticket).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def assign_quick_amount(self, request, pk=None):
+        ticket = self.get_object()
+        quote = create_quick_quote_for_ticket(
+            ticket=ticket,
+            user=request.user,
+            lines=request.data.get('lines'),
+            descuento=request.data.get('descuento', 0),
+            igv_rate=request.data.get('igv_rate'),
+        )
+        ticket.refresh_from_db()
+        return Response(
+            {
+                'ticket': self.get_serializer(ticket).data,
+                'quote': {
+                    'id': quote.id,
+                    'folio': quote.folio,
+                    'estado': quote.estado,
+                    'total': str(quote.total),
+                },
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=['post'])
+    def apply_checklist_template(self, request, pk=None):
+        ticket = self.get_object()
+        template_id = request.data.get('template_id')
+        try:
+            template = ChecklistTemplate.objects.prefetch_related('items').get(pk=template_id, activo=True)
+        except ChecklistTemplate.DoesNotExist:
+            return Response({'detail': 'Plantilla no encontrada'}, status=status.HTTP_404_NOT_FOUND)
+
+        apply_checklist_template(ticket=ticket, template=template, user=request.user)
+        ticket.refresh_from_db()
+        return Response(self.get_serializer(ticket).data)
+
+
+class ChecklistTemplateViewSet(viewsets.ModelViewSet):
+    queryset = ChecklistTemplate.objects.prefetch_related('items').all().order_by('nombre')
+    serializer_class = ChecklistTemplateSerializer
+    permission_classes = [IsAuthenticated, RolePermission]
+    required_permissions = {
+        'list': ['tickets.transition_technical', 'tickets.view_detail'],
+        'retrieve': ['tickets.transition_technical', 'tickets.view_detail'],
+        'create': ['config.edit'],
+        'update': ['config.edit'],
+        'partial_update': ['config.edit'],
+        'destroy': ['config.edit'],
+    }
+
+    def create(self, request, *args, **kwargs):
+        nombre = (request.data.get('nombre') or '').strip()
+        if not nombre:
+            return Response({'detail': 'nombre es obligatorio'}, status=status.HTTP_400_BAD_REQUEST)
+        items = request.data.get('items') or []
+        if isinstance(items, str):
+            try:
+                items = json.loads(items)
+            except json.JSONDecodeError:
+                return Response({'detail': 'items debe ser una lista valida'}, status=status.HTTP_400_BAD_REQUEST)
+        template = create_checklist_template(
+            user=request.user,
+            nombre=nombre,
+            descripcion=request.data.get('descripcion', ''),
+            items=items,
+        )
+        return Response(self.get_serializer(template).data, status=status.HTTP_201_CREATED)
+
+    def partial_update(self, request, *args, **kwargs):
+        items = request.data.get('items')
+        if isinstance(items, str):
+            try:
+                items = json.loads(items)
+            except json.JSONDecodeError:
+                return Response({'detail': 'items debe ser una lista valida'}, status=status.HTTP_400_BAD_REQUEST)
+        template = update_checklist_template(
+            template=self.get_object(),
+            user=request.user,
+            nombre=request.data.get('nombre'),
+            descripcion=request.data.get('descripcion'),
+            activo=request.data.get('activo'),
+            items=items,
+        )
+        return Response(self.get_serializer(template).data)

@@ -12,6 +12,10 @@ urlpatterns = [
         'get': 'list',
         'post': 'create'
     }), name='ticket-pagos'),
+    path('quotes/<int:quote_id>/pagos/', PaymentViewSet.as_view({
+        'get': 'list_for_quote',
+        'post': 'create_for_quote',
+    }), name='quote-pagos'),
     path('pagos/<int:pk>/confirm/', PaymentViewSet.as_view({
         'post': 'confirm'
     }), name='confirmar-pago'),
@@ -19,9 +23,16 @@ urlpatterns = [
         'get': 'list',
         'post': 'create',
     }), name='ticket-schedules'),
+    path('quotes/<int:quote_id>/schedules/', PaymentScheduleViewSet.as_view({
+        'get': 'list_for_quote',
+        'post': 'create_for_quote',
+    }), name='quote-schedules'),
     path('tickets/<uuid:ticket_id>/schedules/<int:pk>/reprogram/', PaymentScheduleViewSet.as_view({
         'post': 'reprogram',
     }), name='ticket-schedule-reprogram'),
+    path('quotes/<int:quote_id>/schedules/<int:schedule_id>/reprogram/', PaymentScheduleViewSet.as_view({
+        'post': 'reprogram_for_quote',
+    }), name='quote-schedule-reprogram'),
     path('discounts/', DiscountViewSet.as_view({
         'get': 'list',
         'post': 'create',

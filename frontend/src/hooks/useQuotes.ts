@@ -6,6 +6,7 @@ export interface QuoteSummary {
   id: number;
   folio: string;
   version: number;
+  quote_type: 'REPAIR' | 'DIRECT';
   estado: string;
   total: string;
   is_active_version: boolean;
@@ -50,14 +51,15 @@ export interface Quote {
   id: number;
   folio: string;
   version: number;
+  quote_type: 'REPAIR' | 'DIRECT';
   estado: string;
   subtotal: string;
   descuento: string;
   igv_rate: string;
   igv_amount: string;
   total: string;
+  saldo_pendiente: string;
   valido_hasta: string | null;
-  condiciones?: string | null;
   notas?: string | null;
   is_active_version: boolean;
   requires_amount_approval: boolean;
@@ -68,6 +70,8 @@ export interface Quote {
   lines: QuoteLine[];
   approvals: QuoteApproval[];
   attachments: QuoteAttachment[];
+  receipts: Array<any>;
+  payment_schedules: Array<any>;
   version_history: Array<{
     id: number;
     version: number;
@@ -104,13 +108,13 @@ export interface PaginatedResponse<T> {
 }
 
 type QuotePayload = {
-  customer: number;
+  customer?: number | null;
   device?: number | null;
   source_ticket?: string | null;
+  quote_type: 'REPAIR' | 'DIRECT';
   descuento?: string;
   igv_rate?: string;
   valido_hasta?: string;
-  condiciones?: string;
   notas?: string;
   lines: QuoteLine[];
   attachments?: File[];
@@ -118,13 +122,13 @@ type QuotePayload = {
 
 const toFormData = (payload: QuotePayload) => {
   const formData = new FormData();
-  formData.append('customer', String(payload.customer));
+  if (payload.customer) formData.append('customer', String(payload.customer));
   if (payload.device) formData.append('device', String(payload.device));
   if (payload.source_ticket) formData.append('source_ticket', String(payload.source_ticket));
+  formData.append('quote_type', payload.quote_type);
   if (payload.descuento !== undefined) formData.append('descuento', payload.descuento);
   if (payload.igv_rate !== undefined) formData.append('igv_rate', payload.igv_rate);
   if (payload.valido_hasta) formData.append('valido_hasta', payload.valido_hasta);
-  formData.append('condiciones', payload.condiciones || '');
   formData.append('notas', payload.notas || '');
   formData.append('lines', JSON.stringify(payload.lines));
 
@@ -181,12 +185,12 @@ export const useUpdateQuote = (id: number | string) => {
     mutationFn: async (payload: Partial<QuotePayload>) => {
       const response = await api.patch(`/api/quotes/${id}/`, toFormData({
         customer: payload.customer!,
+        quote_type: payload.quote_type || 'REPAIR',
         device: payload.device,
         source_ticket: payload.source_ticket,
         descuento: payload.descuento,
         igv_rate: payload.igv_rate,
         valido_hasta: payload.valido_hasta,
-        condiciones: payload.condiciones,
         notas: payload.notas,
         lines: payload.lines || [],
         attachments: payload.attachments,

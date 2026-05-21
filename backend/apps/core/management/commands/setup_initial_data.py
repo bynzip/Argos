@@ -1,6 +1,7 @@
 import os
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from apps.customers.services import get_or_create_generic_customer
 from apps.users.models import User, Role, Permission, Area, Subarea, RolePermission, UserRole
 
 class Command(BaseCommand):
@@ -14,6 +15,7 @@ class Command(BaseCommand):
             self._create_roles_and_assign_permissions()
             self._create_areas_and_subareas()
             self._create_admin_user()
+            self._ensure_generic_customer()
 
         self.stdout.write(self.style.SUCCESS("Datos iniciales cargados correctamente."))
 
@@ -198,3 +200,7 @@ class Command(BaseCommand):
             self.stdout.write(f"- Usuario admin '{admin_user}' creado.")
         else:
             self.stdout.write(f"- Usuario admin '{admin_user}' ya existe.")
+
+    def _ensure_generic_customer(self):
+        customer = get_or_create_generic_customer()
+        self.stdout.write(f"- Cliente genérico verificado: {customer.nombre}.")

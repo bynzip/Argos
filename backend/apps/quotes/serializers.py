@@ -1,3 +1,4 @@
+from django.db import models
 from rest_framework import serializers
 
 from apps.customers.serializers import CustomerListSerializer, DeviceSerializer
@@ -51,7 +52,7 @@ class QuoteListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Quote
         fields = (
-            'id', 'folio', 'version', 'customer', 'source_ticket', 'created_by', 'estado',
+            'id', 'folio', 'version', 'quote_type', 'customer', 'source_ticket', 'created_by', 'estado',
             'subtotal', 'descuento', 'igv_rate', 'igv_amount', 'total', 'valido_hasta',
             'is_active_version', 'requires_amount_approval', 'latest_amount_approval_status',
             'created_at', 'updated_at'
@@ -77,15 +78,19 @@ class QuoteDetailSerializer(serializers.ModelSerializer):
     version_history = serializers.SerializerMethodField()
     requires_amount_approval = serializers.SerializerMethodField()
     latest_amount_approval_status = serializers.SerializerMethodField()
+    receipts = serializers.SerializerMethodField()
+    payment_schedules = serializers.SerializerMethodField()
+    saldo_pendiente = serializers.SerializerMethodField()
 
     class Meta:
         model = Quote
         fields = (
-            'id', 'folio', 'version', 'base_quote', 'customer', 'device', 'source_ticket',
+            'id', 'folio', 'version', 'base_quote', 'quote_type', 'customer', 'device', 'source_ticket',
             'created_by', 'estado', 'subtotal', 'igv_rate', 'igv_amount', 'descuento',
-            'total', 'valido_hasta', 'condiciones', 'notas', 'is_active_version',
+            'total', 'valido_hasta', 'notas', 'is_active_version',
             'requires_amount_approval', 'latest_amount_approval_status',
-            'lines', 'approvals', 'attachments', 'version_history', 'created_at', 'updated_at'
+            'lines', 'approvals', 'attachments', 'receipts', 'payment_schedules', 'saldo_pendiente',
+            'version_history', 'created_at', 'updated_at'
         )
 
     def get_version_history(self, obj):
@@ -110,9 +115,23 @@ class QuoteDetailSerializer(serializers.ModelSerializer):
         approval = obj.approvals.filter(approval_type=QuoteApproval.ApprovalType.AMOUNT).order_by('-created_at').first()
         return approval.estado if approval else None
 
+    def get_receipts(self, obj):
+        from apps.finance.serializers import ReceiptSerializer
+        return ReceiptSerializer(obj.receipts.all().order_by('-created_at'), many=True).data
+
+    def get_payment_schedules(self, obj):
+        from apps.finance.serializers import PaymentScheduleSerializer
+        return PaymentScheduleSerializer(obj.schedules.all().order_by('numero_cuota'), many=True).data
+
+    def get_saldo_pendiente(self, obj):
+        from apps.finance.models import Receipt
+        confirmed_total = obj.receipts.filter(
+            estado=Receipt.ReceiptStatus.CONFIRMED
+        ).aggregate(total=models.Sum('amount'))['total'] or 0
+        return obj.total - confirmed_total
+
 
 class QuoteSummarySerializer(serializers.ModelSerializer):
     class Meta:
         model = Quote
-        fields = ('id', 'folio', 'version', 'estado', 'total', 'is_active_version')
-
+        fields = ('id', 'folio', 'version', 'quote_type', 'estado', 'total', 'is_active_version')

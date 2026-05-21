@@ -6,6 +6,7 @@ export interface Ticket {
   folio: string;
   estado: string;
   prioridad: string;
+  es_garantia?: boolean;
   descripcion_problema: string;
   diagnostico: string | null;
   solucion: string | null;
@@ -23,6 +24,7 @@ export interface Ticket {
     id: number;
     folio: string;
     version: number;
+    quote_type: 'REPAIR' | 'DIRECT';
     estado: string;
     total: string;
     is_active_version: boolean;
@@ -55,6 +57,7 @@ export interface Ticket {
   payment_schedules?: Array<any>;
   cochera_charges?: Array<any>;
   discounts?: Array<any>;
+  has_linked_quote?: boolean;
 }
 
 export interface PaginatedResponse<T> {
@@ -186,13 +189,110 @@ export const useUpdateChecklistItem = () => {
   });
 };
 
+export const useDeleteChecklistItem = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ticketId, checklistId }: { ticketId: string; checklistId: number }) => {
+      const response = await axios.delete(`/api/tickets/${ticketId}/checklist-items/${checklistId}/`);
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['tickets', variables.ticketId] });
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    },
+  });
+};
+
 export const useCreateWarrantyTicket = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ ticketId, descripcion_problema, prioridad }: { ticketId: string; descripcion_problema: string; prioridad?: string }) => {
-      const response = await axios.post(`/api/tickets/${ticketId}/create_warranty/`, {
-        descripcion_problema,
-        prioridad,
+    mutationFn: async ({ sourceTicketId, data }: { sourceTicketId: string; data: FormData }) => {
+      const response = await axios.post(`/api/tickets/${sourceTicketId}/create_warranty/`, data);
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['tickets', variables.sourceTicketId] });
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    },
+  });
+};
+
+export const useAssignQuickAmount = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      ticketId,
+      payload,
+    }: {
+      ticketId: string;
+      payload: {
+        descuento: string;
+        igv_rate: string;
+        lines: Array<{
+          line_type: 'PRODUCT' | 'SERVICE';
+          product?: number | null;
+          service?: number | null;
+          cantidad: string;
+          precio_unitario: string;
+          descuento_linea: string;
+        }>;
+      };
+    }) => {
+      const response = await axios.post(`/api/tickets/${ticketId}/assign_quick_amount/`, payload);
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      queryClient.invalidateQueries({ queryKey: ['tickets', variables.ticketId] });
+      queryClient.invalidateQueries({ queryKey: ['quotes'] });
+    },
+  });
+};
+
+export interface ChecklistTemplateItem {
+  id: number;
+  nombre: string;
+  requerido: boolean;
+  orden: number;
+}
+
+export interface ChecklistTemplate {
+  id: number;
+  nombre: string;
+  descripcion: string;
+  activo: boolean;
+  items: ChecklistTemplateItem[];
+}
+
+export const useChecklistTemplates = () => {
+  return useQuery({
+    queryKey: ['checklist-templates'],
+    queryFn: async () => {
+      const response = await axios.get('/api/tickets/checklist-templates/');
+      return response.data.results ?? response.data;
+    },
+  });
+};
+
+export const useCreateChecklistTemplate = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { nombre: string; descripcion?: string; items: Array<{ nombre: string; requerido: boolean; orden: number }> }) => {
+      const response = await axios.post('/api/tickets/checklist-templates/', payload);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['checklist-templates'] });
+    },
+  });
+};
+
+export const useApplyChecklistTemplate = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ticketId, templateId }: { ticketId: string; templateId: number }) => {
+      const response = await axios.post(`/api/tickets/${ticketId}/apply_checklist_template/`, {
+        template_id: templateId,
       });
       return response.data;
     },

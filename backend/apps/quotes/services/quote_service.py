@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from apps.core.models import CompanyProfile
 from apps.core.utils import generate_folio
+from apps.customers.services import get_or_create_generic_customer
 from apps.quotes.models import Quote, QuoteApproval, QuoteAttachment, QuoteLine, QuoteToTicket
 from apps.tickets.models import Ticket, TicketTransition
 from apps.tickets.services.ticket_service import create_ticket
@@ -20,7 +21,7 @@ def decimalize(value, field_name):
     try:
         return Decimal(str(value))
     except Exception as exc:
-        raise ValidationError({field_name: f"El campo {field_name} tiene un valor inválido."}) from exc
+        raise ValidationError({field_name: f"El campo {field_name} tiene un valor invalido."}) from exc
 
 
 def get_user_role_name(user):
@@ -50,52 +51,51 @@ def get_company_profile():
         quote_default_validity_days = 15
         quote_default_igv = Decimal('18.00')
         quote_approval_threshold_amount = Decimal('1500.00')
-        quote_default_terms = ''
 
     return QuoteDefaults()
 
 
 def parse_quote_lines_payload(lines_raw):
     if not lines_raw:
-        raise ValidationError({'lines': 'Debes agregar al menos una línea a la cotización.'})
+        raise ValidationError({'lines': 'Debes agregar al menos una linea a la cotizacion.'})
 
     if isinstance(lines_raw, str):
         try:
             lines = json.loads(lines_raw)
         except json.JSONDecodeError as exc:
-            raise ValidationError({'lines': 'El formato de líneas es inválido.'}) from exc
+            raise ValidationError({'lines': 'El formato de lineas es invalido.'}) from exc
     else:
         lines = lines_raw
 
     if not isinstance(lines, list) or not lines:
-        raise ValidationError({'lines': 'Las líneas deben enviarse como una lista no vacía.'})
+        raise ValidationError({'lines': 'Las lineas deben enviarse como una lista no vacia.'})
 
     normalized_lines = []
     for index, line in enumerate(lines):
         if not isinstance(line, dict):
-            raise ValidationError({'lines': f'La línea {index + 1} no es válida.'})
+            raise ValidationError({'lines': f'La linea {index + 1} no es valida.'})
 
         line_type = line.get('line_type')
         if line_type not in [QuoteLine.LineType.PRODUCT, QuoteLine.LineType.SERVICE]:
-            raise ValidationError({'lines': f'La línea {index + 1} debe ser PRODUCT o SERVICE.'})
+            raise ValidationError({'lines': f'La linea {index + 1} debe ser PRODUCT o SERVICE.'})
 
         product_id = line.get('product')
         service_id = line.get('service')
         if line_type == QuoteLine.LineType.PRODUCT and not product_id:
-            raise ValidationError({'lines': f'La línea {index + 1} requiere un producto.'})
+            raise ValidationError({'lines': f'La linea {index + 1} requiere un producto.'})
         if line_type == QuoteLine.LineType.SERVICE and not service_id:
-            raise ValidationError({'lines': f'La línea {index + 1} requiere un servicio.'})
+            raise ValidationError({'lines': f'La linea {index + 1} requiere un servicio.'})
 
         cantidad = decimalize(line.get('cantidad', 1), 'cantidad')
         if cantidad <= 0:
-            raise ValidationError({'lines': f'La línea {index + 1} debe tener cantidad mayor a 0.'})
+            raise ValidationError({'lines': f'La linea {index + 1} debe tener cantidad mayor a 0.'})
         if cantidad != cantidad.to_integral_value():
-            raise ValidationError({'lines': f'La línea {index + 1} debe tener una cantidad entera positiva.'})
+            raise ValidationError({'lines': f'La linea {index + 1} debe tener una cantidad entera positiva.'})
 
         precio_unitario = decimalize(line.get('precio_unitario', 0), 'precio_unitario')
         descuento_linea = decimalize(line.get('descuento_linea', 0), 'descuento_linea')
         if precio_unitario < 0 or descuento_linea < 0:
-            raise ValidationError({'lines': f'La línea {index + 1} tiene valores negativos inválidos.'})
+            raise ValidationError({'lines': f'La linea {index + 1} tiene valores negativos invalidos.'})
 
         normalized_lines.append({
             'line_type': line_type,
@@ -118,12 +118,37 @@ def quote_requires_amount_approval(quote):
     return quote.total > threshold
 
 
-def validate_quote_customer_device(customer, device, source_ticket=None):
-    if device and device.customer_id != customer.id:
+def quote_has_payment_activity(quote):
+    return quote.receipts.exists() or quote.schedules.exists()
+
+
+def validate_quote_customer_device(*, customer, device, source_ticket=None, quote_type=Quote.QuoteType.REPAIR):
+    if source_ticket and customer and source_ticket.customer_id != customer.id:
+        raise ValidationError({'customer': 'El ticket asociado pertenece a otro cliente.'})
+
+    if device and customer and device.customer_id != customer.id:
         raise ValidationError({'device': 'El dispositivo seleccionado no pertenece al cliente indicado.'})
 
-    if source_ticket and source_ticket.customer_id != customer.id:
-        raise ValidationError({'customer': 'El ticket asociado pertenece a otro cliente.'})
+    if quote_type == Quote.QuoteType.DIRECT and source_ticket and device and device.customer_id != source_ticket.customer_id:
+        raise ValidationError({'device': 'El dispositivo seleccionado no coincide con el ticket asociado.'})
+
+
+def resolve_quote_context(*, customer=None, device=None, source_ticket=None, quote_type=Quote.QuoteType.REPAIR):
+    if source_ticket:
+        customer = source_ticket.customer
+        if source_ticket.device_id and not device:
+            device = source_ticket.device
+
+    if not customer:
+        customer = get_or_create_generic_customer()
+
+    validate_quote_customer_device(
+        customer=customer,
+        device=device,
+        source_ticket=source_ticket,
+        quote_type=quote_type,
+    )
+    return customer, device
 
 
 def calculate_quote_totals(lines, descuento, igv_rate):
@@ -133,7 +158,7 @@ def calculate_quote_totals(lines, descuento, igv_rate):
     for line in lines:
         total_linea = (line['cantidad'] * line['precio_unitario']) - line['descuento_linea']
         if total_linea < 0:
-            raise ValidationError({'lines': 'Una línea no puede quedar con total negativo.'})
+            raise ValidationError({'lines': 'Una linea no puede quedar con total negativo.'})
         total_linea = total_linea.quantize(MONEY_QUANTIZE, rounding=ROUND_HALF_UP)
         line_totals.append(total_linea)
         subtotal += total_linea
@@ -218,7 +243,7 @@ def update_linked_ticket_from_quote(quote, new_status, user, motivo):
     elif new_status == Ticket.TicketStatus.REJECTED:
         try:
             from apps.products.services import release_ticket_reservations
-            release_ticket_reservations(ticket=ticket, user=user, reason='Liberación automática por rechazo de cotización')
+            release_ticket_reservations(ticket=ticket, user=user, reason='Liberacion automatica por rechazo de cotizacion')
         except Exception:
             pass
         ticket.monto_aprobado = None
@@ -277,31 +302,45 @@ def create_quote_lines(quote, normalized_lines):
 
 
 @transaction.atomic
-def create_quote(*, user, customer, device=None, source_ticket=None, lines=None, descuento=0, igv_rate=None, valido_hasta=None, condiciones='', notas='', attachments=None):
+def create_quote(
+    *,
+    user,
+    customer=None,
+    device=None,
+    source_ticket=None,
+    quote_type=Quote.QuoteType.REPAIR,
+    lines=None,
+    descuento=0,
+    igv_rate=None,
+    valido_hasta=None,
+    notas='',
+    attachments=None,
+):
     profile = get_company_profile()
-    validate_quote_customer_device(customer, device, source_ticket)
-
-    if source_ticket and source_ticket.device_id:
-        device = source_ticket.device
+    customer, device = resolve_quote_context(
+        customer=customer,
+        device=device,
+        source_ticket=source_ticket,
+        quote_type=quote_type,
+    )
 
     if igv_rate is None:
         igv_rate = profile.quote_default_igv
     if not valido_hasta:
         valido_hasta = timezone.localdate() + timedelta(days=int(profile.quote_default_validity_days))
-    if not condiciones:
-        condiciones = profile.quote_default_terms
 
     quote = Quote.objects.create(
         folio=generate_folio('COT'),
         version=1,
+        base_quote=None,
         customer=customer,
         device=device,
         source_ticket=source_ticket,
         created_by=user,
+        quote_type=quote_type,
         descuento=decimalize(descuento, 'descuento'),
         igv_rate=decimalize(igv_rate, 'igv_rate'),
         valido_hasta=valido_hasta,
-        condiciones=condiciones,
         notas=notas,
     )
     quote.base_quote = quote
@@ -315,11 +354,27 @@ def create_quote(*, user, customer, device=None, source_ticket=None, lines=None,
 
 
 @transaction.atomic
-def update_quote(*, quote, user, lines=None, descuento=None, igv_rate=None, valido_hasta=None, condiciones=None, notas=None, attachments=None):
+def update_quote(
+    *,
+    quote,
+    user,
+    customer=None,
+    device=None,
+    source_ticket=None,
+    quote_type=None,
+    lines=None,
+    descuento=None,
+    igv_rate=None,
+    valido_hasta=None,
+    notas=None,
+    attachments=None,
+):
     if quote.estado != Quote.QuoteStatus.DRAFT:
         raise ValidationError({'detail': 'Solo se pueden editar cotizaciones en borrador.'})
     if not quote.is_active_version:
-        raise ValidationError({'detail': 'Solo la versión activa más reciente puede editarse.'})
+        raise ValidationError({'detail': 'Solo la version activa mas reciente puede editarse.'})
+    if quote_has_payment_activity(quote):
+        raise ValidationError({'detail': 'La cotizacion ya tiene actividad de cobro y no puede editarse.'})
 
     normalized_lines = None
     if lines is not None:
@@ -335,14 +390,28 @@ def update_quote(*, quote, user, lines=None, descuento=None, igv_rate=None, vali
         ],
     )
 
+    next_quote_type = quote_type or quote.quote_type
+    next_customer = customer or quote.customer
+    next_device = device if device is not None else quote.device
+    next_source_ticket = source_ticket if source_ticket is not None else quote.source_ticket
+    next_customer, next_device = resolve_quote_context(
+        customer=next_customer,
+        device=next_device,
+        source_ticket=next_source_ticket,
+        quote_type=next_quote_type,
+    )
+
+    quote.customer = next_customer
+    quote.device = next_device
+    quote.source_ticket = next_source_ticket
+    quote.quote_type = next_quote_type
+
     if descuento is not None:
         quote.descuento = next_discount
     if igv_rate is not None:
         quote.igv_rate = decimalize(igv_rate, 'igv_rate')
     if valido_hasta is not None:
         quote.valido_hasta = valido_hasta
-    if condiciones is not None:
-        quote.condiciones = condiciones
     if notas is not None:
         quote.notas = notas
     quote.save()
@@ -360,7 +429,7 @@ def send_quote(*, quote, user):
     if quote.estado != Quote.QuoteStatus.DRAFT:
         raise ValidationError({'detail': 'Solo se pueden enviar cotizaciones en borrador.'})
     if not quote.is_active_version:
-        raise ValidationError({'detail': 'Solo la versión activa más reciente puede enviarse.'})
+        raise ValidationError({'detail': 'Solo la version activa mas reciente puede enviarse.'})
 
     latest_amount_approval = quote.approvals.filter(
         approval_type=QuoteApproval.ApprovalType.AMOUNT
@@ -368,11 +437,11 @@ def send_quote(*, quote, user):
 
     if quote_requires_amount_approval(quote):
         if not latest_amount_approval or latest_amount_approval.estado != QuoteApproval.ApprovalStatus.APPROVED:
-            raise ValidationError({'detail': 'La cotización requiere aprobación administrativa antes de enviarse.'})
+            raise ValidationError({'detail': 'La cotizacion requiere aprobacion administrativa antes de enviarse.'})
 
     quote.estado = Quote.QuoteStatus.SENT
     quote.save(update_fields=['estado', 'updated_at'])
-    update_linked_ticket_from_quote(quote, Ticket.TicketStatus.QUOTED, user, 'Cotización enviada al cliente')
+    update_linked_ticket_from_quote(quote, Ticket.TicketStatus.QUOTED, user, 'Cotizacion enviada al cliente')
     return quote
 
 
@@ -384,7 +453,7 @@ def approve_amount_approval(*, quote, user, notas=''):
         estado=QuoteApproval.ApprovalStatus.PENDING,
     ).order_by('-created_at').first()
     if not approval:
-        raise ValidationError({'detail': 'La cotización no tiene aprobación pendiente por monto.'})
+        raise ValidationError({'detail': 'La cotizacion no tiene aprobacion pendiente por monto.'})
 
     approval.estado = QuoteApproval.ApprovalStatus.APPROVED
     approval.decidido_por = user
@@ -402,7 +471,7 @@ def reject_amount_approval(*, quote, user, notas=''):
         estado=QuoteApproval.ApprovalStatus.PENDING,
     ).order_by('-created_at').first()
     if not approval:
-        raise ValidationError({'detail': 'La cotización no tiene aprobación pendiente por monto.'})
+        raise ValidationError({'detail': 'La cotizacion no tiene aprobacion pendiente por monto.'})
 
     approval.estado = QuoteApproval.ApprovalStatus.REJECTED
     approval.decidido_por = user
@@ -417,11 +486,11 @@ def approve_quote(*, quote, user):
     if quote.estado != Quote.QuoteStatus.SENT:
         raise ValidationError({'detail': 'Solo se pueden aprobar cotizaciones enviadas.'})
     if not quote.is_active_version:
-        raise ValidationError({'detail': 'Solo la versión activa más reciente puede aprobarse.'})
+        raise ValidationError({'detail': 'Solo la version activa mas reciente puede aprobarse.'})
 
     quote.estado = Quote.QuoteStatus.APPROVED
     quote.save(update_fields=['estado', 'updated_at'])
-    update_linked_ticket_from_quote(quote, Ticket.TicketStatus.APPROVED, user, 'Cliente aprobó la cotización')
+    update_linked_ticket_from_quote(quote, Ticket.TicketStatus.APPROVED, user, 'Cliente aprobo la cotizacion')
     return quote
 
 
@@ -430,20 +499,22 @@ def reject_quote(*, quote, user, motivo=''):
     if quote.estado != Quote.QuoteStatus.SENT:
         raise ValidationError({'detail': 'Solo se pueden rechazar cotizaciones enviadas.'})
     if not quote.is_active_version:
-        raise ValidationError({'detail': 'Solo la versión activa más reciente puede rechazarse.'})
+        raise ValidationError({'detail': 'Solo la version activa mas reciente puede rechazarse.'})
 
     quote.estado = Quote.QuoteStatus.REJECTED
     quote.save(update_fields=['estado', 'updated_at'])
-    update_linked_ticket_from_quote(quote, Ticket.TicketStatus.REJECTED, user, motivo or 'Cliente rechazó la cotización')
+    update_linked_ticket_from_quote(quote, Ticket.TicketStatus.REJECTED, user, motivo or 'Cliente rechazo la cotizacion')
     return quote
 
 
 @transaction.atomic
 def create_quote_version(*, quote, user):
     if not quote.is_active_version:
-        raise ValidationError({'detail': 'Solo la versión activa más reciente puede versionarse.'})
-    if quote.estado not in [Quote.QuoteStatus.DRAFT, Quote.QuoteStatus.SENT, Quote.QuoteStatus.APPROVED]:
-        raise ValidationError({'detail': 'La cotización no puede versionarse en su estado actual.'})
+        raise ValidationError({'detail': 'Solo la version activa mas reciente puede versionarse.'})
+    if quote.estado not in [Quote.QuoteStatus.DRAFT, Quote.QuoteStatus.SENT, Quote.QuoteStatus.APPROVED, Quote.QuoteStatus.REJECTED]:
+        raise ValidationError({'detail': 'La cotizacion no puede versionarse en su estado actual.'})
+    if quote_has_payment_activity(quote):
+        raise ValidationError({'detail': 'La cotizacion ya tiene actividad de cobro y no puede versionarse.'})
 
     root_quote = quote.base_quote or quote
     next_version = (Quote.objects.filter(folio=root_quote.folio).aggregate(max_version=models.Max('version'))['max_version'] or 0) + 1
@@ -457,6 +528,7 @@ def create_quote_version(*, quote, user):
         device=quote.device,
         source_ticket=quote.source_ticket,
         created_by=user,
+        quote_type=quote.quote_type,
         estado=Quote.QuoteStatus.DRAFT,
         subtotal=quote.subtotal,
         igv_rate=quote.igv_rate,
@@ -464,7 +536,6 @@ def create_quote_version(*, quote, user):
         descuento=quote.descuento,
         total=quote.total,
         valido_hasta=quote.valido_hasta,
-        condiciones=quote.condiciones,
         notas=quote.notas,
         is_active_version=True,
     )
@@ -504,12 +575,12 @@ def convert_quote_to_ticket(*, quote, user):
     if quote.estado != Quote.QuoteStatus.APPROVED:
         raise ValidationError({'detail': 'Solo se pueden convertir cotizaciones aprobadas.'})
     if not quote.is_active_version:
-        raise ValidationError({'detail': 'Solo la versión activa más reciente puede convertirse.'})
+        raise ValidationError({'detail': 'Solo la version activa mas reciente puede convertirse.'})
 
     ticket = create_ticket(
         customer=quote.customer,
         user=user,
-        descripcion_problema=quote.notas or f'Ticket generado desde cotización {quote.folio}',
+        descripcion_problema=quote.notas or f'Ticket generado desde cotizacion {quote.folio}',
         device=quote.device,
         prioridad=Ticket.TicketPriority.MEDIUM,
     )
@@ -525,14 +596,61 @@ def convert_quote_to_ticket(*, quote, user):
         estado_anterior=previous_status,
         estado_nuevo=Ticket.TicketStatus.APPROVED,
         cambiado_por=user,
-        motivo=f'Ticket creado desde cotización {quote.folio}',
+        motivo=f'Ticket creado desde cotizacion {quote.folio}',
     )
 
-    QuoteToTicket.objects.create(quote=quote, ticket=ticket, convertido_por=user)
+    quote.source_ticket = ticket
+    quote.quote_type = Quote.QuoteType.REPAIR
     quote.estado = Quote.QuoteStatus.CONVERTED
-    quote.save(update_fields=['estado', 'updated_at'])
+    quote.save(update_fields=['source_ticket', 'quote_type', 'estado', 'updated_at'])
+    QuoteToTicket.objects.create(quote=quote, ticket=ticket, convertido_por=user)
     return ticket
 
 
 def get_active_ticket_quote(ticket):
     return ticket.quotes.filter(is_active_version=True).order_by('-version').first()
+
+
+@transaction.atomic
+def create_quick_quote_for_ticket(
+    *,
+    ticket,
+    user,
+    lines,
+    descuento=0,
+    igv_rate=None,
+):
+    require_permission(user, 'quotes.create')
+
+    if ticket.quotes.exists():
+        raise ValidationError({'detail': 'Este ticket ya tiene una cotizacion ligada. Usa el flujo normal de cotizaciones.'})
+
+    quote = create_quote(
+        user=user,
+        customer=ticket.customer,
+        device=ticket.device,
+        source_ticket=ticket,
+        quote_type=Quote.QuoteType.REPAIR,
+        lines=lines,
+        descuento=descuento,
+        igv_rate=igv_rate,
+        notas='',
+        attachments=[],
+    )
+
+    if quote_requires_amount_approval(quote):
+        threshold = Decimal(str(get_company_profile().quote_approval_threshold_amount)).quantize(
+            MONEY_QUANTIZE,
+            rounding=ROUND_HALF_UP,
+        )
+        raise ValidationError({
+            'detail': (
+                f'El total rapido supera el umbral de aprobacion (S/ {threshold}). '
+                'Usa la cotizacion formal para continuar.'
+            )
+        })
+
+    quote.estado = Quote.QuoteStatus.APPROVED
+    quote.save(update_fields=['estado', 'updated_at'])
+    update_linked_ticket_from_quote(quote, Ticket.TicketStatus.APPROVED, user, 'Monto asignado desde flujo rapido')
+    return quote

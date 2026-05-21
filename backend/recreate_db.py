@@ -1,28 +1,40 @@
-import psycopg
+import os
 
-def create_db():
+import psycopg
+from dotenv import load_dotenv
+
+
+load_dotenv()
+
+
+DB_NAME = os.getenv('DB_NAME', 'argos_db')
+DB_USER = os.getenv('DB_USER', 'admin')
+DB_PASSWORD = os.getenv('DB_PASSWORD', '1234')
+DB_HOST = os.getenv('DB_HOST', '127.0.0.1')
+DB_PORT = os.getenv('DB_PORT', '5432')
+
+
+def recreate_db():
+    conn = psycopg.connect(
+        f"host={DB_HOST} port={DB_PORT} user={DB_USER} password={DB_PASSWORD} dbname=postgres",
+        autocommit=True,
+    )
     try:
-        # Connect to the default 'postgres' database
-        conn = psycopg.connect(
-            "host=127.0.0.1 user=admin password=1234 dbname=postgres",
-            autocommit=True
-        )
-        cur = conn.cursor()
-        
-        # Check if DB exists
-        cur.execute("SELECT 1 FROM pg_database WHERE datname = 'argos_db'")
-        exists = cur.fetchone()
-        
-        if not exists:
-            cur.execute("CREATE DATABASE argos_db")
-            print("Database argos_db created successfully")
-        else:
-            print("Database argos_db already exists")
-            
-        cur.close()
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT pg_terminate_backend(pid)
+                FROM pg_stat_activity
+                WHERE datname = %s AND pid <> pg_backend_pid()
+                """,
+                (DB_NAME,),
+            )
+            cur.execute(f'DROP DATABASE IF EXISTS "{DB_NAME}"')
+            cur.execute(f'CREATE DATABASE "{DB_NAME}"')
+            print(f"Database {DB_NAME} recreated successfully")
+    finally:
         conn.close()
-    except Exception as e:
-        print(f"Error: {e}")
+
 
 if __name__ == "__main__":
-    create_db()
+    recreate_db()

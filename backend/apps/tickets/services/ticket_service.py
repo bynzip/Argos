@@ -7,7 +7,16 @@ from django.utils import timezone
 from apps.core.audit import log_audit
 from apps.core.notifications import create_role_notifications
 from apps.core.utils import generate_folio
-from apps.tickets.models import Ticket, TicketChecklistEvidence, TicketChecklistItem, TicketSubareaMovement, TicketTransition
+from apps.tickets.models import (
+    ChecklistTemplate,
+    Ticket,
+    TicketAccessory,
+    TicketChecklistEvidence,
+    TicketChecklistItem,
+    TicketEvidence,
+    TicketSubareaMovement,
+    TicketTransition,
+)
 from apps.users.permissions import require_permission
 
 MAX_EVIDENCE_FILES = 15
@@ -59,7 +68,7 @@ def parse_accessories_payload(accessories_raw):
         try:
             accessories = json.loads(accessories_raw)
         except json.JSONDecodeError as exc:
-            raise ValidationError("El formato de accesorios es inválido.") from exc
+            raise ValidationError("El formato de accesorios es invalido.") from exc
     else:
         accessories = accessories_raw
 
@@ -69,7 +78,7 @@ def parse_accessories_payload(accessories_raw):
     normalized_accessories = []
     for accessory in accessories:
         if not isinstance(accessory, dict):
-            raise ValidationError("Cada accesorio debe ser un objeto válido.")
+            raise ValidationError("Cada accesorio debe ser un objeto valido.")
 
         nombre = (accessory.get('nombre') or '').strip()
         if not nombre:
@@ -84,6 +93,31 @@ def parse_accessories_payload(accessories_raw):
     return normalized_accessories
 
 
+def parse_evidence_ids_payload(evidence_ids_raw):
+    if evidence_ids_raw is None:
+        return None
+
+    if isinstance(evidence_ids_raw, str):
+        try:
+            evidence_ids = json.loads(evidence_ids_raw)
+        except json.JSONDecodeError as exc:
+            raise ValidationError("El formato de evidencias heredadas es invalido.") from exc
+    else:
+        evidence_ids = evidence_ids_raw
+
+    if not isinstance(evidence_ids, list):
+        raise ValidationError("Las evidencias heredadas deben enviarse como una lista.")
+
+    normalized_ids = []
+    for evidence_id in evidence_ids:
+        try:
+            normalized_ids.append(int(evidence_id))
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("Cada evidencia heredada debe incluir un identificador valido.") from exc
+
+    return normalized_ids
+
+
 def validate_evidence_files(files):
     if len(files) > MAX_EVIDENCE_FILES:
         raise ValidationError(f"Solo puedes subir hasta {MAX_EVIDENCE_FILES} evidencias por ticket.")
@@ -92,22 +126,20 @@ def validate_evidence_files(files):
         if file_obj.content_type not in ALLOWED_EVIDENCE_CONTENT_TYPES:
             raise ValidationError("Las evidencias deben ser archivos JPG o PNG.")
         if file_obj.size > MAX_EVIDENCE_SIZE_BYTES:
-            raise ValidationError("Cada evidencia debe pesar como máximo 5 MB.")
+            raise ValidationError("Cada evidencia debe pesar como maximo 5 MB.")
 
 
 def create_ticket(customer, user, descripcion_problema, device=None, prioridad=Ticket.TicketPriority.LOW, **kwargs):
     with transaction.atomic():
-        folio = generate_folio('TKT')
-
         ticket = Ticket.objects.create(
-            folio=folio,
+            folio=generate_folio('TKT'),
             customer=customer,
             device=device,
             descripcion_problema=descripcion_problema,
             prioridad=prioridad,
             created_by=user,
             estado=Ticket.TicketStatus.INTAKE,
-            **kwargs
+            **kwargs,
         )
 
         TicketTransition.objects.create(
@@ -115,9 +147,8 @@ def create_ticket(customer, user, descripcion_problema, device=None, prioridad=T
             estado_anterior=None,
             estado_nuevo=Ticket.TicketStatus.INTAKE,
             cambiado_por=user,
-            motivo="Ticket creado"
+            motivo="Ticket creado",
         )
-
         return ticket
 
 
@@ -128,12 +159,21 @@ def has_pending_required_checklist(ticket):
 def transition_ticket(ticket, new_status, user, motivo=None):
     with transaction.atomic():
         try:
-            from apps.products.services import ticket_has_active_reservations
+            from apps.products.services import (
+                consume_reserved_quote_materials_for_ticket,
+                reserve_quote_materials_for_ticket,
+                ticket_has_active_reservations,
+            )
         except ImportError:
+            consume_reserved_quote_materials_for_ticket = None
+            reserve_quote_materials_for_ticket = None
             ticket_has_active_reservations = None
+        try:
+            from apps.quotes.services import get_active_ticket_quote
+        except ImportError:
+            get_active_ticket_quote = None
 
         current_status = ticket.estado
-
         if current_status == new_status:
             return ticket
 
@@ -142,9 +182,7 @@ def transition_ticket(ticket, new_status, user, motivo=None):
             Ticket.TicketStatus.APPROVED,
             Ticket.TicketStatus.REJECTED,
         }:
-            raise ValidationError(
-                "Los estados de cotización se gestionan desde el módulo de cotizaciones."
-            )
+            raise ValidationError("Los estados de cotizacion se gestionan desde el modulo de cotizaciones.")
 
         allowed_statuses = VALID_TRANSITIONS.get(current_status, [])
         if new_status not in allowed_statuses:
@@ -171,8 +209,15 @@ def transition_ticket(ticket, new_status, user, motivo=None):
             and ticket_has_active_reservations(ticket)
         ):
             raise ValidationError(
-                "Este ticket todavía tiene reservas activas. Debes consumirlas o liberarlas antes de cerrarlo."
+                "Este ticket todavia tiene reservas activas. Debes consumirlas o liberarlas antes de cerrarlo."
             )
+
+        active_quote = get_active_ticket_quote(ticket) if get_active_ticket_quote else None
+        if new_status == Ticket.TicketStatus.IN_REPAIR and active_quote and reserve_quote_materials_for_ticket:
+            reserve_quote_materials_for_ticket(ticket=ticket, quote=active_quote, user=user)
+
+        if new_status == Ticket.TicketStatus.READY and consume_reserved_quote_materials_for_ticket:
+            consume_reserved_quote_materials_for_ticket(ticket=ticket, user=user)
 
         ticket.estado = new_status
         ticket.save(update_fields=['estado', 'updated_at'])
@@ -182,23 +227,30 @@ def transition_ticket(ticket, new_status, user, motivo=None):
             estado_anterior=current_status,
             estado_nuevo=new_status,
             cambiado_por=user,
-            motivo=motivo
+            motivo=motivo,
         )
+
         if new_status == Ticket.TicketStatus.READY:
             create_role_notifications(
                 role_names='Recepcionista',
                 message=(
-                    f"El ticket {ticket.folio} de {ticket.customer.nombre} está listo para entregar. "
+                    f"El ticket {ticket.folio} de {ticket.customer.nombre} esta listo para entregar. "
                     f"Saldo pendiente: S/ {ticket.saldo_pendiente:.2f}."
                 ),
                 include_superusers=True,
             )
-        log_audit(module='tickets', action='STATUS_CHANGE', user=user, obj=ticket, before_data={'estado': current_status}, after_data={'estado': new_status})
-
+        log_audit(
+            module='tickets',
+            action='STATUS_CHANGE',
+            user=user,
+            obj=ticket,
+            before_data={'estado': current_status},
+            after_data={'estado': new_status},
+        )
         return ticket
 
 
-def update_ticket_amounts(ticket, user, monto_estimado=None, total=None, motivo="Actualización de montos"):
+def update_ticket_amounts(ticket, user, monto_estimado=None, total=None, motivo="Actualizacion de montos"):
     with transaction.atomic():
         try:
             from apps.quotes.services import get_active_ticket_quote
@@ -207,7 +259,7 @@ def update_ticket_amounts(ticket, user, monto_estimado=None, total=None, motivo=
 
         if get_active_ticket_quote and get_active_ticket_quote(ticket):
             raise ValidationError(
-                "Este ticket tiene una cotización activa. Los montos deben actualizarse desde la cotización."
+                "Este ticket tiene una cotizacion activa. Los montos deben actualizarse desde la cotizacion."
             )
 
         update_fields = ['updated_at']
@@ -220,8 +272,13 @@ def update_ticket_amounts(ticket, user, monto_estimado=None, total=None, motivo=
 
         if len(update_fields) > 1:
             ticket.save(update_fields=update_fields)
-            log_audit(module='tickets', action='UPDATE', user=user, obj=ticket, after_data={'monto_estimado': str(ticket.monto_estimado), 'total': str(ticket.total)})
-
+            log_audit(
+                module='tickets',
+                action='UPDATE',
+                user=user,
+                obj=ticket,
+                after_data={'monto_estimado': str(ticket.monto_estimado), 'total': str(ticket.total)},
+            )
         return ticket
 
 
@@ -326,7 +383,16 @@ def previous_subarea_id(subarea):
 
 
 @transaction.atomic
-def create_warranty_ticket(*, source_ticket, user, descripcion_problema, prioridad=None):
+def create_warranty_ticket(
+    *,
+    source_ticket,
+    user,
+    descripcion_problema,
+    prioridad=None,
+    accessories=None,
+    inherited_evidence_ids=None,
+    evidence_files=None,
+):
     require_permission(user, 'tickets.create')
     warranty_ticket = create_ticket(
         customer=source_ticket.customer,
@@ -339,5 +405,105 @@ def create_warranty_ticket(*, source_ticket, user, descripcion_problema, priorid
         assigned_to=source_ticket.assigned_to,
         subarea=source_ticket.subarea,
     )
+
+    accessory_payload = source_ticket.accessories.values('nombre', 'condicion', 'notas') if accessories is None else accessories
+    for accessory in accessory_payload:
+        TicketAccessory.objects.create(
+            ticket=warranty_ticket,
+            nombre=accessory['nombre'],
+            condicion=accessory.get('condicion'),
+            notas=accessory.get('notas'),
+        )
+
+    inherited_evidences = source_ticket.evidences.all()
+    if inherited_evidence_ids is not None:
+        inherited_evidences = inherited_evidences.filter(id__in=inherited_evidence_ids)
+        if inherited_evidences.count() != len(set(inherited_evidence_ids)):
+            raise ValidationError("Una o mas evidencias heredadas no pertenecen al ticket base.")
+
+    for evidence in inherited_evidences:
+        TicketEvidence.objects.create(
+            ticket=warranty_ticket,
+            archivo=evidence.archivo.name,
+            nombre_archivo=evidence.nombre_archivo,
+            tamano_archivo=evidence.tamano_archivo,
+            tipo_archivo=evidence.tipo_archivo,
+            subido_por=user,
+        )
+
+    for file_obj in evidence_files or []:
+        TicketEvidence.objects.create(
+            ticket=warranty_ticket,
+            archivo=file_obj,
+            nombre_archivo=file_obj.name,
+            tamano_archivo=file_obj.size,
+            tipo_archivo=file_obj.content_type,
+            subido_por=user,
+        )
+
     log_audit(module='tickets', action='CREATE', user=user, obj=warranty_ticket, after_data={'ticket_padre_id': str(source_ticket.id), 'es_garantia': True})
     return warranty_ticket
+
+
+@transaction.atomic
+def apply_checklist_template(*, ticket, template, user):
+    require_permission(user, 'tickets.transition_technical')
+    existing_names = set(ticket.checklist_items.values_list('nombre', flat=True))
+    created_items = []
+    for template_item in template.items.all().order_by('orden', 'id'):
+        if template_item.nombre in existing_names:
+            continue
+        created_items.append(
+            TicketChecklistItem.objects.create(
+                ticket=ticket,
+                nombre=template_item.nombre,
+                requerido=template_item.requerido,
+                orden=template_item.orden,
+            )
+        )
+    log_audit(
+        module='tickets',
+        action='CREATE',
+        user=user,
+        obj=ticket,
+        after_data={'template_id': template.id, 'items_created': len(created_items)},
+    )
+    return created_items
+
+
+@transaction.atomic
+def create_checklist_template(*, user, nombre, descripcion='', items=None):
+    require_permission(user, 'config.edit')
+    template = ChecklistTemplate.objects.create(
+        nombre=nombre.strip(),
+        descripcion=descripcion or '',
+    )
+    for index, item in enumerate(items or []):
+        template.items.create(
+            nombre=(item.get('nombre') or '').strip(),
+            requerido=item.get('requerido', True),
+            orden=item.get('orden', index),
+        )
+    return template
+
+
+@transaction.atomic
+def update_checklist_template(*, template, user, nombre=None, descripcion=None, activo=None, items=None):
+    require_permission(user, 'config.edit')
+    if nombre is not None:
+        template.nombre = nombre.strip()
+    if descripcion is not None:
+        template.descripcion = descripcion
+    if activo is not None:
+        template.activo = bool(activo)
+    template.save()
+
+    if items is not None:
+        template.items.all().delete()
+        for index, item in enumerate(items):
+            template.items.create(
+                nombre=(item.get('nombre') or '').strip(),
+                requerido=item.get('requerido', True),
+                orden=item.get('orden', index),
+            )
+    return template

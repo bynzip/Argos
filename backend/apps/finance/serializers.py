@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from rest_framework import serializers
 from .models import (
     CashClosure,
@@ -35,6 +37,7 @@ class PaymentScheduleSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'ticket',
+            'quote',
             'numero_cuota',
             'amount',
             'monto_pagado',
@@ -50,7 +53,10 @@ class PaymentScheduleSerializer(serializers.ModelSerializer):
         ]
 
     def get_saldo_pendiente(self, obj):
-        return obj.amount - obj.monto_pagado
+        monto_pagado = obj.monto_pagado
+        if not isinstance(monto_pagado, Decimal):
+            monto_pagado = Decimal(str(monto_pagado or 0))
+        return obj.amount - monto_pagado
 
 
 class ReceiptScheduleItemSerializer(serializers.ModelSerializer):
@@ -93,7 +99,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
     class Meta:
         model = Receipt
         fields = [
-            'id', 'folio', 'tipo_recibo', 'metodo_pago', 'amount', 
+            'id', 'folio', 'ticket', 'quote', 'tipo_recibo', 'metodo_pago', 'amount', 
             'referencia', 'estado', 'registrado_por', 'confirmado_por', 
             'confirmado_el', 'created_at', 'vouchers', 'schedule_items'
         ]

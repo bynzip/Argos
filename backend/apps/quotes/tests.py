@@ -64,9 +64,9 @@ class QuoteFlowTests(APITestCase):
         payload = {
             'customer': self.customer.id,
             'device': self.device.id,
+            'quote_type': 'REPAIR',
             'descuento': '0.00',
             'igv_rate': '18.00',
-            'condiciones': 'Prueba',
             'notas': 'Notas de prueba',
             'lines': [
                 {
@@ -182,7 +182,11 @@ class QuoteFlowTests(APITestCase):
         self.assertEqual(current.version, 2)
 
     def test_direct_quote_can_convert_to_ticket_after_approval(self):
-        create_response = self.client.post('/api/quotes/', self._quote_payload(device=None), format='json')
+        create_response = self.client.post(
+            '/api/quotes/',
+            self._quote_payload(device=None, quote_type='DIRECT'),
+            format='json',
+        )
         quote_id = create_response.data['id']
         self.client.post(f'/api/quotes/{quote_id}/send/')
         self.client.post(f'/api/quotes/{quote_id}/approve/')
