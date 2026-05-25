@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import warnings
 from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
@@ -101,16 +102,41 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME', 'argos_db'),
-        'USER': os.getenv('DB_USER', 'admin'),
-        'PASSWORD': os.getenv('DB_PASSWORD', '1234'),
-        'HOST': os.getenv('DB_HOST', '127.0.0.1'),
-        'PORT': os.getenv('DB_PORT', '5432'),
+DB_ENGINE = os.getenv('DB_ENGINE', 'postgresql').strip().lower()
+
+if DB_ENGINE in {'sqlite', 'sqlite3'}:
+    sqlite_name = os.getenv('SQLITE_NAME', 'db.sqlite3').strip() or 'db.sqlite3'
+    sqlite_path = Path(sqlite_name)
+    if not sqlite_path.is_absolute():
+        sqlite_path = BASE_DIR / sqlite_path
+
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': sqlite_path,
+            'OPTIONS': {
+                'timeout': int(os.getenv('SQLITE_TIMEOUT', '20')),
+            },
+        }
     }
-}
+
+    warnings.warn(
+        'Argos ERP esta usando SQLite. Este modo es util para desarrollo local, '
+        'pero tiene limitaciones de concurrencia para reservas de stock, pagos, '
+        'ordenes de compra y generacion de folios.',
+        RuntimeWarning,
+    )
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DB_NAME', 'argos_db'),
+            'USER': os.getenv('DB_USER', 'admin'),
+            'PASSWORD': os.getenv('DB_PASSWORD', '1234'),
+            'HOST': os.getenv('DB_HOST', '127.0.0.1'),
+            'PORT': os.getenv('DB_PORT', '5432'),
+        }
+    }
 
 
 # Password validation

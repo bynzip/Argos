@@ -9,17 +9,38 @@ Este documento contiene las instrucciones básicas para levantar el sistema Argo
 Antes de comenzar, asegúrate de tener instalado en tu sistema:
 - **Python 3.12+**
 - **Node.js 18+** y **npm**
-- **PostgreSQL 16**
+- **PostgreSQL 16** si vas a trabajar en modo PostgreSQL
 
 ---
 
 ## 2. Configuración de la Base de Datos
+
+Argos ahora puede levantarse en dos modos:
+
+- **PostgreSQL**: recomendado para uso normal y pruebas multiusuario.
+- **SQLite**: útil para desarrollo local rápido cuando no quieres depender de PostgreSQL.
+
+### Opción A: PostgreSQL
 
 1. Abre tu gestor de base de datos (pgAdmin, DBeaver o la consola psql).
 2. Crea una base de datos vacía llamada `argos_db`.
 3. Asegúrate de tener un usuario y contraseña válidos para conectarte a PostgreSQL.
 
 ---
+
+### Opción B: SQLite
+
+Si quieres usar SQLite en local, no necesitas instalar PostgreSQL.
+
+Solo define estas variables en tu `.env`:
+
+```env
+DB_ENGINE=sqlite
+SQLITE_NAME=db.sqlite3
+SQLITE_TIMEOUT=20
+```
+
+`db.sqlite3` se creará automáticamente dentro de la carpeta `backend/` cuando corras las migraciones.
 
 ## 3. Configuración del Backend (Django)
 
@@ -47,10 +68,26 @@ cd argos-django/backend
    ```env
    DEBUG=True
    SECRET_KEY=tu-clave-secreta-segura-aqui
-   DATABASE_URL=postgres://usuario:contraseña@localhost:5432/argos_db
    CORS_ALLOWED_ORIGINS=http://localhost:5173
    ```
-   *(Asegúrate de cambiar `usuario` y `contraseña` por tus credenciales de PostgreSQL).*
+   Luego completa una de estas dos configuraciones:
+
+   **Modo PostgreSQL**
+   ```env
+   DB_ENGINE=postgresql
+   DB_NAME=argos_db
+   DB_USER=admin
+   DB_PASSWORD=1234
+   DB_HOST=127.0.0.1
+   DB_PORT=5432
+   ```
+
+   **Modo SQLite**
+   ```env
+   DB_ENGINE=sqlite
+   SQLITE_NAME=db.sqlite3
+   SQLITE_TIMEOUT=20
+   ```
 
 4. **Aplicar migraciones:**
    ```bash
@@ -69,6 +106,15 @@ cd argos-django/backend
    python manage.py runserver
    ```
    El backend estará corriendo en `http://localhost:8000/`.
+
+### Limitaciones del modo SQLite
+
+SQLite sirve bien para desarrollo local, pero debes considerar esto:
+
+- no es la mejor opción para varios usuarios trabajando al mismo tiempo;
+- los bloqueos transaccionales no son tan sólidos como en PostgreSQL;
+- flujos delicados como reservas de stock, cobros, cuotas, órdenes de compra y generación de folios pueden ser más sensibles a concurrencia;
+- para un entorno real del taller, sigue siendo mejor PostgreSQL.
 
 ---
 
