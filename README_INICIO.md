@@ -20,6 +20,8 @@ Argos ahora puede levantarse en dos modos:
 - **PostgreSQL**: recomendado para uso normal y pruebas multiusuario.
 - **SQLite**: útil para desarrollo local rápido cuando no quieres depender de PostgreSQL.
 
+En esta rama, el modo por defecto ya está orientado a **SQLite** para que puedas descargarla y correrla más rápido.
+
 ### Opción A: PostgreSQL
 
 1. Abre tu gestor de base de datos (pgAdmin, DBeaver o la consola psql).

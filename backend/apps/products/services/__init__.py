@@ -3,6 +3,7 @@ from .inventory_service import (
     consume_direct_quote_stock,
     consume_reservation,
     consume_reserved_quote_materials_for_ticket,
+    deliver_reservation,
     record_inventory_movement,
     release_reservation,
     release_ticket_reservations,

@@ -11,6 +11,18 @@ export interface Brand {
   nombre: string;
 }
 
+export interface ProductSupplier {
+  id: number;
+  product: number;
+  product_name?: string;
+  supplier: number | null;
+  supplier_name?: string;
+  supplier_price?: string | null;
+  lead_time_days?: number | null;
+  is_primary: boolean;
+  created_at: string;
+}
+
 export interface Product {
   id: number;
   codigo: string;
@@ -23,6 +35,8 @@ export interface Product {
   precio_costo: string;
   precio_venta: string;
   stock_minimo: number;
+  unidad: string;
+  is_serializable: boolean;
   activo: boolean;
   total_stock: string;
   total_stock_fisico: string;
@@ -38,6 +52,7 @@ export interface Product {
     costo_promedio: string;
     ubicacion_especifica?: string;
   }>;
+  product_suppliers?: ProductSupplier[];
   created_at: string;
 }
 
@@ -119,6 +134,61 @@ export const useUpdateProduct = (id: number | string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['products', id] });
+    },
+  });
+};
+
+export const useProductSuppliers = (params?: Record<string, any>) => {
+  return useQuery<ProductSupplier[]>({
+    queryKey: ['product-suppliers', params],
+    queryFn: async () => {
+      const response = await api.get('/api/products/product-suppliers/', { params });
+      return response.data.results ?? response.data;
+    },
+  });
+};
+
+export const useCreateProductSupplier = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Omit<ProductSupplier, 'id' | 'created_at' | 'product_name' | 'supplier_name'>) => {
+      const response = await api.post('/api/products/product-suppliers/', payload);
+      return response.data as ProductSupplier;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['product-suppliers'] });
+      queryClient.invalidateQueries({ queryKey: ['products', variables.product] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+};
+
+export const useUpdateProductSupplier = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: Partial<ProductSupplier> & { id: number }) => {
+      const response = await api.patch(`/api/products/product-suppliers/${id}/`, payload);
+      return response.data as ProductSupplier;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['product-suppliers'] });
+      queryClient.invalidateQueries({ queryKey: ['products', data.product] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+};
+
+export const useDeleteProductSupplier = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, product }: { id: number; product: number }) => {
+      await api.delete(`/api/products/product-suppliers/${id}/`);
+      return { id, product };
+    },
+    onSuccess: ({ product }) => {
+      queryClient.invalidateQueries({ queryKey: ['product-suppliers'] });
+      queryClient.invalidateQueries({ queryKey: ['products', product] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
     },
   });
 };

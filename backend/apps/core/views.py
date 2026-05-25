@@ -129,7 +129,7 @@ class DashboardViewSet(viewsets.ViewSet):
                 'pending_discounts': Discount.objects.filter(estado='PENDING').count(),
                 'pending_reversals': PaymentReversal.objects.filter(estado='PENDING').count(),
                 'clientes_morosos': Customer.objects.filter(etiqueta='MOROSO').count(),
-                'purchase_orders_open': PurchaseOrder.objects.exclude(estado__in=['RECEIVED', 'CANCELLED']).count(),
+                'purchase_orders_open': PurchaseOrder.objects.exclude(estado__in=['RECEIVED', 'CLOSED_INCOMPLETE', 'CANCELLED']).count(),
                 'storage_tickets': Ticket.objects.filter(estado='STORAGE').count(),
                 'overdue_installments': PaymentSchedule.objects.filter(esta_pagado=False, due_date__lt=today).count(),
             }
@@ -178,7 +178,7 @@ class DashboardViewSet(viewsets.ViewSet):
                 'inventory_value': products_with_stock.aggregate(
                     total=Sum(F('stock_fisico') * F('precio_venta'), output_field=DecimalField()),
                 )['total'] or 0,
-                'pending_purchase_orders': PurchaseOrder.objects.exclude(estado__in=['RECEIVED', 'CANCELLED']).count(),
+                'pending_purchase_orders': PurchaseOrder.objects.exclude(estado__in=['RECEIVED', 'CLOSED_INCOMPLETE', 'CANCELLED']).count(),
             }
             low_stock_products = products_with_stock.order_by('stock_disponible')[:5]
             data['charts']['low_stock_products'] = {p.nombre: float(p.stock_disponible or 0) for p in low_stock_products}

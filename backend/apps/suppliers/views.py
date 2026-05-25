@@ -8,7 +8,14 @@ from apps.users.permissions import RolePermission
 
 from .models import PurchaseOrder, Supplier
 from .serializers import PurchaseOrderSerializer, SupplierSerializer
-from .services import cancel_purchase_order, create_supplier_order, get_purchase_suggestions, receive_purchase_order, send_purchase_order
+from .services import (
+    cancel_purchase_order,
+    create_supplier_order,
+    get_purchase_suggestions,
+    receive_purchase_order,
+    send_purchase_order,
+    update_supplier_order,
+)
 
 
 class SupplierViewSet(viewsets.ModelViewSet):
@@ -29,18 +36,26 @@ class SupplierViewSet(viewsets.ModelViewSet):
 
 
 class PurchaseOrderViewSet(viewsets.ModelViewSet):
-    queryset = PurchaseOrder.objects.select_related('supplier', 'destination_warehouse', 'created_by').prefetch_related('items', 'status_history')
+    queryset = PurchaseOrder.objects.select_related(
+        'supplier', 'destination_warehouse', 'created_by'
+    ).prefetch_related('items__product', 'status_history')
     serializer_class = PurchaseOrderSerializer
     permission_classes = [IsAuthenticated, RolePermission]
     required_permissions = {
         'list': ['suppliers.manage_orders'],
         'retrieve': ['suppliers.manage_orders'],
         'create': ['suppliers.manage_orders'],
+        'update': ['suppliers.manage_orders'],
+        'partial_update': ['suppliers.manage_orders'],
         'send_order': ['suppliers.manage_orders'],
         'receive_order': ['suppliers.manage_orders'],
         'cancel_order': ['suppliers.manage_orders'],
         'suggestions': ['suppliers.manage_orders'],
     }
+
+    def _serialize_purchase_order(self, purchase_order):
+        refreshed_order = self.get_queryset().get(pk=purchase_order.pk)
+        return self.get_serializer(refreshed_order).data
 
     def create(self, request, *args, **kwargs):
         supplier = Supplier.objects.get(pk=request.data.get('supplier'))
@@ -52,12 +67,29 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             items=request.data.get('items', []),
             notes=request.data.get('notes', ''),
         )
-        return Response(self.get_serializer(purchase_order).data, status=status.HTTP_201_CREATED)
+        return Response(self._serialize_purchase_order(purchase_order), status=status.HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        purchase_order = self.get_object()
+        supplier = Supplier.objects.get(pk=request.data.get('supplier'))
+        destination_warehouse = Warehouse.objects.get(pk=request.data.get('destination_warehouse'))
+        updated_order = update_supplier_order(
+            purchase_order=purchase_order,
+            user=request.user,
+            supplier=supplier,
+            destination_warehouse=destination_warehouse,
+            items=request.data.get('items', []),
+            notes=request.data.get('notes', ''),
+        )
+        return Response(self._serialize_purchase_order(updated_order))
+
+    def partial_update(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
 
     @action(detail=True, methods=['post'])
     def send_order(self, request, pk=None):
         purchase_order = send_purchase_order(purchase_order=self.get_object(), user=request.user, notes=request.data.get('notes', ''))
-        return Response(self.get_serializer(purchase_order).data)
+        return Response(self._serialize_purchase_order(purchase_order))
 
     @action(detail=True, methods=['post'])
     def receive_order(self, request, pk=None):
@@ -66,13 +98,14 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
             user=request.user,
             items=request.data.get('items', []),
             notes=request.data.get('notes', ''),
+            close_incomplete=bool(request.data.get('close_incomplete', False)),
         )
-        return Response(self.get_serializer(purchase_order).data)
+        return Response(self._serialize_purchase_order(purchase_order))
 
     @action(detail=True, methods=['post'])
     def cancel_order(self, request, pk=None):
         purchase_order = cancel_purchase_order(purchase_order=self.get_object(), user=request.user, notes=request.data.get('notes', ''))
-        return Response(self.get_serializer(purchase_order).data)
+        return Response(self._serialize_purchase_order(purchase_order))
 
     @action(detail=False, methods=['get'])
     def suggestions(self, request):

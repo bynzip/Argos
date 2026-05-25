@@ -36,13 +36,38 @@ class WarehouseSerializer(serializers.ModelSerializer):
 
 class ProductSupplierSerializer(serializers.ModelSerializer):
     supplier_name = serializers.ReadOnlyField(source='supplier.nombre')
+    product_name = serializers.ReadOnlyField(source='product.nombre')
 
     class Meta:
         model = ProductSupplier
         fields = (
+            'product', 'product_name',
             'id', 'supplier', 'supplier_name', 'supplier_id_legacy',
             'supplier_price', 'lead_time_days', 'is_primary', 'created_at'
         )
+
+    def validate(self, attrs):
+        supplier = attrs.get('supplier') or getattr(self.instance, 'supplier', None)
+        product = attrs.get('product') or getattr(self.instance, 'product', None)
+        if not supplier:
+            raise serializers.ValidationError({'supplier': 'El proveedor es obligatorio.'})
+        if not product:
+            raise serializers.ValidationError({'product': 'El producto es obligatorio.'})
+        return attrs
+
+    def _ensure_single_primary(self, instance):
+        if instance.is_primary:
+            ProductSupplier.objects.filter(product=instance.product).exclude(pk=instance.pk).update(is_primary=False)
+
+    def create(self, validated_data):
+        instance = super().create(validated_data)
+        self._ensure_single_primary(instance)
+        return instance
+
+    def update(self, instance, validated_data):
+        instance = super().update(instance, validated_data)
+        self._ensure_single_primary(instance)
+        return instance
 
 
 class ProductStockSummarySerializer(serializers.ModelSerializer):
@@ -115,6 +140,8 @@ class ProductSerializer(serializers.ModelSerializer):
             'precio_costo',
             'precio_venta',
             'stock_minimo',
+            'unidad',
+            'is_serializable',
             'activo',
             'total_stock',
             'total_stock_fisico',
@@ -125,7 +152,7 @@ class ProductSerializer(serializers.ModelSerializer):
             'created_at',
             'initial_stock',
         )
-        read_only_fields = ('id', 'codigo', 'created_at')
+        read_only_fields = ('id', 'created_at')
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -135,6 +162,7 @@ class ProductSerializer(serializers.ModelSerializer):
             role = request.user.user_roles.first().role.nombre if request.user.user_roles.exists() else ''
             if role not in ['Administrador', 'Almacenero']:
                 data.pop('precio_costo', None)
+                data.pop('product_suppliers', None)
 
         return data
 
@@ -194,11 +222,16 @@ class StockReservationSerializer(serializers.ModelSerializer):
             'reservado_por',
             'reservado_por_nombre',
             'notas',
+            'entregado_el',
+            'entregado_por',
             'consumido_el',
             'liberado_el',
             'created_at',
         )
-        read_only_fields = ('estado', 'reservado_por', 'consumido_el', 'liberado_el', 'created_at')
+        read_only_fields = (
+            'estado', 'reservado_por', 'entregado_el', 'entregado_por',
+            'consumido_el', 'liberado_el', 'created_at'
+        )
 
 
 class InventoryMovementSerializer(serializers.ModelSerializer):

@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { Button } from '../../components/ui/Button';
 import { useDailySummaryReport, useDelinquentCustomersReport, useInventoryReport, usePurchaseReport } from '../../hooks/useReports';
+import { Link } from 'react-router-dom';
 
 const Metric = ({ label, value }: { label: string; value: string | number }) => (
   <div className="p-4 rounded-xl border border-[var(--gray-200)] bg-white">
@@ -63,6 +65,8 @@ export default function ReportsPage() {
                     <th className="text-left py-3">Producto</th>
                     <th className="text-right py-3">Disponible</th>
                     <th className="text-right py-3">Mínimo</th>
+                    <th className="text-right py-3">Sugerido</th>
+                    <th className="text-right py-3">Acción</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--gray-100)]">
@@ -71,6 +75,12 @@ export default function ReportsPage() {
                       <td className="py-3 font-semibold">{item.codigo} - {item.nombre}</td>
                       <td className="py-3 text-right">{item.stock_disponible}</td>
                       <td className="py-3 text-right">{item.stock_minimo}</td>
+                      <td className="py-3 text-right font-semibold">{item.suggested_quantity}</td>
+                      <td className="py-3 text-right">
+                        <Link to={`/suppliers/orders/new?add_product=${item.id}&qty=${item.suggested_quantity}`}>
+                          <Button size="sm" variant="secondary">Reponer</Button>
+                        </Link>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

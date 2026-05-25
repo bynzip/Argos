@@ -1,17 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useCustomers, Customer, PaginatedResponse } from '../../hooks/useCustomers';
+import { ChevronLeft, ChevronRight, Eye, Plus } from 'lucide-react';
+
 import { DataTable } from '../../components/ui/DataTable';
-import { Plus, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
+import { useCustomers, Customer, PaginatedResponse } from '../../hooks/useCustomers';
 import { cn } from '../../lib/utils';
 
 export default function CustomerListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  
+
   const initialSearch = searchParams.get('search') || '';
   const initialEtiqueta = searchParams.get('etiqueta') || '';
   const initialPage = parseInt(searchParams.get('page') || '1');
@@ -20,13 +21,13 @@ export default function CustomerListPage() {
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [etiquetaFilter, setEtiquetaFilter] = useState(initialEtiqueta);
   const [page, setPage] = useState(initialPage);
-  
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
       if (searchTerm !== initialSearch) {
         setPage(1);
-        setSearchParams(prev => {
+        setSearchParams((prev) => {
           if (searchTerm) prev.set('search', searchTerm);
           else prev.delete('search');
           prev.set('page', '1');
@@ -37,28 +38,27 @@ export default function CustomerListPage() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const { data, isLoading } = useCustomers({ 
-    search: debouncedSearch, 
+  const { data, isLoading } = useCustomers({
+    search: debouncedSearch,
     etiqueta: etiquetaFilter,
-    page: page 
+    page,
   });
 
-  // Determinar si la data es paginada o un array simple
   const isPaginated = data && typeof data === 'object' && !Array.isArray(data);
-  const customers = isPaginated 
-    ? (data as PaginatedResponse<Customer>).results || [] 
+  const customers = isPaginated
+    ? (data as PaginatedResponse<Customer>).results || []
     : (Array.isArray(data) ? data : []);
-  
-  const totalCount = isPaginated 
-    ? (data as PaginatedResponse<Customer>).count || 0 
+
+  const totalCount = isPaginated
+    ? (data as PaginatedResponse<Customer>).count || 0
     : customers.length;
-    
+
   const hasNext = isPaginated ? !!(data as PaginatedResponse<Customer>).next : false;
   const hasPrev = isPaginated ? !!(data as PaginatedResponse<Customer>).previous : false;
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
-    setSearchParams(prev => {
+    setSearchParams((prev) => {
       prev.set('page', newPage.toString());
       return prev;
     });
@@ -81,21 +81,27 @@ export default function CustomerListPage() {
       header: 'Cliente',
       cell: (item: Customer) => (
         <div className="flex flex-col cursor-pointer" onClick={() => navigate(`/customers/${item.id}`)}>
-          <span className="font-semibold text-[var(--gray-800)] hover:text-[var(--color-brand-blue)] transition-colors">
+          <span className="font-semibold text-[var(--gray-800)] transition-colors hover:text-[var(--color-brand-blue)]">
             {item.nombre}
           </span>
-          <span className="text-[12px] text-[var(--gray-400)] font-medium">
-            {item.tipo_cliente === 'PERSONA' ? 'DNI: ' : 'RUC: '}{item.identificador}
+          <span className="text-[12px] font-medium text-[var(--gray-400)]">
+            {item.telefono || 'Sin telefono'}
           </span>
         </div>
       ),
     },
     {
-      header: 'Contacto',
+      header: 'DNI / RUC',
+      cell: (item: Customer) => (
+        <span className="font-medium text-[var(--gray-700)]">{item.identificador}</span>
+      ),
+    },
+    {
+      header: 'Correo',
       cell: (item: Customer) => (
         <div className="flex flex-col text-[13px]">
-          <span className="text-[var(--gray-700)] font-medium">{item.telefono || 'Sin teléfono'}</span>
-          <span className="text-[var(--gray-400)]">{item.correo_electronico || ''}</span>
+          <span className="font-medium text-[var(--gray-700)]">{item.correo_electronico || 'Sin correo'}</span>
+          <span className="text-[var(--gray-400)]">{item.tipo_cliente === 'PERSONA' ? 'Persona' : 'Empresa'}</span>
         </div>
       ),
     },
@@ -103,8 +109,8 @@ export default function CustomerListPage() {
       header: 'Etiqueta',
       cell: (item: Customer) => (
         <span className={cn(
-          "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold border",
-          getLabelClass(item.etiqueta)
+          'inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-bold',
+          getLabelClass(item.etiqueta),
         )}>
           {item.etiqueta}
         </span>
@@ -114,9 +120,9 @@ export default function CustomerListPage() {
       header: '',
       cell: (item: Customer) => (
         <div className="flex justify-end">
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
             className="h-8 w-8 text-[var(--gray-400)] hover:text-[var(--color-brand-blue)]"
             onClick={() => navigate(`/customers/${item.id}`)}
           >
@@ -128,16 +134,16 @@ export default function CustomerListPage() {
   ];
 
   return (
-    <div className="p-8 max-w-[1600px] mx-auto">
-      <PageHeader 
+    <div className="mx-auto max-w-[1600px] p-8">
+      <PageHeader
         title="Directorio de Clientes"
         subtitle={`Gestiona los clientes y sus dispositivos (${totalCount} en total).`}
-        actions={
+        actions={(
           <Button variant="primary" onClick={() => navigate('/customers/new')}>
             <Plus size={18} />
             <span>Nuevo Cliente</span>
           </Button>
-        }
+        )}
       />
 
       <div className="space-y-4">
@@ -148,8 +154,8 @@ export default function CustomerListPage() {
           isLoading={isLoading}
           onSearch={setSearchTerm}
           initialSearchValue={initialSearch}
-          searchPlaceholder="Buscar por DNI, RUC, nombre o teléfono..."
-          filters={
+          searchPlaceholder="Buscar por DNI, RUC, nombre, telefono o correo..."
+          filters={(
             <div className="w-[180px]">
               <Select
                 value={etiquetaFilter}
@@ -157,14 +163,14 @@ export default function CustomerListPage() {
                   const val = e.target.value;
                   setEtiquetaFilter(val);
                   setPage(1);
-                  setSearchParams(prev => {
+                  setSearchParams((prev) => {
                     if (val) prev.set('etiqueta', val);
                     else prev.delete('etiqueta');
                     prev.set('page', '1');
                     return prev;
                   });
                 }}
-                className="h-9 text-[13px]"
+                className="h-10 text-[13px]"
               >
                 <option value="">Todas las Etiquetas</option>
                 <option value="NUEVO">Nuevo</option>
@@ -175,12 +181,11 @@ export default function CustomerListPage() {
                 <option value="ESPECIAL">Especial</option>
               </Select>
             </div>
-          }
+          )}
         />
 
-        {/* Pagination Footer */}
         {isPaginated && (
-          <div className="flex items-center justify-between px-4 py-3 bg-white border border-[var(--gray-200)] rounded-xl shadow-sm">
+          <div className="flex items-center justify-between rounded-xl border border-[var(--gray-200)] bg-white px-4 py-3 shadow-sm">
             <div className="flex flex-1 justify-between sm:hidden">
               <Button
                 variant="secondary"
@@ -215,9 +220,9 @@ export default function CustomerListPage() {
                 >
                   <ChevronLeft size={18} />
                 </Button>
-                
-                <div className="flex items-center justify-center h-8 min-w-[32px] px-2 rounded-lg bg-[var(--color-info-bg)] text-[var(--color-brand-blue)] text-xs font-bold border border-[var(--color-info-border)]">
-                  Página {page}
+
+                <div className="flex h-8 min-w-[32px] items-center justify-center rounded-lg border border-[var(--color-info-border)] bg-[var(--color-info-bg)] px-2 text-xs font-bold text-[var(--color-brand-blue)]">
+                  Pagina {page}
                 </div>
 
                 <Button
@@ -237,4 +242,3 @@ export default function CustomerListPage() {
     </div>
   );
 }
-

@@ -1,97 +1,178 @@
 [
   {
-    "model": "core.area",
+    "model": "products.category",
     "pk": 1,
     "fields": {
-      "name": "Taller Central",
-      "description": "Área principal de reparaciones",
-      "is_active": true,
-      "created_at": "2024-03-15T12:00:00Z",
-      "updated_at": "2024-03-15T12:00:00Z"
+      "nombre": "Almacenamiento",
+      "descripcion": "SSD, HDD y memorias",
+      "activo": true
     }
   },
   {
-    "model": "core.subarea",
-    "pk": 1,
-    "fields": {
-      "area": 1,
-      "name": "Diagnóstico",
-      "max_capacity": 10,
-      "current_load": 0,
-      "is_active": true,
-      "created_at": "2024-03-15T12:00:00Z",
-      "updated_at": "2024-03-15T12:00:00Z"
-    }
-  },
-  {
-    "model": "customers.customer",
-    "pk": 1,
-    "fields": {
-      "customer_type": "PERSONA",
-      "identifier": "70605040",
-      "name": "Juan Perez",
-      "phone": "987654321",
-      "email": "juan@example.com",
-      "address": "Av. Los Olivos 123",
-      "label": "REGULAR",
-      "is_active": true,
-      "created_at": "2024-03-15T12:00:00Z",
-      "updated_at": "2024-03-15T12:00:00Z"
-    }
-  },
-  {
-    "model": "customers.customer",
+    "model": "products.category",
     "pk": 2,
     "fields": {
-      "customer_type": "EMPRESA",
-      "identifier": "20123456789",
-      "name": "Tech Solutions S.A.",
-      "phone": "064-556677",
-      "email": "contacto@tech.com",
-      "address": "Calle Industrial 456",
-      "label": "VIP",
-      "is_active": true,
-      "created_at": "2024-03-15T12:00:00Z",
-      "updated_at": "2024-03-15T12:00:00Z"
+      "nombre": "Perifericos",
+      "descripcion": "Teclados, mouse y accesorios",
+      "activo": true
     }
   },
   {
-    "model": "inventory.category",
+    "model": "products.brand",
     "pk": 1,
     "fields": {
-      "name": "Almacenamiento",
-      "description": "Discos duros, SSD, Memorias USB",
-      "is_active": true,
-      "created_at": "2024-03-15T12:00:00Z",
-      "updated_at": "2024-03-15T12:00:00Z"
+      "nombre": "Kingston",
+      "activo": true
     }
   },
   {
-    "model": "inventory.brand",
-    "pk": 1,
+    "model": "products.brand",
+    "pk": 2,
     "fields": {
-      "name": "Kingston",
-      "is_active": true,
-      "created_at": "2024-03-15T12:00:00Z",
-      "updated_at": "2024-03-15T12:00:00Z"
+      "nombre": "Logitech",
+      "activo": true
     }
   },
   {
-    "model": "inventory.product",
+    "model": "products.warehouse",
     "pk": 1,
     "fields": {
-      "sku": "SSD-480-KNG",
-      "name": "SSD Kingston A400 480GB",
+      "deleted_at": null,
+      "nombre": "Principal",
+      "ubicacion": "Pasillo A / Piso 1"
+    }
+  },
+  {
+    "model": "products.warehouse",
+    "pk": 2,
+    "fields": {
+      "deleted_at": null,
+      "nombre": "Secundario",
+      "ubicacion": "Pasillo B / Piso 2"
+    }
+  },
+  {
+    "model": "suppliers.supplier",
+    "pk": 1,
+    "fields": {
+      "deleted_at": null,
+      "nombre": "Distribuidora Andina",
+      "ruc": "20111111111",
+      "contacto": "Rosa Diaz",
+      "telefono": "964000111",
+      "correo": "compras@andina.pe",
+      "direccion": "Jr. Comercio 123",
+      "activo": true,
+      "created_at": "2026-05-01T09:00:00Z",
+      "updated_at": "2026-05-01T09:00:00Z"
+    }
+  },
+  {
+    "model": "suppliers.supplier",
+    "pk": 2,
+    "fields": {
+      "deleted_at": null,
+      "nombre": "Importaciones Centro",
+      "ruc": "20222222222",
+      "contacto": "Luis Rojas",
+      "telefono": "965000222",
+      "correo": "ventas@importcentro.pe",
+      "direccion": "Av. Industrial 456",
+      "activo": true,
+      "created_at": "2026-05-01T09:05:00Z",
+      "updated_at": "2026-05-01T09:05:00Z"
+    }
+  },
+  {
+    "model": "products.product",
+    "pk": 1,
+    "fields": {
+      "deleted_at": null,
+      "codigo": "SSD-480-KNG",
+      "nombre": "SSD Kingston A400 480GB",
+      "descripcion": "Unidad SSD para upgrade de laptops y PCs",
       "category": 1,
       "brand": 1,
-      "cost_price": "120.00",
-      "sale_price": "180.00",
-      "min_stock": "5.000",
+      "precio_costo": "120.00",
+      "precio_venta": "180.00",
+      "stock_minimo": 5,
+      "unidad": "UNIDAD",
       "is_serializable": true,
-      "unit": "UNIDAD",
-      "is_active": true,
-      "created_at": "2024-03-15T12:00:00Z",
-      "updated_at": "2024-03-15T12:00:00Z"
+      "activo": true,
+      "created_at": "2026-05-01T10:00:00Z"
+    }
+  },
+  {
+    "model": "products.product",
+    "pk": 2,
+    "fields": {
+      "deleted_at": null,
+      "codigo": "MOU-LOG-M185",
+      "nombre": "Mouse Logitech M185",
+      "descripcion": "Mouse inalambrico para reposicion de oficina",
+      "category": 2,
+      "brand": 2,
+      "precio_costo": "35.00",
+      "precio_venta": "59.00",
+      "stock_minimo": 3,
+      "unidad": "UNIDAD",
+      "is_serializable": false,
+      "activo": true,
+      "created_at": "2026-05-01T10:05:00Z"
+    }
+  },
+  {
+    "model": "products.productsupplier",
+    "pk": 1,
+    "fields": {
+      "product": 1,
+      "supplier": 1,
+      "supplier_id_legacy": null,
+      "supplier_price": "118.00",
+      "lead_time_days": 3,
+      "is_primary": true,
+      "created_at": "2026-05-01T10:10:00Z"
+    }
+  },
+  {
+    "model": "products.productsupplier",
+    "pk": 2,
+    "fields": {
+      "product": 2,
+      "supplier": 2,
+      "supplier_id_legacy": null,
+      "supplier_price": "33.50",
+      "lead_time_days": 2,
+      "is_primary": true,
+      "created_at": "2026-05-01T10:15:00Z"
+    }
+  },
+  {
+    "model": "products.stockitem",
+    "pk": 1,
+    "fields": {
+      "product": 1,
+      "warehouse": 1,
+      "cantidad": "4.000",
+      "reservado": "1.000",
+      "costo_promedio": "118.0000",
+      "ubicacion_especifica": "Rack A1",
+      "created_at": "2026-05-01T10:30:00Z",
+      "updated_at": "2026-05-01T10:30:00Z"
+    }
+  },
+  {
+    "model": "products.stockitem",
+    "pk": 2,
+    "fields": {
+      "product": 2,
+      "warehouse": 1,
+      "cantidad": "6.000",
+      "reservado": "0.000",
+      "costo_promedio": "33.5000",
+      "ubicacion_especifica": "Rack B2",
+      "created_at": "2026-05-01T10:35:00Z",
+      "updated_at": "2026-05-01T10:35:00Z"
     }
   }
 ]

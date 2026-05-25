@@ -282,6 +282,22 @@ def release_reservation(*, reservation, user=None, notes=''):
 
 
 @transaction.atomic
+def deliver_reservation(*, reservation, user=None, notes=''):
+    locked_reservation = StockReservation.objects.select_for_update().select_related('stock_item', 'ticket').get(pk=reservation.pk)
+    if locked_reservation.estado != StockReservation.ReservationStatus.ACTIVE:
+        raise ValidationError({'detail': 'Solo se pueden entregar reservas activas.'})
+    if locked_reservation.entregado_el:
+        raise ValidationError({'detail': 'La reserva ya fue marcada como entregada.'})
+
+    locked_reservation.entregado_el = timezone.now()
+    locked_reservation.entregado_por = user
+    if notes:
+        locked_reservation.notas = f"{locked_reservation.notas}\n{notes}".strip()
+    locked_reservation.save(update_fields=['entregado_el', 'entregado_por', 'notas'])
+    return locked_reservation
+
+
+@transaction.atomic
 def consume_reservation(*, reservation, user=None, notes=''):
     locked_reservation = StockReservation.objects.select_for_update().select_related(
         'stock_item__product', 'stock_item__warehouse', 'ticket'

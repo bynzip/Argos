@@ -167,6 +167,31 @@ class InventoryFlowTests(APITestCase):
         self.assertEqual(self.stock_item.reservado, Decimal('0.000'))
         self.assertEqual(reservation.estado, StockReservation.ReservationStatus.RELEASED)
 
+    def test_deliver_reservation_marks_physical_delivery_without_consuming_stock(self):
+        reservation = StockReservation.objects.create(
+            stock_item=self.stock_item,
+            ticket=self.ticket,
+            cantidad=Decimal('1.000'),
+            reservado_por=self.inventory_user,
+        )
+        self.stock_item.reservado = Decimal('1.000')
+        self.stock_item.save(update_fields=['reservado', 'updated_at'])
+
+        response = self.client.post(
+            f'/api/products/reservations/{reservation.id}/deliver/',
+            {'notas': 'Entregado al tecnico'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.stock_item.refresh_from_db()
+        reservation.refresh_from_db()
+        self.assertEqual(self.stock_item.cantidad, Decimal('5.000'))
+        self.assertEqual(self.stock_item.reservado, Decimal('1.000'))
+        self.assertEqual(reservation.estado, StockReservation.ReservationStatus.ACTIVE)
+        self.assertIsNotNone(reservation.entregado_el)
+        self.assertEqual(reservation.entregado_por, self.inventory_user)
+
     def test_consume_reservation_reduces_physical_stock_and_logs_kardex(self):
         reservation = StockReservation.objects.create(
             stock_item=self.stock_item,
@@ -220,6 +245,24 @@ class InventoryFlowTests(APITestCase):
             InventoryMovement.objects.filter(product=self.product).count(),
             3,
         )
+
+    def test_warehouse_can_be_restored_and_hard_deleted_when_empty(self):
+        deactivate_response = self.client.delete(f'/api/products/warehouses/{self.secondary_warehouse.id}/')
+        self.assertEqual(deactivate_response.status_code, status.HTTP_204_NO_CONTENT)
+
+        self.secondary_warehouse.refresh_from_db()
+        self.assertIsNotNone(self.secondary_warehouse.deleted_at)
+
+        restore_response = self.client.post(f'/api/products/warehouses/{self.secondary_warehouse.id}/restore/')
+        self.assertEqual(restore_response.status_code, status.HTTP_200_OK)
+
+        self.secondary_warehouse.refresh_from_db()
+        self.assertIsNone(self.secondary_warehouse.deleted_at)
+
+        self.client.delete(f'/api/products/warehouses/{self.secondary_warehouse.id}/')
+        hard_delete_response = self.client.post(f'/api/products/warehouses/{self.secondary_warehouse.id}/hard_delete/')
+        self.assertEqual(hard_delete_response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Warehouse.all_objects.filter(id=self.secondary_warehouse.id).exists())
 
     def test_ticket_cannot_be_delivered_with_active_reservations(self):
         StockReservation.objects.create(

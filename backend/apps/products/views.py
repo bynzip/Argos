@@ -5,21 +5,24 @@ from rest_framework import filters, mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from django.shortcuts import get_object_or_404
+from rest_framework.exceptions import ValidationError
 
 from apps.tickets.views import TicketPagination
 from apps.users.permissions import RolePermission
 
-from .models import Category, Brand, InventoryMovement, Product, StockItem, StockReservation, Warehouse
+from .models import Category, Brand, InventoryMovement, Product, ProductSupplier, StockItem, StockReservation, Warehouse
 from .serializers import (
     BrandSerializer,
     CategorySerializer,
     InventoryMovementSerializer,
     ProductSerializer,
+    ProductSupplierSerializer,
     StockItemSerializer,
     StockReservationSerializer,
     WarehouseSerializer,
 )
-from .services import adjust_stock, consume_reservation, release_reservation, reserve_stock, transfer_stock
+from .services import adjust_stock, consume_reservation, deliver_reservation, release_reservation, reserve_stock, transfer_stock
 
 
 PRODUCT_ANNOTATIONS = {
@@ -62,7 +65,7 @@ class BrandViewSet(viewsets.ModelViewSet):
 
 
 class WarehouseViewSet(viewsets.ModelViewSet):
-    queryset = Warehouse.objects.all().order_by('nombre')
+    queryset = Warehouse.objects.none()
     serializer_class = WarehouseSerializer
     permission_classes = [IsAuthenticated, RolePermission]
     required_permissions = {
@@ -72,11 +75,37 @@ class WarehouseViewSet(viewsets.ModelViewSet):
         'update': ['inventory.manage_movements'],
         'partial_update': ['inventory.manage_movements'],
         'destroy': ['inventory.manage_movements'],
+        'restore': ['inventory.manage_movements'],
+        'hard_delete': ['inventory.manage_movements'],
     }
+
+    def get_queryset(self):
+        include_inactive = self.request.query_params.get('include_inactive')
+        manager = Warehouse.all_objects if include_inactive == 'true' else Warehouse.objects
+        return manager.all().order_by('nombre')
+
+    @action(detail=True, methods=['post'])
+    def restore(self, request, pk=None):
+        warehouse = get_object_or_404(Warehouse.all_objects.all(), pk=pk)
+        warehouse.restore()
+        serializer = self.get_serializer(warehouse)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def hard_delete(self, request, pk=None):
+        warehouse = get_object_or_404(Warehouse.all_objects.all(), pk=pk)
+        if warehouse.deleted_at is None:
+            raise ValidationError('Solo se pueden eliminar almacenes desactivados.')
+        if warehouse.stock_items.exists():
+            raise ValidationError('Vacía el almacén antes de eliminarlo.')
+        if warehouse.inventory_movements.exists() or warehouse.incoming_inventory_movements.exists():
+            raise ValidationError('No se puede eliminar un almacén con historial de movimientos.')
+        warehouse.hard_delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.annotate(**PRODUCT_ANNOTATIONS).prefetch_related('stocks__warehouse', 'product_suppliers').order_by('-created_at')
+    queryset = Product.objects.annotate(**PRODUCT_ANNOTATIONS).prefetch_related('stocks__warehouse', 'product_suppliers__supplier').order_by('-created_at')
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated, RolePermission]
     pagination_class = TicketPagination
@@ -93,6 +122,13 @@ class ProductViewSet(viewsets.ModelViewSet):
     search_fields = ['codigo', 'nombre', 'brand__nombre', 'descripcion']
     filterset_fields = ['category', 'brand', 'activo']
     ordering_fields = ['nombre', 'precio_venta', 'created_at']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        low_stock = self.request.query_params.get('low_stock')
+        if low_stock == 'true':
+            queryset = queryset.filter(total_stock_disponible_db__lte=F('stock_minimo'))
+        return queryset
 
     @action(detail=True, methods=['get'])
     def kardex(self, request, pk=None):
@@ -147,6 +183,7 @@ class StockReservationViewSet(
         'list': ['inventory.view_stock'],
         'retrieve': ['inventory.view_stock'],
         'create': ['inventory.reserve_stock'],
+        'deliver': ['inventory.reserve_stock'],
         'release': ['inventory.reserve_stock'],
         'consume': ['inventory.reserve_stock'],
     }
@@ -181,6 +218,15 @@ class StockReservationViewSet(
                 ),
             })
         return Response(response_data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def deliver(self, request, pk=None):
+        reservation = deliver_reservation(
+            reservation=self.get_object(),
+            user=request.user,
+            notes=request.data.get('notes', '') or request.data.get('notas', ''),
+        )
+        return Response(self.get_serializer(reservation).data)
 
     @action(detail=True, methods=['post'])
     def release(self, request, pk=None):
@@ -285,3 +331,20 @@ class InventoryMovementViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin,
             'source': StockItemSerializer(source, context={'request': request}).data,
             'destination': StockItemSerializer(destination, context={'request': request}).data,
         })
+
+
+class ProductSupplierViewSet(viewsets.ModelViewSet):
+    queryset = ProductSupplier.objects.select_related('product', 'supplier').order_by('product__nombre', 'supplier__nombre')
+    serializer_class = ProductSupplierSerializer
+    permission_classes = [IsAuthenticated, RolePermission]
+    required_permissions = {
+        'list': ['inventory.view_catalog'],
+        'retrieve': ['inventory.view_catalog'],
+        'create': ['inventory.edit_product'],
+        'update': ['inventory.edit_product'],
+        'partial_update': ['inventory.edit_product'],
+        'destroy': ['inventory.edit_product'],
+    }
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['product', 'supplier']
+    ordering_fields = ['created_at', 'lead_time_days', 'supplier_price']

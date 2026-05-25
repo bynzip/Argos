@@ -5,6 +5,7 @@ import {
   Home, 
   Settings, 
   Package, 
+  Warehouse,
   Ticket, 
   DollarSign,
   FileText,
@@ -39,13 +40,24 @@ export default function Sidebar() {
     { name: 'Cotizaciones', path: '/quotes', icon: FileText, permissionRequired: 'quotes' },
     { name: 'Clientes', path: '/customers', icon: Users, permissionRequired: 'customers' },
     { name: 'Inventario', path: '/inventory', icon: Package, permissionRequired: 'inventory' },
-    { name: 'Finanzas', path: '/finance', icon: DollarSign, permissionRequired: 'finance' },
+    { name: 'Almacenes', path: '/warehouses', icon: Warehouse, permissionRequired: 'inventory' },
+    { name: 'Proveedores', path: '/suppliers', icon: Users, permissionRequired: 'suppliers' },
     { name: 'Compras', path: '/suppliers/orders', icon: Truck, permissionRequired: 'suppliers' },
+    { name: 'Finanzas', path: '/finance', icon: DollarSign, permissionRequired: 'finance' },
     { name: 'RRHH', path: '/hr', icon: ClipboardCheck, permissionRequired: 'hr' },
     { name: 'Reportes', path: '/reports', icon: BarChart3, permissionRequired: 'reports' },
     { name: 'Parámetros', path: '/settings', icon: SlidersHorizontal, permissionRequired: 'config' },
     { name: 'Usuarios', path: '/users', icon: Settings, permissionRequired: 'users' },
   ];
+
+  const isPathMatch = (targetPath: string) => {
+    if (targetPath === '/') return location.pathname === '/';
+    return location.pathname === targetPath || location.pathname.startsWith(`${targetPath}/`);
+  };
+
+  const activePath = menuItems
+    .filter((item) => hasPermission(item.permissionRequired) && isPathMatch(item.path))
+    .sort((a, b) => b.path.length - a.path.length)[0]?.path;
 
   // Helper para las iniciales del usuario
   const getInitials = (name: string) => {
@@ -75,8 +87,7 @@ export default function Sidebar() {
         {menuItems.map((item) => {
           if (!hasPermission(item.permissionRequired)) return null;
 
-          const isActive = location.pathname === item.path || 
-                          (item.path !== '/' && location.pathname.startsWith(item.path));
+          const isActive = activePath === item.path;
           
           const Icon = item.icon;
 

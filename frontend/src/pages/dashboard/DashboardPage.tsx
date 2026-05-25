@@ -231,7 +231,8 @@ const DashboardPage = () => {
               value={data.metrics.low_stock_alerts || 0}
               icon={AlertTriangle}
               color="red"
-              link="/inventory"
+              link="/reports"
+              linkText="Reponer"
             />
           </>
         )}
@@ -322,10 +323,11 @@ const DashboardPage = () => {
               color="green"
             />
             <StatCard
-              label="Categorías"
-              value={data.metrics.categories_count || 0}
+              label="OC Abiertas"
+              value={data.metrics.pending_purchase_orders || 0}
               icon={BarChart3}
               color="indigo"
+              link="/suppliers/orders"
             />
           </>
         )}
@@ -479,9 +481,9 @@ const DashboardPage = () => {
                 Hay **{data.metrics.low_stock_alerts}** productos que requieren
                 reposición inmediata.
               </p>
-              <Link to="/inventory">
+              <Link to="/reports">
                 <Button variant="danger" className="w-full font-bold">
-                  Gestionar Inventario
+                  Revisar faltantes
                 </Button>
               </Link>
             </div>

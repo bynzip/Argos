@@ -5,17 +5,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Ca
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Select } from '../../components/ui/Select';
 import {
+  PaginatedResponse,
+  StockReservation,
   useConsumeReservation,
+  useDeliverReservation,
   useReleaseReservation,
   useReservations,
-  StockReservation,
-  PaginatedResponse,
 } from '../../hooks/useInventory';
 
 export default function InventoryReservationsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const { data, isLoading } = useReservations({ estado: statusFilter || undefined, page_size: 100 });
   const releaseReservation = useReleaseReservation();
+  const deliverReservation = useDeliverReservation();
   const consumeReservation = useConsumeReservation();
 
   const reservations = useMemo(() => (
@@ -28,7 +30,7 @@ export default function InventoryReservationsPage() {
     <div className="p-8 max-w-[1500px] mx-auto space-y-6">
       <PageHeader
         title="Reservas de Inventario"
-        subtitle="Controla reservas activas, consumidas y liberadas por ticket."
+        subtitle="Controla reservas activas, entregas físicas, consumos y liberaciones por ticket."
         actions={(
           <div className="w-[220px]">
             <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -57,6 +59,7 @@ export default function InventoryReservationsPage() {
                   <th className="px-6 py-3 text-left">Almacén</th>
                   <th className="px-6 py-3 text-right">Cantidad</th>
                   <th className="px-6 py-3 text-center">Estado</th>
+                  <th className="px-6 py-3 text-center">Entrega física</th>
                   <th className="px-6 py-3 text-right">Acción</th>
                 </tr>
               </thead>
@@ -71,13 +74,27 @@ export default function InventoryReservationsPage() {
                     <td className="px-6 py-4">{reservation.stock_item.warehouse_name}</td>
                     <td className="px-6 py-4 text-right font-bold">{reservation.cantidad}</td>
                     <td className="px-6 py-4 text-center">{reservation.estado}</td>
+                    <td className="px-6 py-4 text-center">
+                      {reservation.entregado_el
+                        ? new Date(reservation.entregado_el).toLocaleString()
+                        : 'Pendiente'}
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex justify-end gap-2">
+                        {reservation.estado === 'ACTIVE' && !reservation.entregado_el && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => deliverReservation.mutate({ id: reservation.id, notas: 'Entrega física confirmada al técnico.' })}
+                          >
+                            Confirmar entrega
+                          </Button>
+                        )}
                         {reservation.estado === 'ACTIVE' && (
                           <>
                             <Button
                               size="sm"
-                              variant="secondary"
+                              variant="primary"
                               onClick={() => consumeReservation.mutate({ id: reservation.id })}
                             >
                               Consumir
@@ -97,7 +114,7 @@ export default function InventoryReservationsPage() {
                 ))}
                 {reservations.length === 0 && (
                   <tr>
-                    <td className="px-6 py-8 text-center text-[var(--gray-400)]" colSpan={6}>
+                    <td className="px-6 py-8 text-center text-[var(--gray-400)]" colSpan={7}>
                       No hay reservas para mostrar.
                     </td>
                   </tr>

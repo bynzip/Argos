@@ -1,180 +1,150 @@
 import { useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Plus, ReceiptText } from 'lucide-react';
 
 import { Button } from '../../components/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
-import { Input } from '../../components/ui/Input';
-import { Label } from '../../components/ui/Label';
+import { DataTable } from '../../components/ui/DataTable';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Select } from '../../components/ui/Select';
-import { useWarehouses } from '../../hooks/useInventory';
-import { useCreatePurchaseOrder, usePurchaseOrders, usePurchaseSuggestions, useSendPurchaseOrder, useSuppliers } from '../../hooks/useSuppliers';
+import {
+  PurchaseOrder,
+  usePurchaseOrders,
+} from '../../hooks/useSuppliers';
+import {
+  PURCHASE_ORDER_STATUS_LABELS,
+  formatPurchaseDate,
+} from './purchaseOrderUi';
+
+const STATUS_STYLES: Record<string, string> = {
+  DRAFT: 'border-[var(--gray-200)] bg-[var(--gray-50)] text-[var(--gray-500)]',
+  SENT: 'border-[var(--color-info-border)] bg-[var(--color-info-bg)] text-[var(--color-brand-blue)]',
+  PARTIALLY_RECEIVED: 'border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] text-[var(--color-warning)]',
+  RECEIVED: 'border-[var(--color-success-border)] bg-[var(--color-success-bg)] text-[var(--color-success)]',
+  CLOSED_INCOMPLETE: 'border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] text-[var(--color-warning)]',
+  CANCELLED: 'border-[var(--color-danger-border)] bg-[var(--color-danger-bg)] text-[var(--color-danger)]',
+};
 
 export default function PurchaseOrderListPage() {
-  const { data: suppliers } = useSuppliers();
-  const { data: warehousesData } = useWarehouses();
-  const { data: orders, isLoading } = usePurchaseOrders();
-  const { data: suggestions } = usePurchaseSuggestions();
-  const createPurchaseOrder = useCreatePurchaseOrder();
-  const sendPurchaseOrder = useSendPurchaseOrder();
+  const navigate = useNavigate();
+  const { data: orders = [], isLoading } = usePurchaseOrders();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
 
-  const warehouses = useMemo(
-    () => (Array.isArray(warehousesData) ? warehousesData : warehousesData?.results || []),
-    [warehousesData],
-  );
+  const columns = [
+    {
+      header: 'Orden',
+      className: 'w-[20%]',
+      cell: (item: PurchaseOrder) => (
+        <div className="flex flex-col gap-1">
+          <Link
+            to={`/suppliers/orders/${item.id}`}
+            className="font-semibold text-[var(--color-brand-blue)] transition-colors hover:text-[var(--color-brand-orange)] hover:underline"
+          >
+            {item.folio}
+          </Link>
+        </div>
+      ),
+    },
+    {
+      header: 'Proveedor',
+      className: 'w-[20%]',
+      cell: (item: PurchaseOrder) => (
+        <div className="flex flex-col">
+          <span className="font-medium text-[var(--gray-700)]">{item.supplier_name}</span>
+          <span className="text-xs text-[var(--gray-400)]">
+            {item.items.length} linea{item.items.length === 1 ? '' : 's'}
+          </span>
+        </div>
+      ),
+    },
+    {
+      header: 'Creada',
+      className: 'w-[14%]',
+      cell: (item: PurchaseOrder) => formatPurchaseDate(item.created_at),
+    },
+    {
+      header: 'Etiqueta',
+      className: 'w-[14%]',
+      cell: (item: PurchaseOrder) => (
+        <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.04em] ${STATUS_STYLES[item.estado] || STATUS_STYLES.DRAFT}`}>
+          {PURCHASE_ORDER_STATUS_LABELS[item.estado] || item.estado}
+        </span>
+      ),
+    },
+    {
+      header: 'Subtotal',
+      className: 'w-[14%]',
+      cell: (item: PurchaseOrder) => (
+        <span className="whitespace-nowrap font-semibold text-[var(--gray-800)]">
+          S/ {Number(item.subtotal || 0).toFixed(2)}
+        </span>
+      ),
+    },
+  ];
 
-  const [supplierId, setSupplierId] = useState('');
-  const [warehouseId, setWarehouseId] = useState('');
-  const [selectedProductId, setSelectedProductId] = useState('');
-  const [cantidad, setCantidad] = useState('1');
-  const [precio, setPrecio] = useState('0.00');
+  const filteredOrders = useMemo(() => {
+    const normalizedTerm = searchTerm.trim().toLowerCase();
 
-  const handleCreate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!supplierId || !warehouseId || !selectedProductId) return;
+    return orders.filter((order) => {
+      const matchesStatus = statusFilter ? order.estado === statusFilter : true;
+      const matchesSearch = normalizedTerm
+        ? [
+          order.folio,
+          order.supplier_name,
+          order.destination_warehouse_name,
+          PURCHASE_ORDER_STATUS_LABELS[order.estado] || order.estado,
+        ].some((value) => value?.toLowerCase().includes(normalizedTerm))
+        : true;
 
-    createPurchaseOrder.mutate({
-      supplier: Number(supplierId),
-      destination_warehouse: Number(warehouseId),
-      items: [
-        {
-          product: Number(selectedProductId),
-          cantidad_pedida: cantidad,
-          precio_unitario: precio,
-        },
-      ],
+      return matchesStatus && matchesSearch;
     });
-  };
+  }, [orders, searchTerm, statusFilter]);
 
   return (
-    <div className="p-8 max-w-[1280px] mx-auto space-y-8">
-      <PageHeader title="Órdenes de compra" subtitle="Compras, recepción y abastecimiento guiado por faltantes." />
+    <div className="mx-auto max-w-[1360px] space-y-6 p-8">
+      <PageHeader
+        title="Ordenes de compra"
+        subtitle="Consulta, edita borradores y sigue el estado de cada orden."
+        actions={(
+          <Button variant="primary" onClick={() => navigate('/suppliers/orders/new')}>
+            <Plus size={18} />
+            <span>Nueva orden</span>
+          </Button>
+        )}
+      />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Nueva orden rápida</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div>
-                <Label required>Proveedor</Label>
-                <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
-                  <option value="">Selecciona</option>
-                  {(suppliers || []).map((supplier: any) => (
-                    <option key={supplier.id} value={supplier.id}>
-                      {supplier.nombre}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <Label required>Almacén destino</Label>
-                <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-                  <option value="">Selecciona</option>
-                  {warehouses.map((warehouse: any) => (
-                    <option key={warehouse.id} value={warehouse.id}>
-                      {warehouse.nombre}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <Label required>Producto sugerido</Label>
-                <Select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)}>
-                  <option value="">Selecciona</option>
-                  {(suggestions || []).map((item: any) => (
-                    <option key={item.product_id} value={item.product_id}>
-                      {item.product_code} - {item.product_name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Cantidad</Label>
-                  <Input value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
-                </div>
-                <div>
-                  <Label>Precio unitario</Label>
-                  <Input value={precio} onChange={(e) => setPrecio(e.target.value)} />
-                </div>
-              </div>
-              <Button type="submit" className="w-full" disabled={createPurchaseOrder.isPending}>
-                {createPurchaseOrder.isPending ? 'Creando...' : 'Crear orden'}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+      <DataTable
+        data={filteredOrders}
+        columns={columns}
+        keyExtractor={(item) => item.id}
+        isLoading={isLoading}
+        onSearch={setSearchTerm}
+        searchPlaceholder="Buscar por orden, proveedor o almacen..."
+        filters={(
+          <div className="w-[180px]">
+            <Select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-9 text-[13px]"
+            >
+              <option value="">Todas las Etiquetas</option>
+              <option value="DRAFT">Borrador</option>
+              <option value="SENT">Enviada</option>
+              <option value="PARTIALLY_RECEIVED">Recepcion parcial</option>
+              <option value="RECEIVED">Recibida</option>
+              <option value="CLOSED_INCOMPLETE">Cerrada incompleta</option>
+              <option value="CANCELLED">Cancelada</option>
+            </Select>
+          </div>
+        )}
+      />
 
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Faltantes sugeridos</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {(suggestions || []).slice(0, 8).map((item: any) => (
-                <button
-                  key={item.product_id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedProductId(String(item.product_id));
-                    setCantidad(String(item.suggested_quantity));
-                  }}
-                  className="text-left p-4 rounded-xl border border-[var(--gray-200)] hover:border-[var(--color-brand-blue)] hover:bg-[var(--color-info-bg)] transition-all"
-                >
-                  <div className="font-bold text-[var(--gray-800)]">{item.product_name}</div>
-                  <div className="text-[12px] text-[var(--gray-500)]">{item.product_code}</div>
-                  <div className="mt-2 text-[12px] text-[var(--color-danger)] font-semibold">
-                    Disponible: {item.available} | Sugerido: {item.suggested_quantity}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Órdenes registradas</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {isLoading ? (
-            <div className="p-8 text-center text-[var(--gray-500)]">Cargando órdenes...</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-[11px] uppercase text-[var(--gray-400)]">
-                  <tr>
-                    <th className="text-left py-3">Folio</th>
-                    <th className="text-left py-3">Proveedor</th>
-                    <th className="text-left py-3">Estado</th>
-                    <th className="text-right py-3">Subtotal</th>
-                    <th className="text-right py-3">Acción</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--gray-100)]">
-                  {(orders || []).map((order: any) => (
-                    <tr key={order.id}>
-                      <td className="py-3 font-bold text-[var(--color-brand-blue)]">{order.folio}</td>
-                      <td className="py-3">{order.supplier?.nombre || '-'}</td>
-                      <td className="py-3">{order.estado}</td>
-                      <td className="py-3 text-right">S/ {parseFloat(order.subtotal || 0).toFixed(2)}</td>
-                      <td className="py-3 text-right">
-                        {order.estado === 'DRAFT' && (
-                          <Button size="sm" variant="secondary" onClick={() => sendPurchaseOrder.mutate(order.id)}>
-                            Enviar
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {!isLoading && filteredOrders.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-[var(--gray-200)] bg-white p-12 text-center text-[var(--gray-400)]">
+          <ReceiptText size={22} className="mx-auto mb-3 text-[var(--gray-300)]" />
+          No hay ordenes que coincidan con los filtros actuales.
+        </div>
+      )}
     </div>
   );
 }

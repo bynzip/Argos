@@ -6,6 +6,7 @@ export interface Warehouse {
   id: number;
   nombre: string;
   ubicacion?: string;
+  deleted_at?: string | null;
 }
 
 export interface StockItem {
@@ -35,6 +36,8 @@ export interface StockReservation {
   cantidad: string;
   estado: string;
   notas?: string;
+  entregado_el?: string | null;
+  entregado_por?: number | null;
   consumido_el?: string | null;
   liberado_el?: string | null;
   created_at: string;
@@ -59,6 +62,7 @@ export interface InventoryMovement {
   total_cost?: string | null;
   reference_type?: string;
   reference_id?: string;
+  serial_numbers?: string[] | null;
   notes?: string;
   created_by_name?: string | null;
   created_at: string;
@@ -78,11 +82,11 @@ const normalizePaginated = <T,>(data: any): PaginatedResponse<T> | T[] => {
   return (Array.isArray(data) ? data : []) as T[];
 };
 
-export const useWarehouses = () => {
+export const useWarehouses = (params?: Record<string, any>) => {
   return useQuery<PaginatedResponse<Warehouse> | Warehouse[]>({
-    queryKey: ['inventory', 'warehouses'],
+    queryKey: ['inventory', 'warehouses', params],
     queryFn: async () => {
-      const response = await api.get('/api/products/warehouses/');
+      const response = await api.get('/api/products/warehouses/', { params });
       return normalizePaginated<Warehouse>(response.data);
     },
   });
@@ -157,6 +161,91 @@ export const useReleaseReservation = () => {
       queryClient.invalidateQueries({ queryKey: ['inventory', 'reservations'] });
       queryClient.invalidateQueries({ queryKey: ['inventory', 'stock-items'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['tickets', data.ticket.id] });
+    },
+  });
+};
+
+export const useCreateWarehouse = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { nombre: string; ubicacion?: string }) => {
+      const response = await api.post('/api/products/warehouses/', payload);
+      return response.data as Warehouse;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'warehouses'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'stock-items'] });
+    },
+  });
+};
+
+export const useUpdateWarehouse = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: { id: number; nombre?: string; ubicacion?: string }) => {
+      const response = await api.patch(`/api/products/warehouses/${id}/`, payload);
+      return response.data as Warehouse;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'warehouses'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'stock-items'] });
+    },
+  });
+};
+
+export const useDeleteWarehouse = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: number }) => {
+      await api.delete(`/api/products/warehouses/${id}/`);
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'warehouses'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'stock-items'] });
+    },
+  });
+};
+
+export const useRestoreWarehouse = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: number }) => {
+      const response = await api.post(`/api/products/warehouses/${id}/restore/`);
+      return response.data as Warehouse;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'warehouses'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'stock-items'] });
+    },
+  });
+};
+
+export const useHardDeleteWarehouse = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: number }) => {
+      await api.post(`/api/products/warehouses/${id}/hard_delete/`);
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'warehouses'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'stock-items'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'movements'] });
+    },
+  });
+};
+
+export const useDeliverReservation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, notas }: { id: number; notas?: string }) => {
+      const response = await api.post(`/api/products/reservations/${id}/deliver/`, { notas });
+      return response.data as StockReservation;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'reservations'] });
       queryClient.invalidateQueries({ queryKey: ['tickets', data.ticket.id] });
     },
   });

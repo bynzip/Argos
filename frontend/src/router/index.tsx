@@ -25,7 +25,10 @@ import QuoteListPage from '../pages/quotes/QuoteListPage';
 import QuoteEditorPage from '../pages/quotes/QuoteEditorPage';
 import ServiceCatalogPage from '../pages/quotes/ServiceCatalogPage';
 import SupplierListPage from '../pages/suppliers/SupplierListPage';
+import SupplierFormPage from '../pages/suppliers/SupplierFormPage';
 import PurchaseOrderListPage from '../pages/suppliers/PurchaseOrderListPage';
+import PurchaseOrderFormPage from '../pages/suppliers/PurchaseOrderFormPage';
+import PurchaseOrderDetailPage from '../pages/suppliers/PurchaseOrderDetailPage';
 import AttendancePage from '../pages/hr/AttendancePage';
 import ReportsPage from '../pages/reports/ReportsPage';
 import CompanyProfilePage from '../pages/settings/CompanyProfilePage';
@@ -99,6 +102,10 @@ export const router = createBrowserRouter([
         ]
       },
       {
+        path: 'warehouses',
+        element: <WarehousesPage />,
+      },
+      {
         path: 'tickets',
         children: [
           { path: '', element: <TicketListPage /> },
@@ -126,7 +133,12 @@ export const router = createBrowserRouter([
         path: 'suppliers',
         children: [
           { path: '', element: <SupplierListPage /> },
+          { path: 'new', element: <SupplierFormPage /> },
+          { path: 'edit/:id', element: <SupplierFormPage /> },
           { path: 'orders', element: <PurchaseOrderListPage /> },
+          { path: 'orders/new', element: <PurchaseOrderFormPage /> },
+          { path: 'orders/edit/:id', element: <PurchaseOrderFormPage /> },
+          { path: 'orders/:id', element: <PurchaseOrderDetailPage /> },
         ]
       },
       {

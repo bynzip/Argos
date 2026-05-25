@@ -36,6 +36,13 @@ class Warehouse(SoftDeleteModel):
         return self.nombre
 
 class Product(SoftDeleteModel):
+    class UnitChoices(models.TextChoices):
+        UNIT = 'UNIDAD', 'Unidad'
+        METER = 'METRO', 'Metro'
+        LITER = 'LITRO', 'Litro'
+        PAIR = 'PAR', 'Par'
+        BOX = 'CAJA', 'Caja'
+
     codigo = models.CharField(max_length=50, unique=True) # Generado por sistema (ej: PROD-0001)
     nombre = models.CharField(max_length=200)
     descripcion = models.TextField(blank=True)
@@ -44,6 +51,8 @@ class Product(SoftDeleteModel):
     precio_costo = models.DecimalField(max_digits=12, decimal_places=2)
     precio_venta = models.DecimalField(max_digits=12, decimal_places=2)
     stock_minimo = models.IntegerField(default=5)
+    unidad = models.CharField(max_length=20, choices=UnitChoices.choices, default=UnitChoices.UNIT)
+    is_serializable = models.BooleanField(default=False)
     activo = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -93,6 +102,14 @@ class StockReservation(models.Model):
         related_name='created_stock_reservations'
     )
     notas = models.TextField(blank=True)
+    entregado_el = models.DateTimeField(null=True, blank=True)
+    entregado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='delivered_stock_reservations',
+    )
     consumido_el = models.DateTimeField(null=True, blank=True)
     liberado_el = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

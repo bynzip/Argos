@@ -23,6 +23,8 @@ def create_product(data, initial_stock=0):
             precio_costo=data.get('precio_costo', 0.0),
             precio_venta=data.get('precio_venta', 0.0),
             stock_minimo=data.get('stock_minimo', 0),
+            unidad=data.get('unidad', Product.UnitChoices.UNIT),
+            is_serializable=data.get('is_serializable', False),
             activo=data.get('activo', True)
         )
 

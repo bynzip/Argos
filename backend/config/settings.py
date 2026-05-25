@@ -102,7 +102,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DB_ENGINE = os.getenv('DB_ENGINE', 'postgresql').strip().lower()
+DB_ENGINE = os.getenv('DB_ENGINE', 'sqlite').strip().lower()
 
 if DB_ENGINE in {'sqlite', 'sqlite3'}:
     sqlite_name = os.getenv('SQLITE_NAME', 'db.sqlite3').strip() or 'db.sqlite3'

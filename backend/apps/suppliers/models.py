@@ -11,6 +11,7 @@ class Supplier(SoftDeleteModel):
     telefono = models.CharField(max_length=20, blank=True, default='')
     correo = models.EmailField(blank=True, default='')
     direccion = models.CharField(max_length=255, blank=True, default='')
+    notas = models.TextField(blank=True, default='')
     activo = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -28,6 +29,7 @@ class PurchaseOrder(SoftDeleteModel):
         DRAFT = 'DRAFT', 'Borrador'
         SENT = 'SENT', 'Enviada'
         PARTIALLY_RECEIVED = 'PARTIALLY_RECEIVED', 'Parcialmente recibida'
+        CLOSED_INCOMPLETE = 'CLOSED_INCOMPLETE', 'Cerrada incompleta'
         RECEIVED = 'RECEIVED', 'Recibida'
         CANCELLED = 'CANCELLED', 'Cancelada'
 

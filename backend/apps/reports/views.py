@@ -70,6 +70,7 @@ class InventoryReportViewSet(viewsets.ViewSet):
                     'stock_reservado': str(product.stock_reservado or 0),
                     'stock_disponible': str(product.stock_disponible or 0),
                     'stock_minimo': product.stock_minimo,
+                    'suggested_quantity': str(max(product.stock_minimo - int(product.stock_disponible or 0) + 1, 1)),
                 }
                 for product in low_stock[:25]
             ],
@@ -90,7 +91,7 @@ class PurchaseReportViewSet(viewsets.ViewSet):
         purchase_orders = PurchaseOrder.objects.select_related('supplier').all()
         data = {
             'summary': {
-                'open_orders': purchase_orders.exclude(estado__in=['RECEIVED', 'CANCELLED']).count(),
+                'open_orders': purchase_orders.exclude(estado__in=['RECEIVED', 'CLOSED_INCOMPLETE', 'CANCELLED']).count(),
                 'received_orders': purchase_orders.filter(estado='RECEIVED').count(),
                 'total_committed': purchase_orders.exclude(estado='CANCELLED').aggregate(total=Sum('subtotal'))['total'] or 0,
             },
