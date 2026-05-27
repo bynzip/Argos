@@ -1,6 +1,6 @@
 @echo off
 setlocal
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 echo Deteniendo Argos ERP...
 call "%~dp0docker-env.bat"

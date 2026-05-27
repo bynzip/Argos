@@ -1,6 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 call "%~dp0docker-env.bat"
 if errorlevel 1 (
@@ -9,7 +9,7 @@ if errorlevel 1 (
 )
 
 if not exist ".env" (
-  echo Falta .env. Ejecuta start.bat una vez para crearlo.
+  echo Falta .env. Ejecuta ejecutables\start.bat una vez para crearlo.
   pause
   exit /b 1
 )
@@ -30,7 +30,7 @@ if "%BACKUP_FILE%"=="" (
 :backup_found
 if "%BACKUP_FILE%"=="" (
   echo No se encontraron backups en datos\backups.
-  echo Copia un archivo .dump o .sql en esa carpeta y vuelve a ejecutar restore.bat.
+  echo Copia un archivo .dump o .sql en esa carpeta y vuelve a ejecutar ejecutables\restore.bat.
   pause
   exit /b 1
 )
