@@ -2,6 +2,12 @@
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
+call "%~dp0docker-env.bat"
+if errorlevel 1 (
+  pause
+  exit /b 1
+)
+
 if not exist ".env" (
   echo Falta .env. Ejecuta start.bat una vez para crearlo.
   pause
@@ -19,7 +25,7 @@ for /f %%I in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd_HHmmss
 set "BACKUP_FILE=datos\backups\argos_%STAMP%.dump"
 
 echo Creando backup: %BACKUP_FILE%
-docker compose exec -T postgres pg_dump -U "%POSTGRES_USER%" -d "%POSTGRES_DB%" -Fc > "%BACKUP_FILE%"
+"%DOCKER_EXE%" compose exec -T postgres pg_dump -U "%POSTGRES_USER%" -d "%POSTGRES_DB%" -Fc > "%BACKUP_FILE%"
 if errorlevel 1 (
   echo Fallo el backup.
   if exist "%BACKUP_FILE%" del "%BACKUP_FILE%"

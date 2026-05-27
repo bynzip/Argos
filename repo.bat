@@ -11,14 +11,6 @@ echo   Argos ERP - Instalador desde GitHub
 echo ==========================================
 echo.
 
-where docker >nul 2>nul
-if errorlevel 1 (
-  echo Docker no esta instalado o no esta en el PATH.
-  echo Instala Docker Desktop antes de continuar.
-  pause
-  exit /b 1
-)
-
 if exist ".git" (
   where git >nul 2>nul
   if not errorlevel 1 (

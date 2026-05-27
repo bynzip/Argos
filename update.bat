@@ -6,6 +6,12 @@ echo ==========================================
 echo   Argos ERP - Actualizacion local
 echo ==========================================
 
+call "%~dp0docker-env.bat"
+if errorlevel 1 (
+  pause
+  exit /b 1
+)
+
 if exist ".git" (
   echo Actualizando codigo desde git...
   git pull
@@ -25,7 +31,7 @@ if not exist "datos\media" mkdir "datos\media"
 if not exist "datos\backups" mkdir "datos\backups"
 
 echo Reconstruyendo imagenes sin tocar datos...
-docker compose up --build -d
+"%DOCKER_EXE%" compose up --build -d
 if errorlevel 1 (
   echo Fallo la actualizacion.
   pause

@@ -2,6 +2,12 @@
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
+call "%~dp0docker-env.bat"
+if errorlevel 1 (
+  pause
+  exit /b 1
+)
+
 if not exist ".env" (
   echo Falta .env. Ejecuta start.bat una vez para crearlo.
   pause
@@ -38,18 +44,18 @@ if /i not "%CONFIRM%"=="RESTAURAR" (
 )
 
 echo Deteniendo backend para restaurar...
-docker compose stop backend >nul
+"%DOCKER_EXE%" compose stop backend >nul
 
 echo Recreando base de datos...
-docker compose exec -T postgres dropdb --if-exists -U "%POSTGRES_USER%" "%POSTGRES_DB%"
-docker compose exec -T postgres createdb -U "%POSTGRES_USER%" "%POSTGRES_DB%"
+"%DOCKER_EXE%" compose exec -T postgres dropdb --if-exists -U "%POSTGRES_USER%" "%POSTGRES_DB%"
+"%DOCKER_EXE%" compose exec -T postgres createdb -U "%POSTGRES_USER%" "%POSTGRES_DB%"
 
 echo Restaurando %BACKUP_FILE%...
 echo "%BACKUP_FILE%" | findstr /i "\.sql$" >nul
 if errorlevel 1 (
-  docker compose exec -T postgres pg_restore -U "%POSTGRES_USER%" -d "%POSTGRES_DB%" --no-owner < "%BACKUP_FILE%"
+  "%DOCKER_EXE%" compose exec -T postgres pg_restore -U "%POSTGRES_USER%" -d "%POSTGRES_DB%" --no-owner < "%BACKUP_FILE%"
 ) else (
-  docker compose exec -T postgres psql -U "%POSTGRES_USER%" -d "%POSTGRES_DB%" < "%BACKUP_FILE%"
+  "%DOCKER_EXE%" compose exec -T postgres psql -U "%POSTGRES_USER%" -d "%POSTGRES_DB%" < "%BACKUP_FILE%"
 )
 
 if errorlevel 1 (
@@ -59,7 +65,7 @@ if errorlevel 1 (
 )
 
 echo Reiniciando servicios...
-docker compose up -d
+"%DOCKER_EXE%" compose up -d
 
 echo Restauracion completada.
 pause
