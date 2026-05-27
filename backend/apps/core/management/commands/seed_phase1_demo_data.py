@@ -11,6 +11,7 @@ from django.utils import timezone
 from apps.core.models import CompanyProfile
 from apps.core.utils import generate_folio
 from apps.customers.models import Customer, Device
+from apps.customers.services.generic_customer_service import GENERIC_CUSTOMER_IDENTIFIER
 from apps.finance.models import (
     CashClosure,
     Discount,
@@ -75,7 +76,8 @@ class Command(BaseCommand):
     help = 'Carga datos demo coherentes para probar toda la Fase 1 de Argos ERP.'
 
     def handle(self, *args, **kwargs):
-        if Customer.objects.exists() or Product.objects.exists() or Ticket.objects.exists():
+        has_real_customers = Customer.objects.exclude(identificador=GENERIC_CUSTOMER_IDENTIFIER).exists()
+        if has_real_customers or Product.objects.exists() or Ticket.objects.exists():
             self.stdout.write(
                 self.style.WARNING(
                     'La base ya contiene datos operativos. Se omite el seed demo para evitar duplicados.'
