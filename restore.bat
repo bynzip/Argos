@@ -21,10 +21,18 @@ if not defined POSTGRES_USER set "POSTGRES_USER=admin"
 
 set "BACKUP_FILE=%~1"
 if "%BACKUP_FILE%"=="" (
-  echo Backups disponibles:
-  dir /b /o-d "datos\backups\*.dump" "datos\backups\*.sql" 2>nul
-  echo.
-  set /p "BACKUP_FILE=Escribe la ruta del backup a restaurar: "
+  for /f "delims=" %%F in ('dir /b /a-d /o-d "datos\backups\*.dump" "datos\backups\*.sql" 2^>nul') do (
+    set "BACKUP_FILE=datos\backups\%%F"
+    goto backup_found
+  )
+)
+
+:backup_found
+if "%BACKUP_FILE%"=="" (
+  echo No se encontraron backups en datos\backups.
+  echo Copia un archivo .dump o .sql en esa carpeta y vuelve a ejecutar restore.bat.
+  pause
+  exit /b 1
 )
 
 if not exist "%BACKUP_FILE%" (
@@ -36,6 +44,8 @@ if not exist "%BACKUP_FILE%" (
 echo.
 echo ATENCION: se reemplazara la base de datos %POSTGRES_DB%.
 echo La carpeta datos\media no sera borrada.
+echo Backup seleccionado: %BACKUP_FILE%
+echo.
 set /p "CONFIRM=Escribe RESTAURAR para continuar: "
 if /i not "%CONFIRM%"=="RESTAURAR" (
   echo Restauracion cancelada.
