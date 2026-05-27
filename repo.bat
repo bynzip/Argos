@@ -5,6 +5,7 @@ cd /d "%~dp0"
 set "REPO_ZIP_URL=https://github.com/bynzip/Argos/archive/refs/heads/docker.zip"
 set "TMP_DIR=%TEMP%\argos_repo_%RANDOM%%RANDOM%"
 set "ZIP_FILE=%TMP_DIR%\argos-docker.zip"
+set "POWERSHELL_EXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
 
 echo ==========================================
 echo   Argos ERP - Instalador desde GitHub
@@ -26,7 +27,16 @@ if exist ".git" (
 )
 
 echo Descargando rama docker desde GitHub...
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+if not exist "%POWERSHELL_EXE%" (
+  echo No se encontro PowerShell en la ruta esperada:
+  echo %POWERSHELL_EXE%
+  echo.
+  echo Alternativa: descarga el ZIP de la rama docker desde GitHub y ejecuta start.bat.
+  pause
+  exit /b 1
+)
+
+"%POWERSHELL_EXE%" -NoProfile -ExecutionPolicy Bypass -Command ^
   "$ErrorActionPreference='Stop';" ^
   "New-Item -ItemType Directory -Force -Path '%TMP_DIR%' | Out-Null;" ^
   "Invoke-WebRequest -Uri '%REPO_ZIP_URL%' -OutFile '%ZIP_FILE%';" ^
