@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0.."
 
 echo Deteniendo Argos ERP...
-call "%~dp0docker-env.bat"
+call "%~dp0interno\docker-env.bat"
 if errorlevel 1 (
   pause
   exit /b 1

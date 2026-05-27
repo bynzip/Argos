@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 cd /d "%~dp0.."
 
-call "%~dp0docker-env.bat"
+call "%~dp0interno\docker-env.bat"
 if errorlevel 1 (
   pause
   exit /b 1
