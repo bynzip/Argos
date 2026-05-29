@@ -21,8 +21,8 @@ set_admin_names(RolePermission, 'Permiso de rol', 'Permisos de rol')
 set_admin_names(UserPermission, 'Permiso de usuario', 'Permisos de usuario')
 
 
-class UserRolesFormMixin:
-    roles = forms.ModelMultipleChoiceField(
+def build_roles_field():
+    return forms.ModelMultipleChoiceField(
         label='Roles',
         queryset=Role.objects.none(),
         required=False,
@@ -30,6 +30,8 @@ class UserRolesFormMixin:
         help_text='Selecciona uno o mas roles para este usuario.',
     )
 
+
+class UserRolesFormMixin:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['roles'].queryset = Role.objects.order_by('nombre')
@@ -38,6 +40,7 @@ class UserRolesFormMixin:
 
 
 class UserAdminCreationForm(UserRolesFormMixin, forms.ModelForm):
+    roles = build_roles_field()
     password1 = forms.CharField(label='Contrasena', widget=forms.PasswordInput)
     password2 = forms.CharField(label='Confirmar contrasena', widget=forms.PasswordInput)
 
@@ -61,6 +64,7 @@ class UserAdminCreationForm(UserRolesFormMixin, forms.ModelForm):
 
 
 class UserAdminChangeForm(UserRolesFormMixin, forms.ModelForm):
+    roles = build_roles_field()
     password = ReadOnlyPasswordHashField(label='Contrasena')
 
     class Meta:
