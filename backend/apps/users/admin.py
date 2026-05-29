@@ -53,6 +53,7 @@ class UserAdminChangeForm(forms.ModelForm):
 
 class UserRoleInline(admin.TabularInline):
     model = UserRole
+    fk_name = 'user'
     extra = 0
     autocomplete_fields = ('role',)
     readonly_fields = ('assigned_at',)
