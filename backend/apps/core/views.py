@@ -28,6 +28,11 @@ class CompanyProfileViewSet(viewsets.ModelViewSet):
         'partial_update': ['config.edit'],
     }
 
+    def get_permissions(self):
+        if self.action == 'current':
+            return [permissions.AllowAny()]
+        return super().get_permissions()
+
     def get_object(self):
         obj, _ = CompanyProfile.objects.get_or_create(
             defaults={

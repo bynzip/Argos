@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.utils.html import format_html
 from import_export.admin import ImportExportModelAdmin
 
 from .models import AuditLog, CompanyProfile
@@ -29,10 +30,13 @@ class CompanyProfileAdmin(BaseAdmin):
         'cochera_grace_days',
         'cochera_daily_rate',
     )
-    readonly_fields = ('updated_by', 'created_at', 'updated_at')
+    readonly_fields = ('logo_preview', 'updated_by', 'created_at', 'updated_at')
     fieldsets = (
         ('Datos de empresa', {
             'fields': ('business_name', 'legal_name', 'ruc', 'phone', 'email', 'address'),
+        }),
+        ('Marca visual', {
+            'fields': ('logo', 'logo_preview'),
         }),
         ('Cotizaciones', {
             'fields': ('quote_default_validity_days', 'quote_default_igv', 'quote_approval_threshold_amount', 'quote_default_terms'),
@@ -54,6 +58,16 @@ class CompanyProfileAdmin(BaseAdmin):
     def save_model(self, request, obj, form, change):
         obj.updated_by = request.user
         super().save_model(request, obj, form, change)
+
+    def logo_preview(self, obj):
+        if not obj.logo:
+            return 'Sin logo cargado'
+        return format_html(
+            '<img src="{}" style="width: 96px; height: 96px; object-fit: contain; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; padding: 6px;" />',
+            obj.logo.url,
+        )
+
+    logo_preview.short_description = 'Vista previa'
 
 
 @admin.register(AuditLog)

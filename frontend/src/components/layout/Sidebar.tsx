@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
+import BrandLogo from './BrandLogo';
 import { 
   Users, 
   Home, 
@@ -69,9 +70,7 @@ export default function Sidebar() {
     <aside className="w-[240px] bg-white border-right border-[var(--gray-200)] flex flex-col h-screen shrink-0 shadow-[2px_0_8px_rgba(0,0,0,0.04)] z-20">
       {/* Logo Section */}
       <div className="h-[64px] px-4 flex items-center gap-3 border-bottom border-[var(--gray-100)]">
-        <div className="w-9 h-9 rounded-lg bg-brand-gradient flex items-center justify-center text-white font-black text-[14px] shadow-sm">
-          AR
-        </div>
+        <BrandLogo size="sm" />
         <div className="flex flex-col">
           <span className="text-[16px] font-bold text-[var(--gray-800)] leading-tight">Argos</span>
           <span className="text-[11px] font-medium text-[var(--gray-400)] uppercase tracking-[0.08em]">Sede Principal</span>

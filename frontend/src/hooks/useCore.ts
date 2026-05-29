@@ -19,6 +19,7 @@ export interface CompanyProfile {
   id: number;
   business_name: string;
   legal_name?: string;
+  logo?: string | null;
   ruc: string;
   phone: string;
   email: string;

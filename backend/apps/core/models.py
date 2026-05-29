@@ -31,6 +31,7 @@ class FolioCounter(models.Model):
 class CompanyProfile(models.Model):
     business_name = models.CharField(max_length=100)
     legal_name = models.CharField(max_length=150, blank=True, default='')
+    logo = models.ImageField(upload_to='company/logos/', blank=True, null=True)
     ruc = models.CharField(max_length=15)
     phone = models.CharField(max_length=20)
     email = models.EmailField()
