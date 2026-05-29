@@ -1,6 +1,5 @@
 from django import forms
 from django.contrib import admin
-from django.contrib.admin.widgets import FilteredSelectMultiple
 from django.contrib.auth.forms import ReadOnlyPasswordHashField
 
 from .models import Area, Permission, Role, RolePermission, Subarea, User, UserPermission, UserRole
@@ -21,26 +20,7 @@ set_admin_names(RolePermission, 'Permiso de rol', 'Permisos de rol')
 set_admin_names(UserPermission, 'Permiso de usuario', 'Permisos de usuario')
 
 
-def build_roles_field():
-    return forms.ModelMultipleChoiceField(
-        label='Roles',
-        queryset=Role.objects.none(),
-        required=False,
-        widget=FilteredSelectMultiple('roles', is_stacked=False),
-        help_text='Selecciona uno o mas roles para este usuario.',
-    )
-
-
-class UserRolesFormMixin:
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields['roles'].queryset = Role.objects.order_by('nombre')
-        if self.instance and self.instance.pk:
-            self.fields['roles'].initial = Role.objects.filter(role_users__user=self.instance)
-
-
-class UserAdminCreationForm(UserRolesFormMixin, forms.ModelForm):
-    roles = build_roles_field()
+class UserAdminCreationForm(forms.ModelForm):
     password1 = forms.CharField(label='Contrasena', widget=forms.PasswordInput)
     password2 = forms.CharField(label='Confirmar contrasena', widget=forms.PasswordInput)
 
@@ -63,8 +43,7 @@ class UserAdminCreationForm(UserRolesFormMixin, forms.ModelForm):
         return user
 
 
-class UserAdminChangeForm(UserRolesFormMixin, forms.ModelForm):
-    roles = build_roles_field()
+class UserAdminChangeForm(forms.ModelForm):
     password = ReadOnlyPasswordHashField(label='Contrasena')
 
     class Meta:
@@ -80,6 +59,17 @@ class RolePermissionInline(admin.TabularInline):
     verbose_name_plural = 'Permisos incluidos'
 
 
+class UserRoleInline(admin.TabularInline):
+    model = UserRole
+    fk_name = 'user'
+    fields = ('role',)
+    autocomplete_fields = ('role',)
+    extra = 1
+    min_num = 1
+    verbose_name = 'Rol'
+    verbose_name_plural = 'Roles del usuario'
+
+
 @admin.register(User)
 class CustomUserAdmin(admin.ModelAdmin):
     form = UserAdminChangeForm
@@ -89,15 +79,16 @@ class CustomUserAdmin(admin.ModelAdmin):
     search_fields = ('username', 'email', 'nombre')
     ordering = ('username',)
     readonly_fields = ('password', 'active_ticket_count', 'created_at', 'updated_at', 'deleted_at')
+    inlines = (UserRoleInline,)
 
     fieldsets = (
         ('Cuenta', {'fields': ('username', 'password', 'email', 'nombre')}),
-        ('Acceso y roles', {'fields': ('roles', 'is_active', 'is_superuser')}),
+        ('Acceso', {'fields': ('is_active', 'is_superuser')}),
         ('Sistema', {'fields': ('active_ticket_count', 'created_at', 'updated_at', 'deleted_at')}),
     )
     add_fieldsets = (
         ('Nuevo usuario', {
-            'fields': ('username', 'email', 'nombre', 'password1', 'password2', 'roles', 'is_active', 'is_superuser'),
+            'fields': ('username', 'email', 'nombre', 'password1', 'password2', 'is_active', 'is_superuser'),
         }),
     )
 
@@ -108,19 +99,15 @@ class CustomUserAdmin(admin.ModelAdmin):
     def get_fieldsets(self, request, obj=None):
         return self.add_fieldsets if obj is None else self.fieldsets
 
-    def save_model(self, request, obj, form, change):
-        super().save_model(request, obj, form, change)
-        selected_roles = form.cleaned_data.get('roles')
-        if selected_roles is not None:
-            current_role_ids = set(obj.user_roles.values_list('role_id', flat=True))
-            selected_role_ids = {role.id for role in selected_roles}
-            obj.user_roles.filter(role_id__in=current_role_ids - selected_role_ids).delete()
-            for role in selected_roles:
-                UserRole.objects.get_or_create(
-                    user=obj,
-                    role=role,
-                    defaults={'assigned_by': request.user if request.user.is_authenticated else None},
-                )
+    def save_formset(self, request, form, formset, change):
+        instances = formset.save(commit=False)
+        for deleted_object in formset.deleted_objects:
+            deleted_object.delete()
+        for instance in instances:
+            if isinstance(instance, UserRole) and not instance.assigned_by_id:
+                instance.assigned_by = request.user
+            instance.save()
+        formset.save_m2m()
 
     def roles_display(self, obj):
         roles = [user_role.role.nombre for user_role in obj.user_roles.select_related('role')]
