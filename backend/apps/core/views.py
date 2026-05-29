@@ -34,14 +34,14 @@ class CompanyProfileViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_object(self):
-        obj, _ = CompanyProfile.objects.get_or_create(
-            defaults={
-                'business_name': 'Argos ERP',
-                'ruc': '12345678901',
-                'phone': '064-123456',
-                'email': 'contacto@argos.com',
-            }
-        )
+        obj = CompanyProfile.objects.order_by('-updated_at', '-id').first()
+        if obj is None:
+            obj = CompanyProfile.objects.create(
+                business_name='Argos ERP',
+                ruc='12345678901',
+                phone='064-123456',
+                email='contacto@argos.com',
+            )
         return obj
 
     @action(detail=False, methods=['get'])
