@@ -6,14 +6,14 @@
     <style>
         @page {
             size: A5 landscape;
-            margin: 0.55cm 0.75cm;
+            margin: 0.6cm 0.75cm;
         }
 
         body {
             font-family: Arial, sans-serif;
-            font-size: 8.4px;
-            color: #000;
-            line-height: 1.15;
+            font-size: 8.9px;
+            color: #101820;
+            line-height: 1.18;
             margin: 0;
             padding: 0;
             background-color: #fff;
@@ -26,8 +26,8 @@
         }
 
         th, td {
-            border: 1px solid #000;
-            padding: 2px 3px;
+            border: 1px solid #111;
+            padding: 2.5px 4px;
             vertical-align: middle;
         }
 
@@ -35,32 +35,32 @@
         .text-right { text-align: right; }
         .text-left { text-align: left; }
         .font-bold { font-weight: bold; }
-        .bg-gray { background-color: #eaeaea; }
+        .bg-gray { background-color: #eaf6ff; }
         .m-0 { margin: 0; }
         .mt-2 { margin-top: 2px; }
 
         .header-container {
             display: table;
             width: 100%;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
             page-break-inside: avoid;
         }
 
         .header-left {
             display: table-cell;
-            width: 68%;
+            width: 67%;
             vertical-align: top;
         }
 
         .header-right {
             display: table-cell;
-            width: 32%;
+            width: 33%;
             vertical-align: top;
         }
 
         .logo-img {
-            max-width: 135px;
-            max-height: 34px;
+            max-width: 170px;
+            max-height: 46px;
             object-fit: contain;
         }
 
@@ -72,22 +72,22 @@
         }
 
         .ruc-box {
-            border: 1.5px solid #000;
-            border-radius: 4px;
-            padding: 3px;
+            border: 1.5px solid #101820;
+            border-radius: 5px;
+            padding: 4px;
             text-align: center;
-            width: 145px;
+            width: 155px;
             margin-left: auto;
         }
 
         .ruc-box h2 {
             margin: 1px 0;
-            font-size: 10px;
+            font-size: 10.3px;
         }
 
         .ruc-box p {
             margin: 1px 0;
-            font-size: 10px;
+            font-size: 10.3px;
             font-weight: bold;
         }
 
@@ -112,41 +112,41 @@
         }
 
         .date-box th {
-            font-size: 6.6px;
+            font-size: 6.9px;
             padding: 1px;
         }
 
         .date-box td {
-            font-size: 7.4px;
+            font-size: 7.8px;
             padding: 1px;
-            height: 10px;
+            height: 11px;
         }
 
         .device-row {
-            height: 23px;
+            height: 26px;
             text-align: center;
         }
 
         .section-title {
-            font-size: 7px;
+            font-size: 7.3px;
             font-weight: bold;
             margin: 0;
         }
 
         .legal-text {
-            font-size: 5.4px;
-            line-height: 1.05;
+            font-size: 5.8px;
+            line-height: 1.08;
             text-align: justify;
-            border: 1px solid #000;
-            padding: 2px;
-            margin-top: 4px;
+            border: 1px solid #111;
+            padding: 3px;
+            margin-top: 5px;
             page-break-inside: avoid;
         }
 
         .signatures {
             display: table;
             width: 100%;
-            margin-top: 32px;
+            margin-top: 48px;
             margin-bottom: 0;
             page-break-inside: avoid;
         }
@@ -158,10 +158,10 @@
         }
 
         .signature-line {
-            border-top: 1px solid #000;
+            border-top: 1px solid #111;
             width: 70%;
             margin: 0 auto;
-            padding-top: 3px;
+            padding-top: 4px;
         }
     </style>
 </head>
@@ -173,20 +173,20 @@
             {% else %}
                 <p class="font-bold m-0 company-name">{{ company.business_name }}</p>
             {% endif %}
-            <p class="font-bold m-0 mt-2" style="font-size: 8.5px;">Reparación y Mantenimiento en software y hardware</p>
-            <p class="m-0" style="font-size: 6.8px;">Formateo, instalación de programas profesionales, AutoCAD, Civil, etc. Windows 7, 8, 10, 11.</p>
-            <p class="m-0" style="font-size: 6.8px;">Instalación de Antivirus original. Repotenciamos CPUs y Laptops.</p>
-            <p class="m-0" style="font-size: 6.8px;">{{ company.address|default:"" }}</p>
-            <p class="m-0 font-bold" style="font-size: 6.8px;">Cel. {{ company.phone }}{% if company.email %} - {{ company.email }}{% endif %}</p>
+            <p class="font-bold m-0 mt-2" style="font-size: 9px;">Reparación y Mantenimiento en software y hardware</p>
+            <p class="m-0" style="font-size: 7.1px;">Formateo, instalación de programas profesionales, AutoCAD, Civil, etc. Windows 7, 8, 10, 11.</p>
+            <p class="m-0" style="font-size: 7.1px;">Instalación de Antivirus original. Repotenciamos CPUs y Laptops.</p>
+            <p class="m-0" style="font-size: 7.1px;">{{ company.address|default:"" }}</p>
+            <p class="m-0 font-bold" style="font-size: 7.1px;">Cel. {{ company.phone }}{% if company.email %} - {{ company.email }}{% endif %}</p>
         </div>
 
         <div class="header-right">
             <div class="ruc-box">
                 <p>R.U.C. {{ company.ruc }}</p>
-                <div style="background-color: #000; padding: 3px; margin: 3px -3px;">
+                <div style="background-color: #101820; padding: 3px; margin: 3px -4px;">
                     <h2 style="color: #fff; letter-spacing: 0.5px;">GUÍA DE INTERNAMIENTO</h2>
                 </div>
-                <p style="color: #d00000;">{{ ticket.folio }}</p>
+                <p style="color: #f97316;">{{ ticket.folio }}</p>
             </div>
         </div>
     </div>
@@ -290,8 +290,8 @@
             <td class="text-right">{{ a_cuenta }}</td>
         </tr>
         <tr>
-            <td class="font-bold bg-gray text-right" style="color: #d00000;">SALDO PENDIENTE</td>
-            <td class="text-right font-bold" style="color: #d00000;">{{ saldo_pendiente }}</td>
+            <td class="font-bold bg-gray text-right" style="color: #f97316;">SALDO PENDIENTE</td>
+            <td class="text-right font-bold" style="color: #f97316;">{{ saldo_pendiente }}</td>
         </tr>
     </table>
 
