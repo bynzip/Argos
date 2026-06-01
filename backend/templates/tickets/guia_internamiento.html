@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Guía de Internamiento {{ ticket.folio }}</title>
+    <style>
+        @page {
+            size: A5 landscape;
+            margin: 1.5cm 2cm;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            color: #000;
+            line-height: 1.3;
+            margin: 0;
+            padding: 0;
+            background-color: #fff;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+
+        th, td {
+            border: 1px solid #000;
+            padding: 4px;
+            vertical-align: middle;
+        }
+
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-left { text-align: left; }
+        .font-bold { font-weight: bold; }
+        .bg-gray { background-color: #eaeaea; }
+        .m-0 { margin: 0; }
+        .mt-2 { margin-top: 5px; }
+
+        .header-container {
+            display: table;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        .header-left {
+            display: table-cell;
+            width: 65%;
+            vertical-align: top;
+        }
+        .header-right {
+            display: table-cell;
+            width: 35%;
+            vertical-align: top;
+        }
+
+        .logo-img {
+            max-width: 180px;
+            max-height: 60px;
+            object-fit: contain;
+        }
+        .company-name {
+            font-size: 22px;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        .ruc-box {
+            border: 2px solid #000;
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+        }
+        .ruc-box h2 {
+            margin: 3px 0;
+            font-size: 14px;
+        }
+        .ruc-box p {
+            margin: 3px 0;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .middle-container {
+            display: table;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        .client-col {
+            display: table-cell;
+            width: 60%;
+            vertical-align: top;
+            padding-right: 15px;
+        }
+        .dates-col {
+            display: table-cell;
+            width: 40%;
+            vertical-align: top;
+        }
+
+        .date-box th {
+            font-size: 8px;
+            padding: 2px;
+        }
+        .date-box td {
+            font-size: 10px;
+            padding: 2px;
+            height: 14px;
+        }
+
+        .legal-text {
+            font-size: 7.5px;
+            text-align: justify;
+            border: 1px solid #000;
+            padding: 5px;
+            margin-top: 10px;
+        }
+
+        .signatures {
+            display: table;
+            width: 100%;
+            margin-top: 60px;
+            margin-bottom: 10px;
+        }
+        .signature-box {
+            display: table-cell;
+            width: 50%;
+            text-align: center;
+        }
+        .signature-line {
+            border-top: 1px solid #000;
+            width: 70%;
+            margin: 0 auto;
+            padding-top: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-container">
+        <div class="header-left">
+            {% if company_logo_url %}
+                <img src="{{ company_logo_url }}" alt="Logo {{ company.business_name }}" class="logo-img">
+            {% else %}
+                <p class="font-bold m-0 company-name">{{ company.business_name }}</p>
+            {% endif %}
+            <p class="font-bold m-0 mt-2" style="font-size: 11px;">Reparación y Mantenimiento en software y hardware</p>
+            <p class="m-0" style="font-size: 9px;">Formateo, Instalación de programas profesionales, AutoCAD, Civil, etc. Windows 7, 8, 10, 11.</p>
+            <p class="m-0" style="font-size: 9px;">Instalación de Antivirus original. Repotenciamos CPUs y Laptops.</p>
+            <p class="m-0" style="font-size: 9px;">{{ company.address|default:"" }}</p>
+            <p class="m-0 font-bold" style="font-size: 9px;">Cel. {{ company.phone }}{% if company.email %} - {{ company.email }}{% endif %}</p>
+        </div>
+        <div class="header-right">
+            <div class="ruc-box">
+                <p>R.U.C. {{ company.ruc }}</p>
+                <div style="background-color: #000; padding: 4px; margin: 6px -8px;">
+                    <h2 style="color: #fff; letter-spacing: 1px;">GUÍA DE INTERNAMIENTO</h2>
+                </div>
+                <p style="color: #d00000;">{{ ticket.folio }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="middle-container">
+        <div class="client-col">
+            <table style="margin-bottom: 0;">
+                <tr>
+                    <td width="25%" class="font-bold bg-gray">Cliente:</td>
+                    <td width="75%">{{ customer.nombre }}</td>
+                </tr>
+                <tr>
+                    <td class="font-bold bg-gray">Dirección:</td>
+                    <td>{{ customer.direccion|default:"" }}</td>
+                </tr>
+                <tr>
+                    <td class="font-bold bg-gray">E-mail:</td>
+                    <td>{{ customer.correo_electronico|default:"" }}</td>
+                </tr>
+                <tr>
+                    <td class="font-bold bg-gray">RUC / DNI:</td>
+                    <td>{{ customer.identificador }}</td>
+                </tr>
+                <tr>
+                    <td class="font-bold bg-gray">Celular:</td>
+                    <td>{{ customer.telefono|default:"" }}</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="dates-col">
+            <table class="date-box" style="margin-bottom: 4px;">
+                <tr><th colspan="3" class="bg-gray">FECHA DE INGRESO</th></tr>
+                <tr class="text-center font-bold">
+                    <td width="33%">DÍA</td>
+                    <td width="33%">MES</td>
+                    <td width="34%">AÑO</td>
+                </tr>
+                <tr class="text-center">
+                    <td>{% if fecha_ingreso.day %}{{ fecha_ingreso.day }}{% else %}&nbsp;{% endif %}</td>
+                    <td>{% if fecha_ingreso.month %}{{ fecha_ingreso.month }}{% else %}&nbsp;{% endif %}</td>
+                    <td>{% if fecha_ingreso.year %}{{ fecha_ingreso.year }}{% else %}&nbsp;{% endif %}</td>
+                </tr>
+            </table>
+
+            <table class="date-box" style="margin-bottom: 0;">
+                <tr><th colspan="3" class="bg-gray">FECHA DE SALIDA (Aprox)</th></tr>
+                <tr class="text-center font-bold">
+                    <td width="33%">DÍA</td>
+                    <td width="33%">MES</td>
+                    <td width="34%">AÑO</td>
+                </tr>
+                <tr class="text-center">
+                    <td>{% if fecha_salida_aprox.day %}{{ fecha_salida_aprox.day }}{% else %}&nbsp;{% endif %}</td>
+                    <td>{% if fecha_salida_aprox.month %}{{ fecha_salida_aprox.month }}{% else %}&nbsp;{% endif %}</td>
+                    <td>{% if fecha_salida_aprox.year %}{{ fecha_salida_aprox.year }}{% else %}&nbsp;{% endif %}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <table>
+        <tr class="bg-gray text-center font-bold">
+            <td width="15%">EQUIPO</td>
+            <td width="15%">MARCA</td>
+            <td width="15%">MODELO</td>
+            <td width="20%">SERIE / CÓDIGO</td>
+            <td width="35%">DESCRIPCIÓN</td>
+        </tr>
+        <tr style="height: 35px; text-align: center;">
+            <td>{% if device %}{{ device.tipo_equipo }}{% endif %}</td>
+            <td>{% if device %}{{ device.marca }}{% endif %}</td>
+            <td>{% if device %}{{ device.modelo }}{% endif %}</td>
+            <td>{% if device %}{{ device.numero_serie|default:"" }}{% endif %}</td>
+            <td class="text-left">{{ ticket.descripcion_problema }}</td>
+        </tr>
+    </table>
+
+    <table>
+        <tr>
+            <td width="70%" rowspan="3" style="vertical-align: top;">
+                <p class="font-bold m-0" style="font-size: 9px;">ACCESORIOS ENTREGADOS:</p>
+                <p style="margin: 3px 0 8px 0;">{{ accessories_text|default:"" }}</p>
+
+                <hr style="border: 0; border-top: 1px dashed #ccc; margin: 4px 0;">
+
+                <p class="font-bold m-0" style="font-size: 9px;">OBSERVACIONES (Diagnóstico / Solución):</p>
+                <p style="margin: 3px 0 0 0; color: #555;">
+                    {% if ticket.diagnostico or ticket.solucion %}
+                        {{ ticket.diagnostico|default:"" }}{% if ticket.diagnostico and ticket.solucion %} - {% endif %}{{ ticket.solucion|default:"" }}
+                    {% else %}
+                        <i>Espacio para que el técnico detalle la solución aplicada...</i>
+                    {% endif %}
+                </p>
+            </td>
+            <td width="15%" class="font-bold bg-gray text-right">COSTO TOTAL</td>
+            <td width="15%" class="text-right">{{ costo_total }}</td>
+        </tr>
+        <tr>
+            <td class="font-bold bg-gray text-right">A CUENTA</td>
+            <td class="text-right">{{ a_cuenta }}</td>
+        </tr>
+        <tr>
+            <td class="font-bold bg-gray text-right" style="color: #d00000;">SALDO PENDIENTE</td>
+            <td class="text-right font-bold" style="color: #d00000;">{{ saldo_pendiente }}</td>
+        </tr>
+    </table>
+
+    <div class="legal-text font-bold">
+        SERVICIO TÉCNICO COMPUTADORAS LAPTOPS TABLETS "{{ company.business_name|upper }}". TRANSCURRIDOS LOS 30 DÍAS DE EMITIDA LA COTIZACIÓN DE REPARACIÓN DEL EQUIPO SE PROCEDERÁ A COBRAR S/. {{ company.cochera_daily_rate }} DIARIOS POR ALMACENAJE SEGURO. TRANSCURRIDOS LOS 60 DÍAS EL EQUIPO SERÁ ENTREGADO SIN LUGAR A RECLAMACIÓN RESPONSABILIDAD PARA SERVICIO TÉCNICO. LAS MÁQUINAS SOLO SERÁN ENTREGADAS CON GUÍA DE INTERNAMIENTO. COTIZACIÓN SE SOMETE A REAJUSTE. NO SE HACE RESPONSABLE POR LA INFORMACIÓN ALMACENADA EN EL DISCO DURO. LE AGRADECEMOS EFECTUAR PREVIAMENTE SUS RESPECTIVAS COPIAS DE RESPALDO (BACKUP).
+    </div>
+
+    <div class="signatures">
+        <div class="signature-box">
+            <div class="signature-line">
+                <p class="font-bold m-0">FIRMA DEL CLIENTE</p>
+                <p class="m-0">DNI N°: ___________________</p>
+            </div>
+        </div>
+        <div class="signature-box">
+            <div class="signature-line">
+                <p class="font-bold m-0">V°B° SERVICIO TÉCNICO</p>
+                <p class="m-0">{{ company.business_name|upper }}</p>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

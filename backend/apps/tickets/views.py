@@ -1,5 +1,6 @@
 from django_filters.rest_framework import DjangoFilterBackend
 import json
+from django.http import HttpResponse
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
@@ -31,6 +32,7 @@ from .services import (
     validate_ticket_device_customer,
 )
 from .services.ticket_service import update_ticket_amounts
+from .services.pdf_service import generate_guia_internamiento_pdf
 from apps.quotes.services import create_quick_quote_for_ticket
 
 
@@ -59,6 +61,7 @@ class TicketViewSet(viewsets.ModelViewSet):
         'move_subarea': ['tickets.transition_technical'],
         'create_warranty': ['tickets.create'],
         'assign_quick_amount': ['quotes.create'],
+        'download_guia_internamiento': ['tickets.view_detail', 'tickets.view_readonly'],
     }
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = [
@@ -323,6 +326,14 @@ class TicketViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_201_CREATED,
         )
+
+    @action(detail=True, methods=['get'], url_path='guia-internamiento-pdf')
+    def download_guia_internamiento(self, request, pk=None):
+        ticket = self.get_object()
+        pdf_bytes = generate_guia_internamiento_pdf(ticket.id, request)
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="guia-internamiento-{ticket.folio}.pdf"'
+        return response
 
     @action(detail=True, methods=['post'])
     def apply_checklist_template(self, request, pk=None):

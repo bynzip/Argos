@@ -1,7 +1,8 @@
 import json
+from unittest.mock import patch
 
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APIRequestFactory, APITestCase
 from django.core.files.uploadedfile import SimpleUploadedFile
 from decimal import Decimal
 
@@ -12,6 +13,7 @@ from apps.customers.models import Customer, Device
 from apps.quotes.models import Quote
 from apps.services.models import Service
 from apps.tickets.models import Ticket, TicketChecklistItem
+from apps.tickets.services.pdf_service import generate_guia_internamiento_pdf
 
 
 PNG_BYTES = (
@@ -370,3 +372,61 @@ class TicketFlowTests(APITestCase):
         self.assertEqual(warranty_ticket.evidences.count(), 2)
         self.assertEqual(warranty_ticket.accessories.first().nombre, 'Cargador')
         self.assertTrue(warranty_ticket.accessories.filter(nombre='Sticker garantia').exists())
+
+    def test_can_download_guia_internamiento_pdf(self):
+        ticket = Ticket.objects.create(
+            folio='TKT-2025-0007',
+            customer=self.customer,
+            device=None,
+            descripcion_problema='No enciende',
+            created_by=self.receptionist,
+            estado=Ticket.TicketStatus.INTAKE,
+            total='120.00',
+        )
+
+        self.client.force_authenticate(self.receptionist)
+        response = self.client.get(f'/api/tickets/{ticket.id}/guia-internamiento-pdf/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertIn(f'guia-internamiento-{ticket.folio}.pdf', response['Content-Disposition'])
+        self.assertTrue(response.content.startswith(b'%PDF'))
+
+    @patch('apps.tickets.views.generate_guia_internamiento_pdf', return_value=b'%PDF-1.7\ncontent')
+    def test_guia_internamiento_pdf_rejects_user_without_permission(self, mock_generate_pdf):
+        user_without_permission = create_user_with_role('no_pdf', 'Sin PDF', [])
+        ticket = Ticket.objects.create(
+            folio='TKT-2025-0008',
+            customer=self.customer,
+            descripcion_problema='No enciende',
+            created_by=self.receptionist,
+            estado=Ticket.TicketStatus.INTAKE,
+        )
+
+        self.client.force_authenticate(user_without_permission)
+        response = self.client.get(f'/api/tickets/{ticket.id}/guia-internamiento-pdf/')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        mock_generate_pdf.assert_not_called()
+
+    @patch('apps.tickets.services.pdf_service._write_pdf', return_value=b'%PDF-1.7\ncontent')
+    def test_guia_internamiento_service_handles_missing_optional_data(self, mock_write_pdf):
+        ticket = Ticket.objects.create(
+            folio='TKT-2025-0009',
+            customer=self.customer,
+            device=None,
+            descripcion_problema='No enciende',
+            created_by=self.receptionist,
+            estado=Ticket.TicketStatus.INTAKE,
+            total='120.00',
+        )
+        ticket.accessories.create(nombre='Cargador', condicion='Usado', notas='Original')
+        request = APIRequestFactory().get('/')
+
+        pdf_bytes = generate_guia_internamiento_pdf(ticket.id, request)
+
+        self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+        html = mock_write_pdf.call_args.args[0]
+        self.assertIn('GUÍA DE INTERNAMIENTO', html)
+        self.assertIn('Cliente Uno', html)
+        self.assertIn('Cargador - Usado - Original', html)

@@ -8,9 +8,17 @@ WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
+        fonts-liberation \
+        libcairo2 \
+        libffi-dev \
+        libgdk-pixbuf-2.0-0 \
+        libpango-1.0-0 \
+        libpangocairo-1.0-0 \
+        libpangoft2-1.0-0 \
         libjpeg-dev \
         libpq-dev \
         postgresql-client \
+        shared-mime-info \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt /tmp/requirements.txt
