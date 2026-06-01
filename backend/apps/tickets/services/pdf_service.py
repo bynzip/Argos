@@ -1,4 +1,5 @@
 from decimal import Decimal
+from pathlib import Path
 
 from django.db.models import Sum
 from django.template.loader import render_to_string
@@ -49,6 +50,20 @@ def _build_absolute_url(request, url):
     return request.build_absolute_uri(url)
 
 
+def _build_logo_url(request, company_profile):
+    if not company_profile.logo:
+        return ''
+
+    try:
+        logo_path = Path(company_profile.logo.path)
+        if logo_path.exists():
+            return logo_path.as_uri()
+    except (NotImplementedError, ValueError, OSError):
+        pass
+
+    return _build_absolute_url(request, company_profile.logo.url)
+
+
 def _get_confirmed_payment_total(ticket, active_quote):
     receipt_queryset = active_quote.receipts if active_quote else ticket.receipts
     return receipt_queryset.filter(
@@ -93,9 +108,7 @@ def generate_guia_internamiento_pdf(ticket_id, request):
     a_cuenta = _get_confirmed_payment_total(ticket, active_quote)
     costo_total = active_quote.total if active_quote else ticket.total
 
-    logo_url = ''
-    if company_profile.logo:
-        logo_url = _build_absolute_url(request, company_profile.logo.url)
+    logo_url = _build_logo_url(request, company_profile)
 
     context = {
         'ticket': ticket,

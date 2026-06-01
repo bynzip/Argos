@@ -6,14 +6,14 @@
     <style>
         @page {
             size: A5 landscape;
-            margin: 1.5cm 2cm;
+            margin: 0.55cm 0.75cm;
         }
 
         body {
             font-family: Arial, sans-serif;
-            font-size: 10px;
+            font-size: 8.4px;
             color: #000;
-            line-height: 1.3;
+            line-height: 1.15;
             margin: 0;
             padding: 0;
             background-color: #fff;
@@ -22,12 +22,12 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
         }
 
         th, td {
             border: 1px solid #000;
-            padding: 4px;
+            padding: 2px 3px;
             vertical-align: middle;
         }
 
@@ -37,63 +37,74 @@
         .font-bold { font-weight: bold; }
         .bg-gray { background-color: #eaeaea; }
         .m-0 { margin: 0; }
-        .mt-2 { margin-top: 5px; }
+        .mt-2 { margin-top: 2px; }
 
         .header-container {
             display: table;
             width: 100%;
-            margin-bottom: 15px;
+            margin-bottom: 6px;
+            page-break-inside: avoid;
         }
+
         .header-left {
             display: table-cell;
-            width: 65%;
+            width: 68%;
             vertical-align: top;
         }
+
         .header-right {
             display: table-cell;
-            width: 35%;
+            width: 32%;
             vertical-align: top;
         }
 
         .logo-img {
-            max-width: 180px;
-            max-height: 60px;
+            max-width: 135px;
+            max-height: 34px;
             object-fit: contain;
         }
+
         .company-name {
-            font-size: 22px;
+            font-size: 16px;
             letter-spacing: 1px;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
             text-transform: uppercase;
         }
 
         .ruc-box {
-            border: 2px solid #000;
-            border-radius: 6px;
-            padding: 8px;
+            border: 1.5px solid #000;
+            border-radius: 4px;
+            padding: 3px;
             text-align: center;
+            width: 145px;
+            margin-left: auto;
         }
+
         .ruc-box h2 {
-            margin: 3px 0;
-            font-size: 14px;
+            margin: 1px 0;
+            font-size: 10px;
         }
+
         .ruc-box p {
-            margin: 3px 0;
-            font-size: 14px;
+            margin: 1px 0;
+            font-size: 10px;
             font-weight: bold;
         }
 
         .middle-container {
             display: table;
             width: 100%;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
+            page-break-inside: avoid;
         }
+
         .client-col {
             display: table-cell;
             width: 60%;
             vertical-align: top;
-            padding-right: 15px;
+            padding-right: 8px;
         }
+
         .dates-col {
             display: table-cell;
             width: 40%;
@@ -101,44 +112,60 @@
         }
 
         .date-box th {
-            font-size: 8px;
-            padding: 2px;
+            font-size: 6.6px;
+            padding: 1px;
         }
+
         .date-box td {
-            font-size: 10px;
-            padding: 2px;
-            height: 14px;
+            font-size: 7.4px;
+            padding: 1px;
+            height: 10px;
+        }
+
+        .device-row {
+            height: 23px;
+            text-align: center;
+        }
+
+        .section-title {
+            font-size: 7px;
+            font-weight: bold;
+            margin: 0;
         }
 
         .legal-text {
-            font-size: 7.5px;
+            font-size: 5.4px;
+            line-height: 1.05;
             text-align: justify;
             border: 1px solid #000;
-            padding: 5px;
-            margin-top: 10px;
+            padding: 2px;
+            margin-top: 4px;
+            page-break-inside: avoid;
         }
 
         .signatures {
             display: table;
             width: 100%;
-            margin-top: 60px;
-            margin-bottom: 10px;
+            margin-top: 32px;
+            margin-bottom: 0;
+            page-break-inside: avoid;
         }
+
         .signature-box {
             display: table-cell;
             width: 50%;
             text-align: center;
         }
+
         .signature-line {
             border-top: 1px solid #000;
             width: 70%;
             margin: 0 auto;
-            padding-top: 4px;
+            padding-top: 3px;
         }
     </style>
 </head>
 <body>
-
     <div class="header-container">
         <div class="header-left">
             {% if company_logo_url %}
@@ -146,17 +173,18 @@
             {% else %}
                 <p class="font-bold m-0 company-name">{{ company.business_name }}</p>
             {% endif %}
-            <p class="font-bold m-0 mt-2" style="font-size: 11px;">Reparación y Mantenimiento en software y hardware</p>
-            <p class="m-0" style="font-size: 9px;">Formateo, Instalación de programas profesionales, AutoCAD, Civil, etc. Windows 7, 8, 10, 11.</p>
-            <p class="m-0" style="font-size: 9px;">Instalación de Antivirus original. Repotenciamos CPUs y Laptops.</p>
-            <p class="m-0" style="font-size: 9px;">{{ company.address|default:"" }}</p>
-            <p class="m-0 font-bold" style="font-size: 9px;">Cel. {{ company.phone }}{% if company.email %} - {{ company.email }}{% endif %}</p>
+            <p class="font-bold m-0 mt-2" style="font-size: 8.5px;">Reparación y Mantenimiento en software y hardware</p>
+            <p class="m-0" style="font-size: 6.8px;">Formateo, instalación de programas profesionales, AutoCAD, Civil, etc. Windows 7, 8, 10, 11.</p>
+            <p class="m-0" style="font-size: 6.8px;">Instalación de Antivirus original. Repotenciamos CPUs y Laptops.</p>
+            <p class="m-0" style="font-size: 6.8px;">{{ company.address|default:"" }}</p>
+            <p class="m-0 font-bold" style="font-size: 6.8px;">Cel. {{ company.phone }}{% if company.email %} - {{ company.email }}{% endif %}</p>
         </div>
+
         <div class="header-right">
             <div class="ruc-box">
                 <p>R.U.C. {{ company.ruc }}</p>
-                <div style="background-color: #000; padding: 4px; margin: 6px -8px;">
-                    <h2 style="color: #fff; letter-spacing: 1px;">GUÍA DE INTERNAMIENTO</h2>
+                <div style="background-color: #000; padding: 3px; margin: 3px -3px;">
+                    <h2 style="color: #fff; letter-spacing: 0.5px;">GUÍA DE INTERNAMIENTO</h2>
                 </div>
                 <p style="color: #d00000;">{{ ticket.folio }}</p>
             </div>
@@ -190,7 +218,7 @@
         </div>
 
         <div class="dates-col">
-            <table class="date-box" style="margin-bottom: 4px;">
+            <table class="date-box" style="margin-bottom: 3px;">
                 <tr><th colspan="3" class="bg-gray">FECHA DE INGRESO</th></tr>
                 <tr class="text-center font-bold">
                     <td width="33%">DÍA</td>
@@ -228,7 +256,7 @@
             <td width="20%">SERIE / CÓDIGO</td>
             <td width="35%">DESCRIPCIÓN</td>
         </tr>
-        <tr style="height: 35px; text-align: center;">
+        <tr class="device-row">
             <td>{% if device %}{{ device.tipo_equipo }}{% endif %}</td>
             <td>{% if device %}{{ device.marca }}{% endif %}</td>
             <td>{% if device %}{{ device.modelo }}{% endif %}</td>
@@ -240,13 +268,13 @@
     <table>
         <tr>
             <td width="70%" rowspan="3" style="vertical-align: top;">
-                <p class="font-bold m-0" style="font-size: 9px;">ACCESORIOS ENTREGADOS:</p>
-                <p style="margin: 3px 0 8px 0;">{{ accessories_text|default:"" }}</p>
+                <p class="section-title">ACCESORIOS ENTREGADOS:</p>
+                <p style="margin: 2px 0 5px 0;">{{ accessories_text|default:"" }}</p>
 
-                <hr style="border: 0; border-top: 1px dashed #ccc; margin: 4px 0;">
+                <hr style="border: 0; border-top: 1px dashed #ccc; margin: 2px 0;">
 
-                <p class="font-bold m-0" style="font-size: 9px;">OBSERVACIONES (Diagnóstico / Solución):</p>
-                <p style="margin: 3px 0 0 0; color: #555;">
+                <p class="section-title">OBSERVACIONES (Diagnóstico / Solución):</p>
+                <p style="margin: 2px 0 0 0; color: #555;">
                     {% if ticket.diagnostico or ticket.solucion %}
                         {{ ticket.diagnostico|default:"" }}{% if ticket.diagnostico and ticket.solucion %} - {% endif %}{{ ticket.solucion|default:"" }}
                     {% else %}
@@ -275,7 +303,7 @@
         <div class="signature-box">
             <div class="signature-line">
                 <p class="font-bold m-0">FIRMA DEL CLIENTE</p>
-                <p class="m-0">DNI N°: ___________________</p>
+                <p class="m-0">DNI N°: {% if customer.tipo_cliente == 'PERSONA' %}{{ customer.identificador }}{% else %}___________________{% endif %}</p>
             </div>
         </div>
         <div class="signature-box">
@@ -285,6 +313,5 @@
             </div>
         </div>
     </div>
-
 </body>
 </html>

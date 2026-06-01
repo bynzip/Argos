@@ -256,7 +256,7 @@ export default function TicketDetailPage() {
             <div className="flex flex-wrap gap-2">
               <Button variant="secondary" size="sm" onClick={handleDownloadGuide} disabled={isDownloadingGuide}>
                 <FileDown size={16} className="mr-1" />
-                {isDownloadingGuide ? 'Descargando...' : 'Descargar guia'}
+                {isDownloadingGuide ? '...' : 'PDF'}
               </Button>
               {allowedNextStatuses.map((status) => (
                 <Button key={status} variant="secondary" size="sm" onClick={() => handleTransition(status)}>
