@@ -22,7 +22,7 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 5px;
+            margin-bottom: 10px;
         }
 
         th, td {
@@ -42,7 +42,7 @@
         .header-container {
             display: table;
             width: 100%;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
             page-break-inside: avoid;
         }
 
@@ -59,8 +59,8 @@
         }
 
         .logo-img {
-            max-width: 170px;
-            max-height: 46px;
+            max-width: 205px;
+            max-height: 56px;
             object-fit: contain;
         }
 
@@ -94,7 +94,7 @@
         .middle-container {
             display: table;
             width: 100%;
-            margin-bottom: 5px;
+            margin-bottom: 10px;
             page-break-inside: avoid;
         }
 
@@ -146,7 +146,7 @@
         .signatures {
             display: table;
             width: 100%;
-            margin-top: 48px;
+            margin-top: 72px;
             margin-bottom: 0;
             page-break-inside: avoid;
         }
@@ -183,7 +183,7 @@
         <div class="header-right">
             <div class="ruc-box">
                 <p>R.U.C. {{ company.ruc }}</p>
-                <div style="background-color: #101820; padding: 3px; margin: 3px -4px;">
+                <div style="background-color: #4b5563; padding: 3px; margin: 3px -4px;">
                     <h2 style="color: #fff; letter-spacing: 0.5px;">GUÍA DE INTERNAMIENTO</h2>
                 </div>
                 <p style="color: #f97316;">{{ ticket.folio }}</p>
@@ -290,8 +290,8 @@
             <td class="text-right">{{ a_cuenta }}</td>
         </tr>
         <tr>
-            <td class="font-bold bg-gray text-right" style="color: #f97316;">SALDO PENDIENTE</td>
-            <td class="text-right font-bold" style="color: #f97316;">{{ saldo_pendiente }}</td>
+            <td class="font-bold bg-gray text-right">SALDO PENDIENTE</td>
+            <td class="text-right font-bold">{{ saldo_pendiente }}</td>
         </tr>
     </table>
 
