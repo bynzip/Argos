@@ -96,6 +96,22 @@ export const useTicket = (id: string) => {
   });
 };
 
+export const downloadTicketGuiaInternamientoPdf = async (id: string, folio?: string) => {
+  const response = await axios.get(`/api/tickets/${id}/guia-internamiento-pdf/`, {
+    responseType: 'blob',
+  });
+
+  const blob = new Blob([response.data], { type: 'application/pdf' });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `guia-internamiento-${folio || id}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+
 export const useCreateTicket = () => {
   const queryClient = useQueryClient();
   return useMutation({

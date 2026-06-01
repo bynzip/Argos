@@ -5,6 +5,7 @@ import {
   Check,
   ClipboardList,
   CreditCard,
+  FileDown,
   Files,
   History,
   Plus,
@@ -28,6 +29,7 @@ import { Textarea } from '../../components/ui/Textarea';
 import { TicketStatusBadge } from '../../components/ui/TicketStatusBadge';
 import { useQuote } from '../../hooks/useQuotes';
 import {
+  downloadTicketGuiaInternamientoPdf,
   useAddChecklistItem,
   useApplyChecklistTemplate,
   useChecklistTemplates,
@@ -101,6 +103,8 @@ export default function TicketDetailPage() {
   const [showTemplateSaver, setShowTemplateSaver] = useState(false);
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [showQuickAmountModal, setShowQuickAmountModal] = useState(false);
+  const [isDownloadingGuide, setIsDownloadingGuide] = useState(false);
+  const [guideDownloadError, setGuideDownloadError] = useState<string | null>(null);
 
   const isTech = user?.role === 'TÃ©cnico' || user?.role === 'Tecnico' || user?.is_superuser;
   const isAdmin = user?.role === 'Administrador' || user?.is_superuser;
@@ -147,6 +151,18 @@ export default function TicketDetailPage() {
         onError: (error: any) => alert(error?.response?.data?.detail || 'No se pudo transicionar el ticket.'),
       },
     );
+  };
+
+  const handleDownloadGuide = async () => {
+    setIsDownloadingGuide(true);
+    setGuideDownloadError(null);
+    try {
+      await downloadTicketGuiaInternamientoPdf(ticket.id, ticket.folio);
+    } catch (error) {
+      setGuideDownloadError(getApiErrorMessage(error, 'No se pudo descargar la guia.'));
+    } finally {
+      setIsDownloadingGuide(false);
+    }
   };
 
   const handleSaveTechnicalDetails = () => {
@@ -238,12 +254,21 @@ export default function TicketDetailPage() {
               <PriorityBadge priority={ticket.prioridad} />
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" size="sm" onClick={handleDownloadGuide} disabled={isDownloadingGuide}>
+                <FileDown size={16} className="mr-1" />
+                {isDownloadingGuide ? 'Descargando...' : 'Descargar guia'}
+              </Button>
               {allowedNextStatuses.map((status) => (
                 <Button key={status} variant="secondary" size="sm" onClick={() => handleTransition(status)}>
                   {statusLabels[status] || status}
                 </Button>
               ))}
             </div>
+            {guideDownloadError && (
+              <div className="max-w-xs text-right text-xs font-medium text-[var(--color-danger)]">
+                {guideDownloadError}
+              </div>
+            )}
           </div>
         )}
       />
