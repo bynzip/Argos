@@ -1,519 +1,823 @@
-import { useDashboard } from "../../hooks/useCore";
-import { useTickets, Ticket } from "../../hooks/useTickets";
-import { useAuthStore } from "../../store/authStore";
-import {
-  Users,
-  Ticket as TicketIcon,
-  Package,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  TrendingUp,
-  DollarSign,
-  BarChart3,
-  PieChart,
-} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import type { ElementType, ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { TicketStatusBadge } from "../../components/ui/TicketStatusBadge";
-// import { PriorityBadge } from '../../components/ui/PriorityBadge';
-import { PageHeader } from "../../components/ui/PageHeader";
-import { Button } from "../../components/ui/Button";
+import {
+  AlertTriangle,
+  Boxes,
+  CheckCircle,
+  ClipboardCheck,
+  CreditCard,
+  DollarSign,
+  FileText,
+  Package,
+  ShieldCheck,
+  Sparkles,
+  Ticket,
+  TrendingUp,
+  Wrench,
+} from "lucide-react";
+
+import { useDashboard, type DashboardKey, type DashboardSection } from "../../hooks/useCore";
+import { useAuthStore } from "../../store/authStore";
 import { cn } from "../../lib/utils";
 
-interface StatCardProps {
+type MetricTone = "blue" | "green" | "amber" | "red" | "orange" | "neutral";
+
+type MetricCardProps = {
   label: string;
   value: string | number;
-  icon: React.ElementType;
-  color: "blue" | "orange" | "green" | "amber" | "red" | "indigo";
-  link?: string;
-  linkText?: string;
+  note?: string;
+  icon: ElementType;
+  tone?: MetricTone;
+  href?: string;
+};
+
+type ActionItem = {
+  id?: string | number;
+  title: string;
+  meta?: string;
+  badge?: string;
+  href: string;
+  danger?: boolean;
+};
+
+const dashboardLabels: Record<DashboardKey, { label: string; icon: ElementType }> = {
+  admin: { label: "Administrador", icon: ShieldCheck },
+  reception: { label: "Recepcion", icon: CreditCard },
+  technician: { label: "Tecnico", icon: Wrench },
+  warehouse: { label: "Almacen", icon: Boxes },
+};
+
+const statusLabels: Record<string, string> = {
+  INTAKE: "Ingreso",
+  DIAGNOSTIC: "Diagnostico",
+  QUOTED: "Cotizado",
+  APPROVED: "Aprobado",
+  WAITING_PARTS: "Espera repuesto",
+  IN_REPAIR: "Reparacion",
+  IN_TESTING: "Pruebas",
+  READY: "Listo",
+  STORAGE: "Cochera",
+};
+
+const paymentLabels: Record<string, string> = {
+  CASH: "Efectivo",
+  YAPE: "Yape",
+  PLIN: "Plin",
+  TRANSFER: "Transferencia",
+  CARD: "Tarjeta",
+};
+
+const paymentColors: Record<string, string> = {
+  CASH: "var(--color-success)",
+  YAPE: "var(--color-brand-blue)",
+  PLIN: "var(--color-brand-orange)",
+  TRANSFER: "var(--color-brand-gold)",
+  CARD: "#7C3AED",
+};
+
+const toneClasses: Record<MetricTone, string> = {
+  blue: "bg-[var(--color-info-bg)] text-[var(--color-brand-blue)] border-[var(--color-info-border)]",
+  green: "bg-[var(--color-success-bg)] text-[var(--color-success)] border-[var(--color-success-border)]",
+  amber: "bg-[var(--color-warning-bg)] text-[var(--color-warning)] border-[var(--color-warning-border)]",
+  red: "bg-[var(--color-danger-bg)] text-[var(--color-danger)] border-[var(--color-danger-border)]",
+  orange: "bg-[#FFF3EE] text-[var(--color-brand-orange)] border-[#FFD3C2]",
+  neutral: "bg-[var(--gray-100)] text-[var(--gray-500)] border-[var(--gray-200)]",
+};
+
+function formatMoney(value: unknown) {
+  const amount = Number(value || 0);
+  return `S/ ${amount.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-const StatCard = ({
-  label,
-  value,
-  icon: Icon,
-  color,
-  link,
-  linkText,
-}: StatCardProps) => {
-  const colorMap = {
-    blue: "bg-[#EFF3FF] text-[#2347A5]",
-    orange: "bg-[#FFF3EE] text-[#EF5B2A]",
-    green: "bg-[#F0FDF4] text-[#16A34A]",
-    amber: "bg-[#FFFBEB] text-[#D97706]",
-    red: "bg-[#FEF2F2] text-[#DC2626]",
-    indigo: "bg-[#F5F3FF] text-[#7C3AED]",
-  };
+function formatNumber(value: unknown) {
+  return Number(value || 0).toLocaleString("es-PE");
+}
 
-  return (
-    <div className="bg-white border border-[var(--gray-200)] rounded-xl p-5 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-all group">
-      <div className="flex justify-between items-start mb-4">
-        <div
-          className={cn(
-            "w-10 h-10 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110",
-            colorMap[color],
-          )}
-        >
-          <Icon size={22} />
-        </div>
-        {link && (
-          <Link
-            to={link}
-            className="text-[11px] font-bold text-[var(--color-brand-blue)] hover:underline uppercase tracking-wider"
-          >
-            {linkText || "Ver más"}
-          </Link>
-        )}
-      </div>
-      <div>
-        <p className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-[0.05em] mb-1">
-          {label}
-        </p>
-        <p className="text-[28px] font-extrabold text-[var(--gray-800)] leading-none">
-          {value}
-        </p>
-      </div>
-    </div>
-  );
-};
+function percentage(value: number, max: number) {
+  if (!max) return 0;
+  return Math.max(0, Math.min(100, (value / max) * 100));
+}
 
-const SimpleBarChart = ({
-  data,
-  title,
-  icon: Icon,
-  colorClass = "bg-[var(--color-brand-blue)]",
+function DashboardTabs({
+  available,
+  active,
+  onChange,
 }: {
-  data: Record<string, number>;
-  title: string;
-  icon: any;
-  colorClass?: string;
-}) => {
-  const entries = Object.entries(data);
-  const max = Math.max(...entries.map(([, val]) => val), 1);
-
-  const statusLabels: Record<string, string> = {
-    INTAKE: "Ingreso",
-    DIAGNOSTIC: "Diagnóstico",
-    QUOTED: "Cotizado",
-    APPROVED: "Aprobado",
-    WAITING_PARTS: "En espera",
-    IN_REPAIR: "En reparación",
-    IN_TESTING: "En pruebas",
-    READY: "Listo",
-    DELIVERED: "Entregado",
-    CLOSED: "Cerrado",
-    REJECTED: "Rechazado",
-    STORAGE: "Cochera",
-    CASH: "Efectivo",
-    YAPE: "Yape",
-    TRANSFER: "Transf.",
-    CARD: "Tarjeta",
-  };
-
+  available: DashboardKey[];
+  active: DashboardKey | null;
+  onChange: (key: DashboardKey) => void;
+}) {
   return (
-    <div className="bg-white border border-[var(--gray-200)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden h-full">
-      <div className="px-6 py-4 border-b border-[var(--gray-100)] flex items-center gap-2">
-        <Icon size={18} className="text-[var(--gray-400)]" />
-        <h2 className="text-[15px] font-bold text-[var(--gray-800)]">
-          {title}
-        </h2>
-      </div>
-      <div className="p-6 space-y-4">
-        {entries.length > 0 ? (
-          entries.map(([key, val]) => (
-            <div key={key} className="space-y-1.5">
-              <div className="flex justify-between items-end">
-                <span className="text-[12px] font-bold text-[var(--gray-500)] uppercase tracking-wide">
-                  {statusLabels[key] || key}
-                </span>
-                <span className="text-[13px] font-black text-[var(--gray-800)]">
-                  {val}
-                </span>
-              </div>
-              <div className="h-2.5 bg-[var(--gray-50)] rounded-full overflow-hidden border border-[var(--gray-100)]">
-                <div
-                  className={cn(
-                    "h-full rounded-full transition-all duration-1000",
-                    colorClass,
-                  )}
-                  style={{ width: `${(val / max) * 100}%` }}
-                />
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="py-10 text-center text-[var(--gray-400)] italic text-sm">
-            Sin datos para mostrar hoy.
-          </div>
-        )}
+    <div className="mb-6 overflow-x-auto">
+      <div className="inline-flex rounded-[10px] border border-[var(--gray-200)] bg-white p-1 shadow-[var(--shadow-sm)]">
+        {available.map((key) => {
+          const Icon = dashboardLabels[key].icon;
+          const isActive = active === key;
+          return (
+            <button
+              key={key}
+              onClick={() => onChange(key)}
+              className={cn(
+                "flex h-9 items-center gap-2 rounded-lg px-4 text-[13px] font-bold transition-colors",
+                isActive
+                  ? "bg-[var(--color-info-bg)] text-[var(--color-brand-blue)] shadow-[inset_0_0_0_1px_var(--color-info-border)]"
+                  : "text-[var(--gray-500)] hover:bg-[var(--gray-50)] hover:text-[var(--gray-800)]",
+              )}
+            >
+              <Icon size={16} />
+              {dashboardLabels[key].label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
-};
+}
+
+function MetricCard({ label, value, note, icon: Icon, tone = "blue", href }: MetricCardProps) {
+  const content = (
+    <div className="group h-full rounded-xl border border-[var(--gray-200)] bg-white p-5 shadow-[var(--shadow-sm)] transition-all hover:shadow-[var(--shadow-md)]">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className={cn("grid h-10 w-10 place-items-center rounded-lg border", toneClasses[tone])}>
+          <Icon size={21} />
+        </div>
+        {href && (
+          <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--color-brand-blue)]">
+            Ver
+          </span>
+        )}
+      </div>
+      <p className="mb-1 text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-400)]">
+        {label}
+      </p>
+      <p className="text-[28px] font-black leading-none text-[var(--gray-800)]">{value}</p>
+      {note && <p className="mt-3 text-[12px] leading-relaxed text-[var(--gray-500)]">{note}</p>}
+    </div>
+  );
+
+  if (!href) return content;
+  return (
+    <Link to={href} className="block h-full">
+      {content}
+    </Link>
+  );
+}
+
+function SectionCard({
+  title,
+  subtitle,
+  action,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="overflow-hidden rounded-xl border border-[var(--gray-200)] bg-white shadow-[var(--shadow-sm)]">
+      <header className="flex min-h-14 items-center justify-between gap-4 border-b border-[var(--gray-200)] px-5 py-4">
+        <div>
+          <h2 className="text-[15px] font-bold text-[var(--gray-800)]">{title}</h2>
+          {subtitle && <p className="mt-1 text-[12px] text-[var(--gray-500)]">{subtitle}</p>}
+        </div>
+        {action}
+      </header>
+      <div className="p-5">{children}</div>
+    </section>
+  );
+}
+
+function ActionLink({ href, children, danger = false }: { href: string; children: ReactNode; danger?: boolean }) {
+  return (
+    <Link
+      to={href}
+      className={cn(
+        "inline-flex h-8 items-center justify-center rounded-md border px-3 text-[12px] font-bold transition-colors",
+        danger
+          ? "border-[var(--color-danger-border)] bg-[var(--color-danger-bg)] text-[var(--color-danger)]"
+          : "border-[var(--gray-300)] bg-white text-[var(--gray-700)] hover:bg-[var(--gray-50)]",
+      )}
+    >
+      {children}
+    </Link>
+  );
+}
+
+function ActionQueue({ items, emptyText }: { items: ActionItem[]; emptyText: string }) {
+  if (!items.length) {
+    return (
+      <div className="rounded-lg border border-dashed border-[var(--gray-200)] bg-[var(--gray-50)] px-4 py-8 text-center text-sm font-medium text-[var(--gray-400)]">
+        {emptyText}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {items.map((item, index) => (
+        <div
+          key={`${item.title}-${item.id ?? index}`}
+          className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-lg border border-[var(--gray-200)] bg-white p-4"
+        >
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-bold text-[var(--gray-800)]">{item.title}</span>
+              {item.badge && (
+                <span className="rounded-full bg-[var(--gray-100)] px-2 py-0.5 text-[11px] font-bold text-[var(--gray-500)]">
+                  {item.badge}
+                </span>
+              )}
+            </div>
+            {item.meta && <p className="mt-1 text-[12px] leading-relaxed text-[var(--gray-500)]">{item.meta}</p>}
+          </div>
+          <ActionLink href={item.href} danger={item.danger}>
+            Abrir
+          </ActionLink>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function BarRows({ data, colors }: { data: Record<string, number>; colors?: Record<string, string> }) {
+  const entries = Object.entries(data || {});
+  const max = Math.max(...entries.map(([, value]) => value), 1);
+
+  if (!entries.length) {
+    return <p className="py-8 text-center text-sm font-medium text-[var(--gray-400)]">Sin datos para mostrar.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {entries.map(([key, value]) => (
+        <div key={key} className="grid grid-cols-[132px_1fr_42px] items-center gap-3 max-sm:grid-cols-1 max-sm:gap-1">
+          <span className="text-[12px] font-bold text-[var(--gray-600)]">{statusLabels[key] || paymentLabels[key] || key}</span>
+          <div className="h-2.5 overflow-hidden rounded-full border border-[var(--gray-200)] bg-[var(--gray-100)]">
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${percentage(value, max)}%`,
+                background: colors?.[key] || "linear-gradient(90deg, var(--color-brand-blue), #5A89E8)",
+              }}
+            />
+          </div>
+          <span className="text-right text-[12px] font-black text-[var(--gray-800)] max-sm:text-left">{value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TicketFlowChart({ data }: { data: Record<string, number> }) {
+  const order = ["INTAKE", "DIAGNOSTIC", "QUOTED", "IN_REPAIR", "IN_TESTING", "READY", "STORAGE"];
+  const filtered = order.reduce<Record<string, number>>((acc, key) => {
+    acc[key] = Number(data?.[key] || 0);
+    return acc;
+  }, {});
+
+  return (
+    <div className="rounded-xl border border-[var(--gray-200)] bg-[linear-gradient(180deg,rgba(248,249,251,.72),rgba(255,255,255,.96))] p-4">
+      <div className="mb-5 grid grid-cols-7 gap-2 overflow-x-auto max-xl:grid-cols-[repeat(7,minmax(112px,1fr))]">
+        {order.map((key, index) => (
+          <div
+            key={key}
+            className={cn(
+              "relative min-h-[90px] rounded-lg border bg-white p-3 shadow-[var(--shadow-sm)]",
+              key === "IN_REPAIR" && "border-[#FFD3C2] bg-[#FFF7F3]",
+              key === "READY" && "border-[var(--color-success-border)] bg-[var(--color-success-bg)]",
+              key === "STORAGE" && "border-[var(--color-danger-border)] bg-[var(--color-danger-bg)]",
+            )}
+          >
+            {index < order.length - 1 && (
+              <span className="absolute right-[-9px] top-1/2 z-10 h-0.5 w-2 bg-[var(--gray-300)]" />
+            )}
+            <strong className="block text-[22px] leading-none text-[var(--gray-800)]">{filtered[key]}</strong>
+            <span className="mt-2 block text-[11px] font-black uppercase tracking-[0.05em] text-[var(--gray-500)]">
+              {statusLabels[key]}
+            </span>
+          </div>
+        ))}
+      </div>
+      <BarRows data={filtered} />
+    </div>
+  );
+}
+
+function SparklineRevenue({ data }: { data: Array<{ date: string; total: number }> }) {
+  const values = data.map((item) => Number(item.total || 0));
+  const max = Math.max(...values, 1);
+  const points = values.map((value, index) => {
+    const x = values.length <= 1 ? 0 : (index / (values.length - 1)) * 360;
+    const y = 78 - percentage(value, max) * 0.62;
+    return `${x},${y}`;
+  });
+  const areaPoints = `0,90 ${points.join(" ")} 360,90`;
+
+  return (
+    <div className="rounded-lg border border-[var(--gray-200)] bg-[linear-gradient(180deg,#fff,var(--gray-50))] p-4">
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <strong className="text-[13px] text-[var(--gray-800)]">Ingresos confirmados - ultimos 7 dias</strong>
+        <span className="text-[12px] font-bold text-[var(--color-success)]">{formatMoney(values[values.length - 1])}</span>
+      </div>
+      <svg viewBox="0 0 360 90" className="h-[74px] w-full" role="img" aria-label="Tendencia de ingresos">
+        <polygon points={areaPoints} fill="rgba(35,71,165,.10)" />
+        <polyline points={points.join(" ")} fill="none" stroke="var(--color-brand-blue)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </div>
+  );
+}
+
+function PaymentDonut({ data }: { data: Record<string, number> }) {
+  const entries = Object.entries(data || {}).filter(([, value]) => Number(value) > 0);
+  const total = entries.reduce((sum, [, value]) => sum + Number(value || 0), 0);
+  let cursor = 0;
+  const segments = entries.map(([key, value]) => {
+    const start = cursor;
+    const size = total ? (Number(value) / total) * 100 : 0;
+    cursor += size;
+    return `${paymentColors[key] || "var(--gray-300)"} ${start}% ${cursor}%`;
+  });
+
+  if (!entries.length) {
+    return <p className="py-8 text-center text-sm font-medium text-[var(--gray-400)]">Sin pagos confirmados para este turno.</p>;
+  }
+
+  return (
+    <div className="grid grid-cols-[170px_1fr] items-center gap-5 rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] p-4 max-sm:grid-cols-1 max-sm:justify-items-center">
+      <div
+        className="relative grid h-[158px] w-[158px] place-items-center rounded-full shadow-[0_10px_24px_rgba(35,71,165,.10)] before:absolute before:inset-[18px] before:rounded-full before:bg-white before:shadow-[inset_0_0_0_1px_var(--gray-200)]"
+        style={{ background: `conic-gradient(${segments.join(", ")})` }}
+      >
+        <div className="relative text-center">
+          <strong className="block text-[23px] leading-none text-[var(--gray-800)]">{formatMoney(total)}</strong>
+          <span className="mt-1 block text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Turno</span>
+        </div>
+      </div>
+      <div className="w-full space-y-3">
+        <div className="flex h-[18px] overflow-hidden rounded-full border border-[var(--gray-200)] bg-[var(--gray-100)]">
+          {entries.map(([key, value]) => (
+            <span
+              key={key}
+              style={{ width: `${percentage(Number(value), total)}%`, background: paymentColors[key] || "var(--gray-300)" }}
+            />
+          ))}
+        </div>
+        {entries.map(([key, value]) => (
+          <div key={key} className="grid grid-cols-[10px_1fr_auto] items-center gap-2 text-[12px] font-bold text-[var(--gray-600)]">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: paymentColors[key] || "var(--gray-300)" }} />
+            <span>{paymentLabels[key] || key}</span>
+            <strong className="text-[var(--gray-800)]">{formatMoney(value)}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TechnicianWorkChart({ section }: { section: DashboardSection }) {
+  const distribution = (section.charts.status_distribution || {}) as Record<string, number>;
+  const progressRate = Number(section.metrics.progress_rate || 0);
+
+  return (
+    <div className="rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] p-4">
+      <div className="mb-5 rounded-lg border border-[var(--gray-200)] bg-white p-4">
+        <div className="mb-2 flex items-baseline justify-between">
+          <span className="text-[12px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Progreso de hoy</span>
+          <strong className="text-[24px] leading-none text-[var(--gray-800)]">{progressRate}%</strong>
+        </div>
+        <div className="h-3 overflow-hidden rounded-full bg-[var(--gray-100)]">
+          <div className="h-full rounded-full bg-[linear-gradient(90deg,var(--color-brand-blue),var(--color-brand-orange),var(--color-brand-gold))]" style={{ width: `${progressRate}%` }} />
+        </div>
+        <p className="mt-2 text-[12px] text-[var(--gray-500)]">Calculado con tickets listos hoy frente a carga activa.</p>
+      </div>
+      <BarRows
+        data={distribution}
+        colors={{
+          DIAGNOSTIC: "linear-gradient(90deg, var(--color-brand-blue), #5A89E8)",
+          QUOTED: "linear-gradient(90deg, var(--color-brand-gold), #FDE68A)",
+          IN_REPAIR: "linear-gradient(90deg, var(--color-brand-orange), #FDBA74)",
+          IN_TESTING: "linear-gradient(90deg, var(--color-success), #86EFAC)",
+          WAITING_PARTS: "linear-gradient(90deg, var(--color-danger), #FCA5A5)",
+        }}
+      />
+    </div>
+  );
+}
+
+function StockHeatmap({ items }: { items: any[] }) {
+  if (!items?.length) {
+    return <p className="py-8 text-center text-sm font-medium text-[var(--gray-400)]">Sin productos bajo minimo.</p>;
+  }
+
+  const barData = items.slice(0, 5).reduce<Record<string, number>>((acc, item) => {
+    acc[item.nombre] = Number(item.stock_disponible || 0);
+    return acc;
+  }, {});
+
+  return (
+    <div className="rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] p-4">
+      <div className="mb-4 grid grid-cols-4 gap-2 max-lg:grid-cols-2">
+        {items.slice(0, 8).map((item) => {
+          const available = Number(item.stock_disponible || 0);
+          const min = Number(item.stock_minimo || 0);
+          const tone = available <= Math.max(1, min / 2) ? "border-[var(--color-danger-border)] bg-[var(--color-danger-bg)]" : "border-[var(--color-warning-border)] bg-[var(--color-warning-bg)]";
+          return (
+            <div key={item.id} className={cn("min-h-[74px] rounded-lg border p-3", tone)}>
+              <strong className="block text-[18px] leading-none text-[var(--gray-800)]">{available}</strong>
+              <span className="mt-2 block truncate text-[11px] font-black uppercase tracking-[0.04em] text-[var(--gray-600)]">
+                {item.nombre}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <BarRows data={barData} colors={{}} />
+    </div>
+  );
+}
+
+function AdminDashboard({ section }: { section: DashboardSection }) {
+  const metrics = section.metrics;
+  const actions = section.actions;
+  const decisionItems: ActionItem[] = [
+    ...(actions.pending_discounts || []).map((item: any) => ({
+      id: `discount-${item.id}`,
+      title: `Descuento ${formatMoney(item.amount)}`,
+      meta: `${item.ticket_folio || "Sin ticket"} - solicitado por ${item.requested_by || "usuario"}`,
+      badge: item.type,
+      href: "/finance",
+    })),
+    ...(actions.pending_reversals || []).map((item: any) => ({
+      id: `reversal-${item.id}`,
+      title: `Reversa ${item.receipt_folio}`,
+      meta: `${formatMoney(item.amount)} - solicitado por ${item.requested_by || "usuario"}`,
+      href: "/finance",
+      danger: true,
+    })),
+  ].slice(0, 5);
+
+  return (
+    <DashboardShell
+      eyebrow="Administrador / Dueno"
+      title="Cabina de control del negocio"
+      subtitle="Finanzas, operacion, riesgos, aprobaciones, personal, inventario y auditoria."
+      primaryHref="/reports"
+      primaryLabel="Ver reportes"
+    >
+      <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Ingresos hoy" value={formatMoney(metrics.daily_revenue)} note="Recibos confirmados." icon={TrendingUp} tone="green" />
+        <MetricCard label="Tickets activos" value={formatNumber(metrics.active_tickets)} note={`${formatNumber(metrics.ready_tickets)} listos o en cochera.`} icon={Ticket} href="/tickets" />
+        <MetricCard label="Aprobaciones" value={formatNumber(Number(metrics.pending_discounts || 0) + Number(metrics.pending_reversals || 0))} note="Descuentos y reversas pendientes." icon={ShieldCheck} tone="amber" href="/finance" />
+        <MetricCard label="Stock critico" value={formatNumber(metrics.low_stock_alerts)} note="Productos bajo minimo." icon={AlertTriangle} tone="red" href="/inventory" />
+      </div>
+
+      <div className="mb-5 grid grid-cols-1 gap-5 xl:grid-cols-[1.45fr_.85fr]">
+        <SectionCard title="Flujo de tickets por estado" subtitle="Detecta cuellos de botella del taller." action={<ActionLink href="/tickets">Ver tickets</ActionLink>}>
+          <TicketFlowChart data={section.charts.ticket_flow || {}} />
+        </SectionCard>
+        <SectionCard title="Centro de decisiones" subtitle="Acciones sensibles del administrador.">
+          <ActionQueue items={decisionItems} emptyText="No hay aprobaciones pendientes." />
+        </SectionCard>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+        <SectionCard title="Finanzas y caja" subtitle="Margen operativo y caja del dia.">
+          <SparklineRevenue data={section.charts.revenue_trend || []} />
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <MiniInfo title="Cajas con diferencia" value={formatNumber(metrics.cash_difference_count)} />
+            <MiniInfo title="Diferencia total" value={formatMoney(metrics.cash_difference_total)} />
+            <MiniInfo title="Cuotas vencidas" value={formatNumber(metrics.overdue_installments)} />
+            <MiniInfo title="Morosos" value={formatNumber(metrics.clientes_morosos)} />
+          </div>
+        </SectionCard>
+        <SectionCard title="Rendimiento tecnico" subtitle="Carga actual por tecnico.">
+          <TechnicianLoad items={section.charts.technician_load || []} />
+        </SectionCard>
+        <SectionCard title="Auditoria reciente" subtitle="Cambios sensibles del sistema.">
+          <AuditList items={actions.audit_logs || []} />
+        </SectionCard>
+      </div>
+    </DashboardShell>
+  );
+}
+
+function ReceptionDashboard({ section }: { section: DashboardSection }) {
+  const metrics = section.metrics;
+  const actions = section.actions;
+  const workItems: ActionItem[] = [
+    ...(actions.ready_to_deliver || []).map((ticket: any) => ({
+      id: `deliver-${ticket.id}`,
+      title: `Entregar ${ticket.folio}`,
+      meta: `${ticket.customer} - ${ticket.device || "Equipo registrado"}`,
+      badge: "Saldo 0",
+      href: `/tickets/${ticket.id}`,
+    })),
+    ...(actions.pending_collection || []).map((ticket: any) => ({
+      id: `collect-${ticket.id}`,
+      title: `Cobrar ${ticket.folio}`,
+      meta: `${ticket.customer} - saldo ${formatMoney(ticket.saldo_pendiente)}`,
+      href: `/tickets/${ticket.id}`,
+      danger: true,
+    })),
+  ].slice(0, 5);
+
+  return (
+    <DashboardShell
+      eyebrow="Recepcion / Caja"
+      title="Mostrador, cobros y entregas"
+      subtitle="Entrada de equipos, pagos, cotizaciones y entrega segura."
+      primaryHref="/tickets/new"
+      primaryLabel="Nuevo ticket"
+    >
+      <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Caja del turno" value={metrics.cash_open ? "Abierta" : "Cerrada"} note={`Esperado: ${formatMoney(metrics.cash_expected_amount)}`} icon={DollarSign} tone={metrics.cash_open ? "green" : "red"} href="/finance" />
+        <MetricCard label="Equipos listos" value={formatNumber(metrics.ready_tickets)} note={`${formatNumber(metrics.ready_with_pending_balance)} con saldo pendiente.`} icon={Package} href="/tickets?estado=READY" />
+        <MetricCard label="Ingresos del turno" value={formatMoney(metrics.daily_revenue)} note="Solo recibos confirmados." icon={TrendingUp} tone="green" />
+        <MetricCard label="Pagos digitales" value={formatNumber(metrics.pending_digital_payments)} note="Pendientes de validacion." icon={CreditCard} tone="amber" href="/finance" />
+      </div>
+
+      <div className="mb-5 grid grid-cols-1 gap-5 xl:grid-cols-[1.25fr_.9fr]">
+        <SectionCard title="Trabajo inmediato" subtitle="Cola priorizada para recepcion.">
+          <ActionQueue items={workItems} emptyText="No hay entregas ni cobros pendientes." />
+        </SectionCard>
+        <SectionCard title="Caja y metodos de pago" subtitle="Montos confirmados del turno." action={<ActionLink href="/finance">Cerrar caja</ActionLink>}>
+          <PaymentDonut data={section.charts.payment_methods_today || {}} />
+        </SectionCard>
+      </div>
+
+      <SectionCard title="Accesos utiles del mostrador" subtitle="Funciones frecuentes para atencion presencial.">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <QuickLink title="Buscar cliente" description="DNI, RUC, nombre o telefono." href="/customers" />
+          <QuickLink title="Enviar cotizacion" description={`${formatNumber(metrics.quotes_pending)} pendientes.`} href="/quotes" />
+          <QuickLink title="Registrar pago" description="Caja abierta requerida." href="/finance" />
+          <QuickLink title="Imprimir documentos" description="Ficha, recibo y entrega." href="/tickets" />
+        </div>
+      </SectionCard>
+    </DashboardShell>
+  );
+}
+
+function TechnicianDashboard({ section }: { section: DashboardSection }) {
+  const metrics = section.metrics;
+  const actions = section.actions;
+  const workItems: ActionItem[] = [
+    ...(actions.diagnosis_queue || []).map((ticket: any) => ({ id: `d-${ticket.id}`, title: `Diagnosticar ${ticket.folio}`, meta: `${ticket.customer} - ${ticket.device}`, href: `/tickets/${ticket.id}` })),
+    ...(actions.repair_queue || []).map((ticket: any) => ({ id: `r-${ticket.id}`, title: `Reparar ${ticket.folio}`, meta: `${ticket.customer} - ${ticket.device}`, href: `/tickets/${ticket.id}` })),
+    ...(actions.testing_queue || []).map((ticket: any) => ({ id: `t-${ticket.id}`, title: `Completar pruebas ${ticket.folio}`, meta: `${ticket.customer} - checklist pendiente`, href: `/tickets/${ticket.id}` })),
+    ...(actions.waiting_parts || []).map((ticket: any) => ({ id: `w-${ticket.id}`, title: `Esperando repuesto ${ticket.folio}`, meta: `${ticket.customer} - revisar reserva`, href: `/tickets/${ticket.id}`, danger: true })),
+  ].slice(0, 6);
+
+  return (
+    <DashboardShell
+      eyebrow="Tecnico / Taller"
+      title="Cola de reparacion y control de calidad"
+      subtitle="Diagnostico, reparacion, reservas y checklist sin ruido financiero."
+      primaryHref="/tickets"
+      primaryLabel="Abrir mi cola"
+    >
+      <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <MetricCard label="Mis tickets" value={formatNumber(metrics.my_active_tickets)} note="Carga activa." icon={ClipboardCheck} />
+        <MetricCard label="Urgentes" value={formatNumber(metrics.my_urgent_tickets)} note="Prioridad critica." icon={AlertTriangle} tone="red" />
+        <MetricCard label="Listos hoy" value={formatNumber(metrics.my_completed_today)} note="Movidos a listo." icon={CheckCircle} tone="green" />
+        <MetricCard label="Espera repuesto" value={formatNumber(metrics.my_waiting_parts)} note="Bloqueados por stock." icon={Package} tone="amber" />
+        <MetricCard label="En pruebas" value={formatNumber(metrics.my_testing_tickets)} note="Checklist y QC." icon={Sparkles} tone="orange" />
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.2fr_.9fr]">
+        <SectionCard title="Siguiente mejor accion" subtitle="Ordenado por prioridad, estado y antiguedad.">
+          <ActionQueue items={workItems} emptyText="No hay trabajo tecnico pendiente." />
+        </SectionCard>
+        <SectionCard title="Mi distribucion de trabajo" subtitle="Grafico corregido sin gauge circular.">
+          <TechnicianWorkChart section={section} />
+        </SectionCard>
+      </div>
+    </DashboardShell>
+  );
+}
+
+function WarehouseDashboard({ section }: { section: DashboardSection }) {
+  const metrics = section.metrics;
+  const actions = section.actions;
+  const reservationItems: ActionItem[] = (actions.reservations_to_deliver || []).map((reservation: any) => ({
+    id: reservation.id,
+    title: reservation.product,
+    meta: `${reservation.ticket_folio} - tecnico ${reservation.technician || "sin asignar"} - cant. ${reservation.cantidad}`,
+    href: "/inventory/reservations",
+  }));
+
+  return (
+    <DashboardShell
+      eyebrow="Almacen / Logistica"
+      title="Inventario, reservas y compras"
+      subtitle="Stock disponible, reservas fisicas y ordenes de compra."
+      primaryHref="/suppliers/orders/new"
+      primaryLabel="Nueva orden"
+    >
+      <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Stock bajo" value={formatNumber(metrics.low_stock_alerts)} note="Productos bajo minimo." icon={AlertTriangle} tone="red" href="/inventory" />
+        <MetricCard label="Reservas activas" value={formatNumber(metrics.active_reservations)} note={`${formatNumber(metrics.pending_delivery_reservations)} por entregar.`} icon={Package} tone="amber" href="/inventory/reservations" />
+        <MetricCard label="OC abiertas" value={formatNumber(metrics.purchase_orders_open)} note={`${formatNumber(metrics.purchase_orders_partially_received)} parciales.`} icon={FileText} href="/suppliers/orders" />
+        <MetricCard label="Valor inventario" value={formatMoney(metrics.inventory_value)} note="Segun precio de venta." icon={DollarSign} tone="green" />
+      </div>
+
+      <div className="mb-5 grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1fr]">
+        <SectionCard title="Reservas por entregar" subtitle="Evita piezas separadas sin control.">
+          <ActionQueue items={reservationItems} emptyText="No hay reservas pendientes de entrega." />
+        </SectionCard>
+        <SectionCard title="Productos bajo minimo" subtitle="Disponible = fisico - reservado.">
+          <StockHeatmap items={section.charts.low_stock_products || []} />
+        </SectionCard>
+      </div>
+
+      <SectionCard title="Compras y recepciones" subtitle="Ordenes abiertas y mercaderia esperada." action={<ActionLink href="/suppliers/orders">Ver compras</ActionLink>}>
+        <PurchaseOrdersTable items={actions.purchase_orders || []} />
+      </SectionCard>
+    </DashboardShell>
+  );
+}
+
+function DashboardShell({
+  eyebrow,
+  title,
+  subtitle,
+  primaryHref,
+  primaryLabel,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  primaryHref: string;
+  primaryLabel: string;
+  children: ReactNode;
+}) {
+  return (
+    <div>
+      <div className="mb-6 flex items-start justify-between gap-5 max-lg:flex-col">
+        <div>
+          <p className="mb-1 text-[12px] font-black uppercase tracking-[0.08em] text-[var(--color-brand-blue)]">{eyebrow}</p>
+          <h1 className="text-[24px] font-bold leading-tight text-[var(--gray-800)]">{title}</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[var(--gray-500)]">{subtitle}</p>
+        </div>
+        <Link
+          to={primaryHref}
+          className="inline-flex h-[38px] items-center justify-center gap-2 rounded-lg bg-brand-gradient px-5 text-sm font-semibold text-white shadow-[0_2px_8px_rgba(35,71,165,0.20)] transition hover:opacity-90"
+        >
+          {primaryLabel}
+        </Link>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function MiniInfo({ title, value }: { title: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-[var(--gray-200)] bg-[var(--gray-50)] p-3">
+      <span className="block text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-400)]">{title}</span>
+      <strong className="mt-1 block text-[16px] text-[var(--gray-800)]">{value}</strong>
+    </div>
+  );
+}
+
+function QuickLink({ title, description, href }: { title: string; description: string; href: string }) {
+  return (
+    <Link to={href} className="rounded-lg border border-[var(--gray-200)] bg-[var(--gray-50)] p-4 transition-colors hover:bg-white">
+      <strong className="block text-[13px] text-[var(--gray-800)]">{title}</strong>
+      <span className="mt-1 block text-[12px] leading-relaxed text-[var(--gray-500)]">{description}</span>
+    </Link>
+  );
+}
+
+function TechnicianLoad({ items }: { items: any[] }) {
+  if (!items.length) {
+    return <p className="py-8 text-center text-sm font-medium text-[var(--gray-400)]">Sin tecnicos con carga activa.</p>;
+  }
+  return (
+    <div className="space-y-3">
+      {items.map((item) => (
+        <div key={item.id} className="rounded-lg border border-[var(--gray-200)] p-3">
+          <div className="mb-2 flex justify-between gap-3">
+            <strong className="text-[13px] text-[var(--gray-800)]">{item.nombre}</strong>
+            <span className="text-[12px] font-bold text-[var(--color-brand-blue)]">{item.active_tickets} activos</span>
+          </div>
+          <BarRows data={{ Listos: item.ready_today, Urgentes: item.urgent_tickets, Activos: item.active_tickets }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AuditList({ items }: { items: any[] }) {
+  if (!items.length) {
+    return <p className="py-8 text-center text-sm font-medium text-[var(--gray-400)]">Sin actividad reciente.</p>;
+  }
+  return (
+    <div className="space-y-3">
+      {items.map((item) => (
+        <div key={item.id} className="grid grid-cols-[28px_1fr] gap-3">
+          <span className="grid h-7 w-7 place-items-center rounded-full border border-[var(--color-info-border)] bg-[var(--color-info-bg)] text-[11px] font-black text-[var(--color-brand-blue)]">
+            {item.action?.[0] || "A"}
+          </span>
+          <div>
+            <strong className="block text-[13px] text-[var(--gray-800)]">{item.object_repr || item.module}</strong>
+            <span className="block text-[12px] text-[var(--gray-500)]">{item.user} - {item.action}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PurchaseOrdersTable({ items }: { items: any[] }) {
+  if (!items.length) {
+    return <p className="py-8 text-center text-sm font-medium text-[var(--gray-400)]">No hay ordenes de compra abiertas.</p>;
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse">
+        <thead>
+          <tr className="border-b border-[var(--gray-200)] bg-[var(--gray-50)]">
+            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">OC</th>
+            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Proveedor</th>
+            <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Estado</th>
+            <th className="px-4 py-3 text-right text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Subtotal</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.id} className="border-b border-[var(--gray-100)] last:border-0">
+              <td className="px-4 py-3 font-bold text-[var(--color-brand-blue)]">{item.folio}</td>
+              <td className="px-4 py-3 text-[var(--gray-700)]">{item.supplier}</td>
+              <td className="px-4 py-3">
+                <span className="rounded-full bg-[var(--color-info-bg)] px-2 py-1 text-[11px] font-bold text-[var(--color-brand-blue)]">{item.estado}</span>
+              </td>
+              <td className="px-4 py-3 text-right font-bold text-[var(--gray-800)]">{formatMoney(item.subtotal)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 const DashboardPage = () => {
   const { data, isLoading } = useDashboard();
   const { user } = useAuthStore();
+  const [activeDashboard, setActiveDashboard] = useState<DashboardKey | null>(null);
 
-  // Detección de roles más robusta combinando info de sesión y del backend
-  const effectiveRole = data?.role || user?.role;
-  const isSuperAdmin = user?.is_superuser;
+  const availableDashboards = data?.available_dashboards || [];
+  const defaultDashboard = data?.default_dashboard || null;
 
-  const isAdmin = isSuperAdmin || effectiveRole === "Administrador";
-  const isRecep = effectiveRole === "Recepcionista";
-  const isTech = effectiveRole === "Técnico";
-  const isAlmacenero = effectiveRole === "Almacenero";
+  useEffect(() => {
+    if (!data) return;
+    if (!activeDashboard || !availableDashboards.includes(activeDashboard)) {
+      setActiveDashboard(defaultDashboard);
+    }
+  }, [activeDashboard, availableDashboards, data, defaultDashboard]);
 
-  const { data: recentTicketsResponse } = useTickets({
-    ordering: "-created_at",
-    page_size: 5,
-  });
+  const activeSection = useMemo(() => {
+    if (!data || !activeDashboard) return null;
+    return data.dashboards[activeDashboard] || null;
+  }, [activeDashboard, data]);
 
-  const recentTickets = Array.isArray(recentTicketsResponse) 
-    ? recentTicketsResponse 
-    : recentTicketsResponse?.results || [];
+  if (isLoading) {
+    return <div className="p-12 text-center font-medium text-[var(--gray-500)]">Cargando metricas del sistema...</div>;
+  }
 
-  if (isLoading)
-    return (
-      <div className="p-12 text-center font-medium text-[var(--gray-500)]">
-        Cargando métricas del sistema...
-      </div>
-    );
-  if (!data)
+  if (!data || !availableDashboards.length) {
     return (
       <div className="p-12 text-center text-[var(--gray-500)]">
-        No hay datos disponibles en este momento
+        No hay dashboards disponibles para tu usuario.
       </div>
     );
-
-  const today = new Date().toLocaleDateString("es-ES", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  }
 
   return (
-    <div className="p-8 max-w-[1400px] mx-auto">
-      <PageHeader
-        title={`Hola, ${user?.nombre || "Usuario"} 👋`}
-        subtitle={today.charAt(0).toUpperCase() + today.slice(1)}
-      />
-
-      {/* Grid de Métricas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {isAdmin && (
-          <>
-            <StatCard
-              label="Tickets Activos"
-              value={data.metrics.active_tickets || 0}
-              icon={TicketIcon}
-              color="blue"
-              link="/tickets"
-              linkText="Ir a tickets"
-            />
-            <StatCard
-              label="Clientes Totales"
-              value={data.metrics.customers_count || 0}
-              icon={Users}
-              color="indigo"
-              link="/customers"
-            />
-            <StatCard
-              label="Ingresos Hoy"
-              value={`S/ ${parseFloat(data.metrics.daily_revenue || 0).toFixed(2)}`}
-              icon={TrendingUp}
-              color="green"
-            />
-            <StatCard
-              label="Alertas Stock"
-              value={data.metrics.low_stock_alerts || 0}
-              icon={AlertTriangle}
-              color="red"
-              link="/reports"
-              linkText="Reponer"
-            />
-          </>
-        )}
-
-        {isRecep && !isSuperAdmin && (
-          <>
-            <StatCard
-              label="Caja de Hoy"
-              value={data.metrics.caja_abierta ? "Abierta" : "Cerrada"}
-              icon={DollarSign}
-              color={data.metrics.caja_abierta ? "green" : "red"}
-              link="/finance"
-              linkText="Ver finanzas"
-            />
-            <StatCard
-              label="Equipos p/ Entrega"
-              value={data.metrics.ready_tickets || 0}
-              icon={Package}
-              color="blue"
-              link="/tickets?estado=READY"
-            />
-            <StatCard
-              label="Ingresos del Día"
-              value={`S/ ${parseFloat(data.metrics.daily_revenue || 0).toFixed(2)}`}
-              icon={TrendingUp}
-              color="green"
-            />
-            <StatCard
-              label="Cobros Pendientes"
-              value={data.metrics.pending_payments_count || 0}
-              icon={Clock}
-              color="amber"
-            />
-          </>
-        )}
-
-        {isTech && !isSuperAdmin && (
-          <>
-            <StatCard
-              label="Mis Tickets Activos"
-              value={data.metrics.my_active_tickets || 0}
-              icon={Clock}
-              color="blue"
-              link="/tickets"
-              linkText="Mi Cola"
-            />
-            <StatCard
-              label="Urgentes"
-              value={data.metrics.my_urgent_tickets || 0}
-              icon={AlertTriangle}
-              color="red"
-            />
-            <StatCard
-              label="Completados Hoy"
-              value={data.metrics.my_completed_today || 0}
-              icon={CheckCircle}
-              color="green"
-            />
-            <StatCard
-              label="En Pruebas"
-              value={data.metrics.my_testing_tickets || 0}
-              icon={Package}
-              color="indigo"
-            />
-          </>
-        )}
-
-        {isAlmacenero && !isSuperAdmin && (
-          <>
-            <StatCard
-              label="Stock Crítico"
-              value={data.metrics.low_stock_alerts || 0}
-              icon={AlertTriangle}
-              color="red"
-              link="/inventory"
-            />
-            <StatCard
-              label="Total Productos"
-              value={data.metrics.total_products || 0}
-              icon={Package}
-              color="blue"
-              link="/inventory"
-            />
-            <StatCard
-              label="Valor Inventario"
-              value={`S/ ${parseFloat(data.metrics.inventory_value || 0).toFixed(2)}`}
-              icon={DollarSign}
-              color="green"
-            />
-            <StatCard
-              label="OC Abiertas"
-              value={data.metrics.pending_purchase_orders || 0}
-              icon={BarChart3}
-              color="indigo"
-              link="/suppliers/orders"
-            />
-          </>
-        )}
-      </div>
-
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-        <div className="lg:col-span-2">
-          {isAdmin && (
-            <SimpleBarChart
-              title="Distribución de Tickets por Estado"
-              data={data.charts.tickets_by_status || {}}
-              icon={BarChart3}
-              colorClass="bg-[#5A89E8]"
-            />
-          )}
-          {isRecep && !isSuperAdmin && (
-            <SimpleBarChart
-              title="Ingresos por Método de Pago (Hoy)"
-              data={data.charts.revenue_by_method || {}}
-              icon={PieChart}
-              colorClass="bg-[var(--color-success)]"
-            />
-          )}
-          {isTech && !isSuperAdmin && (
-            <SimpleBarChart
-              title="Mi Estado de Trabajo Actual"
-              data={data.charts.my_status_distribution || {}}
-              icon={BarChart3}
-              colorClass="bg-[var(--color-brand-orange)]"
-            />
-          )}
-          {isAlmacenero && !isSuperAdmin && (
-            <SimpleBarChart
-              title="Productos con Menor Stock"
-              data={data.charts.low_stock_products || {}}
-              icon={Package}
-              colorClass="bg-[var(--color-danger)]"
-            />
-          )}
-        </div>
-
-        <div className="space-y-6">
-          <div className="bg-white border border-[var(--gray-200)] rounded-xl p-6 shadow-[var(--shadow-sm)] flex flex-col justify-center h-full">
-            <div className="flex items-center gap-3 text-[var(--color-brand-blue)] mb-4">
-              <div className="p-2 bg-[var(--color-info-bg)] rounded-lg">
-                <CheckCircle size={24} />
-              </div>
-              <h3 className="text-lg font-bold">Estado del Sistema</h3>
-            </div>
-            <p className="text-[var(--gray-600)] text-sm leading-relaxed mb-6">
-              Todos los módulos están operando con normalidad. No se reportan
-              incidencias técnicas.
+    <div className="mx-auto max-w-[1440px] p-8 max-sm:p-5">
+      <div className="mb-6 rounded-xl border border-[var(--gray-200)] bg-white p-5 shadow-[var(--shadow-sm)]">
+        <div className="flex items-start justify-between gap-5 max-lg:flex-col">
+          <div>
+            <p className="mb-1 text-[12px] font-black uppercase tracking-[0.08em] text-[var(--color-brand-blue)]">Dashboard Argos ERP</p>
+            <h1 className="text-[24px] font-bold text-[var(--gray-800)]">Hola, {user?.nombre || "Usuario"}</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[var(--gray-500)]">
+              Selecciona la vista operativa disponible para tus roles. Los datos se actualizan automaticamente cada minuto.
             </p>
-            <div className="flex items-center gap-2 text-[10px] font-black bg-[var(--gray-50)] text-[var(--gray-500)] w-fit px-3 py-1.5 rounded-full uppercase tracking-widest border border-[var(--gray-200)]">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
-              SISTEMA OPERATIVO
-            </div>
+          </div>
+          <div className="rounded-full border border-[var(--gray-200)] bg-[var(--gray-50)] px-3 py-1.5 text-[12px] font-bold text-[var(--gray-500)]">
+            {user?.roles?.join(" + ") || user?.role || "Personal"}
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Actividad Reciente */}
-        <div className="lg:col-span-2">
-          <div className="bg-white border border-[var(--gray-200)] rounded-xl shadow-[var(--shadow-sm)] overflow-hidden">
-            <div className="px-6 py-4 border-b border-[var(--gray-100)] flex justify-between items-center bg-[var(--gray-50)]">
-              <h2 className="text-[14px] font-bold text-[var(--gray-800)] uppercase tracking-tight">
-                Actividad Reciente
-              </h2>
-              <Link
-                to="/tickets"
-                className="text-[11px] font-bold text-[var(--color-brand-blue)] hover:underline uppercase tracking-wider"
-              >
-                VER TODOS
-              </Link>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-[var(--gray-50)] text-[10px] font-bold text-[var(--gray-400)] uppercase tracking-wider border-b border-[var(--gray-100)]">
-                  <tr>
-                    <th className="px-6 py-3 text-left">Folio</th>
-                    <th className="px-6 py-3 text-left">Cliente / Equipo</th>
-                    <th className="px-6 py-3 text-left">Estado</th>
-                    <th className="px-6 py-4 text-right">Acción</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--gray-100)]">
-                  {recentTickets && recentTickets.length > 0 ? (
-                    (recentTickets as Ticket[]).map((ticket) => (
-                      <tr
-                        key={ticket.id}
-                        className="hover:bg-[var(--gray-50)] transition-colors"
-                      >
-                        <td className="px-6 py-4 text-sm font-bold text-[var(--color-brand-blue)]">
-                          {ticket.folio}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold text-[var(--gray-700)]">
-                              {ticket.customer?.nombre || "-"}
-                            </span>
-                            <span className="text-[11px] font-medium text-[var(--gray-400)]">
-                              {ticket.device?.marca} {ticket.device?.modelo}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <TicketStatusBadge status={ticket.estado} />
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <Link to={`/tickets/${ticket.id}`}>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="font-bold text-xs"
-                            >
-                              VER DETALLE
-                            </Button>
-                          </Link>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className="px-6 py-10 text-center text-[var(--gray-400)] italic text-sm"
-                      >
-                        No hay actividad reciente para mostrar.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+      <DashboardTabs available={availableDashboards} active={activeDashboard} onChange={setActiveDashboard} />
 
-        {/* Alertas Críticas */}
-        <div className="space-y-6">
-          {data.metrics.low_stock_alerts > 0 && (
-            <div className="bg-[var(--color-danger-bg)] border border-[var(--color-danger-border)] rounded-xl p-6 shadow-sm">
-              <div className="flex items-center gap-3 text-[var(--color-danger)] mb-4">
-                <AlertTriangle size={24} />
-                <h4 className="font-extrabold text-[15px] uppercase tracking-tight">
-                  Alertas de Stock
-                </h4>
-              </div>
-              <p className="text-sm text-[var(--color-danger)] mb-6 leading-relaxed font-medium">
-                Hay **{data.metrics.low_stock_alerts}** productos que requieren
-                reposición inmediata.
-              </p>
-              <Link to="/reports">
-                <Button variant="danger" className="w-full font-bold">
-                  Revisar faltantes
-                </Button>
-              </Link>
-            </div>
-          )}
-
-          <div className="bg-white border border-[var(--gray-200)] rounded-xl p-6">
-            <h4 className="text-[13px] font-bold text-[var(--gray-800)] uppercase tracking-wider mb-4 border-b border-[var(--gray-100)] pb-3">
-              Resumen de Turno
-            </h4>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-medium text-[var(--gray-500)]">
-                  Iniciado por
-                </span>
-                <span className="text-xs font-bold text-[var(--gray-800)]">
-                  {user?.nombre}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-medium text-[var(--gray-500)]">
-                  Rol asignado
-                </span>
-                <span className="text-xs font-bold text-[var(--color-brand-blue)] bg-[var(--color-info-bg)] px-2 py-0.5 rounded-full">
-                  {user?.role}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      {activeDashboard === "admin" && activeSection && <AdminDashboard section={activeSection} />}
+      {activeDashboard === "reception" && activeSection && <ReceptionDashboard section={activeSection} />}
+      {activeDashboard === "technician" && activeSection && <TechnicianDashboard section={activeSection} />}
+      {activeDashboard === "warehouse" && activeSection && <WarehouseDashboard section={activeSection} />}
     </div>
   );
 };

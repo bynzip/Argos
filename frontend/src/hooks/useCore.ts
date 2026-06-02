@@ -9,10 +9,18 @@ export interface Notification {
 }
 
 export interface DashboardData {
-  role: string;
+  available_dashboards: DashboardKey[];
+  default_dashboard: DashboardKey | null;
+  dashboards: Partial<Record<DashboardKey, DashboardSection>>;
+  generated_at: string;
+}
+
+export type DashboardKey = 'admin' | 'reception' | 'technician' | 'warehouse';
+
+export interface DashboardSection {
   metrics: Record<string, any>;
-  charts: Record<string, Record<string, number>>;
-  recent_activity: any[];
+  charts: Record<string, any>;
+  actions: Record<string, any[]>;
 }
 
 export interface CompanyProfile {

@@ -6,18 +6,22 @@ from .models import Role, User, UserRole
 
 class UserReadSerializer(serializers.ModelSerializer):
     role = serializers.SerializerMethodField()
+    roles = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = (
             'id', 'username', 'email', 'nombre', 'is_active', 'subarea',
-            'active_ticket_count', 'role', 'permissions', 'is_superuser'
+            'active_ticket_count', 'role', 'roles', 'permissions', 'is_superuser'
         )
 
     def get_role(self, obj):
         user_role = obj.user_roles.first()
         return user_role.role.nombre if user_role else None
+
+    def get_roles(self, obj):
+        return list(obj.user_roles.select_related('role').values_list('role__nombre', flat=True))
 
     def get_permissions(self, obj):
         if obj.is_superuser:
