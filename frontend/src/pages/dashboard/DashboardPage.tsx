@@ -127,19 +127,6 @@ function formatNumber(value: unknown) {
   return Number(value || 0).toLocaleString("es-PE");
 }
 
-function formatDateTime(value: unknown) {
-  if (!value) return "Sin fecha";
-  const date = new Date(String(value));
-  if (Number.isNaN(date.getTime())) return "Sin fecha";
-  return date.toLocaleString("es-PE", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
-
 function formatAuditDate(value: unknown) {
   if (!value) return "Sin fecha";
   const date = new Date(String(value));
@@ -159,6 +146,12 @@ function formatAuditTime(value: unknown) {
     minute: "2-digit",
     hour12: false,
   });
+}
+
+function auditRecordMeta(item: any, actionLabel: string) {
+  if (item.user) return `Modificado por ${item.user}`;
+  if (item.model_name) return `${actionLabel} en ${item.model_name}`;
+  return actionLabel;
 }
 
 function percentage(value: number, max: number) {
@@ -417,8 +410,8 @@ function PaymentDonut({ data }: { data: Record<string, number> }) {
         className="relative grid h-[158px] w-[158px] place-items-center rounded-full shadow-[0_10px_24px_rgba(35,71,165,.10)] before:absolute before:inset-[18px] before:rounded-full before:bg-white before:shadow-[inset_0_0_0_1px_var(--gray-200)]"
         style={{ background: `conic-gradient(${segments.join(", ")})` }}
       >
-        <div className="relative text-center">
-          <strong className="block max-w-[96px] text-[18px] leading-tight text-[var(--gray-800)]">{formatMoney(total)}</strong>
+        <div className="relative translate-y-1 text-center">
+          <strong className="block max-w-[96px] text-[16px] leading-tight text-[var(--gray-800)]">{formatMoney(total)}</strong>
           <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Turno</span>
         </div>
       </div>
@@ -479,7 +472,7 @@ function AdminDashboard({ section, tabs }: { section: DashboardSection; tabs: Re
   const decisionItems: ActionItem[] = [
     ...(actions.pending_digital_payments || []).map((item: any) => ({
       id: `payment-${item.id}`,
-      title: `Confirmar pago ${item.folio}`,
+      title: `Pago ${item.folio}`,
       meta: `${item.ticket_folio || "Sin ticket"} - ${formatMoney(item.amount)} via ${paymentLabels[item.method] || item.method}`,
       badge: "Pago digital",
       href: item.ticket_id ? `/tickets/${item.ticket_id}` : "/finance",
@@ -560,7 +553,7 @@ function ReceptionDashboard({ section, tabs }: { section: DashboardSection; tabs
     })),
     ...(actions.pending_digital_payments || []).map((item: any) => ({
       id: `payment-${item.id}`,
-      title: `Confirmar pago ${item.folio}`,
+      title: `Pago ${item.folio}`,
       meta: `${item.ticket_folio || "Sin ticket"} - ${formatMoney(item.amount)} via ${paymentLabels[item.method] || item.method}`,
       badge: "Pago digital",
       href: item.ticket_id ? `/tickets/${item.ticket_id}` : "/finance",
@@ -720,18 +713,8 @@ function AuditList({ items }: { items: any[] }) {
     return <p className="py-8 text-center text-sm font-medium text-[var(--gray-400)]">Sin actividad reciente.</p>;
   }
 
-  const modulesCount = new Set(items.map((item) => item.module).filter(Boolean)).size;
-  const usersCount = new Set(items.map((item) => item.user).filter(Boolean)).size;
-  const latest = items[0]?.created_at;
-
   return (
-    <div className="min-h-[210px] space-y-4">
-      <div className="grid grid-cols-3 gap-3 max-sm:grid-cols-1">
-        <MiniInfo title="Eventos" value={formatNumber(items.length)} />
-        <MiniInfo title="Modulos" value={formatNumber(modulesCount)} />
-        <MiniInfo title="Ultimo cambio" value={formatDateTime(latest)} />
-      </div>
-
+    <div className="min-h-[210px]">
       <div className="overflow-x-auto rounded-lg border border-[var(--gray-200)]">
         <table className="w-full min-w-[680px] border-collapse bg-white">
           <thead>
@@ -747,23 +730,20 @@ function AuditList({ items }: { items: any[] }) {
             {items.map((item) => {
               const actionLabel = item.action_label || auditActionLabels[item.action] || item.action || "Actividad";
               const recordLabel = item.object_repr || item.object_id || item.module;
-              const recordMeta = `${item.model_name || "Registro"}${item.object_id ? ` #${item.object_id}` : ""}`;
-              const recordContent = (
-                <>
-                  <strong className="block truncate text-[13px] text-[var(--gray-800)]">{recordLabel}</strong>
-                  <span className="mt-0.5 block truncate text-[11px] font-bold text-[var(--gray-400)]">{recordMeta}</span>
-                </>
-              );
+              const recordMeta = auditRecordMeta(item, actionLabel);
               return (
                 <tr key={item.id} className="border-b border-[var(--gray-100)] last:border-0">
                   <td className="px-4 py-3">
-                    {item.related_url ? (
-                      <Link to={item.related_url} className="block min-w-0 hover:underline">
-                        {recordContent}
-                      </Link>
-                    ) : (
-                      <div className="min-w-0">{recordContent}</div>
-                    )}
+                    <div className="min-w-0">
+                      {item.related_url ? (
+                        <Link to={item.related_url} className="inline-block max-w-full truncate text-[13px] font-bold text-[var(--gray-800)] hover:underline">
+                          {recordLabel}
+                        </Link>
+                      ) : (
+                        <strong className="block truncate text-[13px] text-[var(--gray-800)]">{recordLabel}</strong>
+                      )}
+                      <span className="mt-0.5 block truncate text-[11px] font-bold text-[var(--gray-400)]">{recordMeta}</span>
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <span className={cn("inline-flex rounded-full border px-2 py-1 text-[11px] font-bold", auditActionClasses[item.action] || auditActionClasses.SYSTEM)}>
@@ -782,11 +762,6 @@ function AuditList({ items }: { items: any[] }) {
           </tbody>
         </table>
       </div>
-      {!!usersCount && (
-        <div className="rounded-lg border border-[var(--gray-200)] bg-white px-4 py-3 text-[12px] text-[var(--gray-500)]">
-          <strong className="text-[var(--gray-700)]">{formatNumber(usersCount)} usuarios</strong> generaron actividad reciente en los modulos sensibles.
-        </div>
-      )}
     </div>
   );
 }

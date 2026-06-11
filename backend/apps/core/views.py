@@ -385,7 +385,7 @@ class DashboardViewSet(viewsets.ViewSet):
                 'low_stock': [self._serialize_low_stock_product(product) for product in low_stock_products_qs[:5]],
                 'audit_logs': [
                     self._serialize_audit_log(log)
-                    for log in AuditLog.objects.select_related('user').order_by('-created_at')[:8]
+                    for log in AuditLog.objects.select_related('user').order_by('-created_at')[:6]
                 ],
             },
         }
