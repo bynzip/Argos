@@ -136,6 +136,28 @@ function formatDateTime(value: unknown) {
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function formatAuditDate(value: unknown) {
+  if (!value) return "Sin fecha";
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return "Sin fecha";
+  return date.toLocaleDateString("es-PE", {
+    day: "2-digit",
+    month: "short",
+  });
+}
+
+function formatAuditTime(value: unknown) {
+  if (!value) return "--:--";
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return "--:--";
+  return date.toLocaleTimeString("es-PE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
   });
 }
 
@@ -662,7 +684,7 @@ function DashboardShell({
 }) {
   return (
     <div className="px-1">
-      <div className="mb-5 flex items-end justify-between gap-5 max-lg:flex-col max-lg:items-start">
+      <div className="mb-5 mt-3 flex items-end justify-between gap-5 px-3 max-lg:flex-col max-lg:items-start">
         <div>
           <p className="mb-1 text-[12px] font-black uppercase tracking-[0.08em] text-[var(--color-brand-blue)]">{eyebrow}</p>
           <h1 className="text-[24px] font-bold leading-tight text-[var(--gray-800)]">{title}</h1>
@@ -711,33 +733,37 @@ function AuditList({ items }: { items: any[] }) {
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-[var(--gray-200)]">
-        <table className="w-full min-w-[760px] border-collapse bg-white">
+        <table className="w-full min-w-[680px] border-collapse bg-white">
           <thead>
             <tr className="border-b border-[var(--gray-200)] bg-[var(--gray-50)]">
               <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Registro</th>
               <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Accion</th>
               <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Modulo</th>
               <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Usuario</th>
-              <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Cambios</th>
               <th className="px-4 py-3 text-right text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Fecha</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item) => {
               const actionLabel = item.action_label || auditActionLabels[item.action] || item.action || "Actividad";
-              const changedFields = Array.isArray(item.changed_fields) ? item.changed_fields : [];
+              const recordLabel = item.object_repr || item.object_id || item.module;
+              const recordMeta = `${item.model_name || "Registro"}${item.object_id ? ` #${item.object_id}` : ""}`;
+              const recordContent = (
+                <>
+                  <strong className="block truncate text-[13px] text-[var(--gray-800)]">{recordLabel}</strong>
+                  <span className="mt-0.5 block truncate text-[11px] font-bold text-[var(--gray-400)]">{recordMeta}</span>
+                </>
+              );
               return (
                 <tr key={item.id} className="border-b border-[var(--gray-100)] last:border-0">
                   <td className="px-4 py-3">
-                    <div className="grid grid-cols-[30px_1fr] items-center gap-3">
-                      <span className={cn("grid h-7 w-7 place-items-center rounded-full border text-[11px] font-black", auditActionClasses[item.action] || auditActionClasses.SYSTEM)}>
-                        {(item.user || "S").slice(0, 1)}
-                      </span>
-                      <div className="min-w-0">
-                        <strong className="block truncate text-[13px] text-[var(--gray-800)]">{item.object_repr || item.object_id || item.module}</strong>
-                        <span className="mt-0.5 block truncate text-[11px] font-bold text-[var(--gray-400)]">{item.model_name || "Registro"} {item.object_id ? `#${item.object_id}` : ""}</span>
-                      </div>
-                    </div>
+                    {item.related_url ? (
+                      <Link to={item.related_url} className="block min-w-0 hover:underline">
+                        {recordContent}
+                      </Link>
+                    ) : (
+                      <div className="min-w-0">{recordContent}</div>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span className={cn("inline-flex rounded-full border px-2 py-1 text-[11px] font-bold", auditActionClasses[item.action] || auditActionClasses.SYSTEM)}>
@@ -746,20 +772,10 @@ function AuditList({ items }: { items: any[] }) {
                   </td>
                   <td className="px-4 py-3 text-[12px] font-bold text-[var(--gray-600)]">{item.module || "Sistema"}</td>
                   <td className="px-4 py-3 text-[12px] text-[var(--gray-600)]">{item.user || "Sistema"}</td>
-                  <td className="px-4 py-3">
-                    {changedFields.length ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {changedFields.slice(0, 3).map((field: string) => (
-                          <span key={field} className="rounded-full bg-[var(--gray-100)] px-2 py-0.5 text-[11px] font-bold text-[var(--gray-500)]">
-                            {field}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-[12px] text-[var(--gray-400)]">Sin detalle</span>
-                    )}
+                  <td className="px-4 py-3 text-right">
+                    <span className="block text-[12px] font-bold text-[var(--gray-700)]">{formatAuditDate(item.created_at)}</span>
+                    <span className="mt-0.5 block text-[11px] font-bold text-[var(--gray-400)]">{formatAuditTime(item.created_at)}</span>
                   </td>
-                  <td className="px-4 py-3 text-right text-[12px] font-bold text-[var(--gray-500)]">{formatDateTime(item.created_at)}</td>
                 </tr>
               );
             })}
@@ -859,7 +875,7 @@ const DashboardPage = () => {
 
   return (
     <div className="mx-auto max-w-[1440px] px-8 pb-8 pt-2 max-sm:px-4 max-sm:pb-4 max-sm:pt-2">
-      <div className="mb-6 rounded-xl border border-[var(--gray-200)] bg-white p-4 shadow-[var(--shadow-sm)]">
+      <div className="mb-8 rounded-xl border border-[var(--gray-200)] bg-white p-4 shadow-[var(--shadow-sm)]">
         <div className="flex items-center justify-between gap-5 max-lg:flex-col max-lg:items-start">
           <div>
             <p className="mb-1 text-[12px] font-black uppercase tracking-[0.08em] text-[var(--color-brand-blue)]">Dashboard Argos ERP</p>

@@ -13,7 +13,15 @@ from apps.customers.models import Customer
 from apps.finance.models import CashClosure, Discount, PaymentReversal, PaymentSchedule, Receipt
 from apps.products.models import Product, StockReservation
 from apps.quotes.models import Quote
-from apps.tickets.models import Ticket, TicketTransition
+from apps.tickets.models import (
+    Ticket,
+    TicketAccessory,
+    TicketChecklistEvidence,
+    TicketChecklistItem,
+    TicketEvidence,
+    TicketSubareaMovement,
+    TicketTransition,
+)
 from apps.users.models import User
 from apps.users.permissions import RolePermission
 
@@ -191,6 +199,39 @@ class DashboardViewSet(viewsets.ViewSet):
             'created_at': reservation.created_at,
         }
 
+    def _audit_related_url(self, log):
+        related_data = {}
+        for source in (log.extra, log.after_data, log.before_data):
+            if isinstance(source, dict):
+                related_data.update(source)
+
+        ticket_id = related_data.get('ticket_id') or related_data.get('ticket_padre_id')
+        if ticket_id:
+            return f'/tickets/{ticket_id}'
+
+        if log.model_name == 'Ticket' and log.object_id:
+            return f'/tickets/{log.object_id}'
+
+        ticket_models = {
+            'TicketAccessory': TicketAccessory,
+            'TicketEvidence': TicketEvidence,
+            'TicketTransition': TicketTransition,
+            'TicketChecklistItem': TicketChecklistItem,
+            'TicketSubareaMovement': TicketSubareaMovement,
+        }
+        model = ticket_models.get(log.model_name)
+        if model and log.object_id:
+            obj = model.objects.filter(pk=log.object_id).only('ticket_id').first()
+            if obj and getattr(obj, 'ticket_id', None):
+                return f'/tickets/{obj.ticket_id}'
+
+        if log.model_name == 'TicketChecklistEvidence' and log.object_id:
+            evidence = TicketChecklistEvidence.objects.select_related('checklist_item').filter(pk=log.object_id).first()
+            if evidence and evidence.checklist_item_id:
+                return f'/tickets/{evidence.checklist_item.ticket_id}'
+
+        return ''
+
     def _serialize_audit_log(self, log):
         before_data = log.before_data if isinstance(log.before_data, dict) else {}
         after_data = log.after_data if isinstance(log.after_data, dict) else {}
@@ -210,6 +251,7 @@ class DashboardViewSet(viewsets.ViewSet):
             'user': log.user.nombre if log.user_id else 'Sistema',
             'changed_fields': changed_fields,
             'extra': log.extra or {},
+            'related_url': self._audit_related_url(log),
             'created_at': log.created_at,
         }
 
