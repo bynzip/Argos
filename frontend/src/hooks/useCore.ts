@@ -56,6 +56,10 @@ export const useDashboard = () => {
       const response = await axios.get('/api/core/dashboard/');
       return response.data as DashboardData;
     },
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     refetchInterval: 60000, // Refetch every 1 minute
   });
 };

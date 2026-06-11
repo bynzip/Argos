@@ -239,6 +239,7 @@ class DashboardViewSet(viewsets.ViewSet):
             estado__in=[PurchaseOrder.Status.RECEIVED, PurchaseOrder.Status.CLOSED_INCOMPLETE, PurchaseOrder.Status.CANCELLED]
         )
         cash_differences = CashClosure.objects.filter(estado=CashClosure.Status.CLOSED, closed_at__date=today).exclude(difference=0)
+        pending_digital = Receipt.objects.filter(estado=Receipt.ReceiptStatus.PENDING).exclude(metodo_pago=Receipt.PaymentMethod.CASH)
         technicians = User.objects.filter(user_roles__role__nombre__in=['Técnico', 'TÃ©cnico']).distinct()
         technician_load = []
         for technician in technicians:
@@ -261,6 +262,7 @@ class DashboardViewSet(viewsets.ViewSet):
                 'low_stock_alerts': low_stock_products_qs.count(),
                 'pending_discounts': Discount.objects.filter(estado=Discount.DiscountStatus.PENDING).count(),
                 'pending_reversals': PaymentReversal.objects.filter(estado=PaymentReversal.ReversalStatus.PENDING).count(),
+                'pending_digital_payments': pending_digital.count(),
                 'overdue_installments': PaymentSchedule.objects.filter(esta_pagado=False, due_date__lt=today).count(),
                 'clientes_morosos': Customer.objects.filter(etiqueta='MOROSO').count(),
                 'purchase_orders_open': open_purchase_orders.count(),
@@ -271,9 +273,19 @@ class DashboardViewSet(viewsets.ViewSet):
                 'ticket_flow': self._ticket_status_counts(active_tickets_qs),
                 'revenue_trend': self._build_revenue_trend(today),
                 'payment_methods_today': self._payment_method_totals(today),
-                'technician_load': technician_load,
             },
             'actions': {
+                'pending_digital_payments': [
+                    {
+                        'id': receipt.id,
+                        'folio': receipt.folio,
+                        'method': receipt.metodo_pago,
+                        'amount': self._money(receipt.amount),
+                        'ticket_folio': receipt.ticket.folio if receipt.ticket_id else '',
+                        'created_at': receipt.created_at,
+                    }
+                    for receipt in pending_digital.select_related('ticket').order_by('-created_at')[:4]
+                ],
                 'pending_discounts': [
                     {
                         'id': discount.id,
@@ -374,11 +386,9 @@ class DashboardViewSet(viewsets.ViewSet):
 
     def _build_technician_dashboard(self, context):
         today = context['today']
-        user = context['user']
-        my_tickets = Ticket.objects.select_related('customer', 'device').filter(assigned_to=user)
-        my_active_tickets = my_tickets.exclude(estado__in=self.closed_ticket_statuses)
-        completed_today = TicketTransition.objects.filter(cambiado_por=user, estado_nuevo=Ticket.TicketStatus.READY, created_at__date=today).count()
-        active_count = my_active_tickets.count()
+        active_tickets = Ticket.objects.select_related('customer', 'device').exclude(estado__in=self.closed_ticket_statuses)
+        completed_today = TicketTransition.objects.filter(estado_nuevo=Ticket.TicketStatus.READY, created_at__date=today).count()
+        active_count = active_tickets.count()
         progress_rate = round((completed_today / max(active_count + completed_today, 1)) * 100)
         technical_states = [
             Ticket.TicketStatus.DIAGNOSTIC,
@@ -390,21 +400,26 @@ class DashboardViewSet(viewsets.ViewSet):
 
         return {
             'metrics': {
+                'active_tickets': active_count,
+                'urgent_tickets': active_tickets.filter(prioridad=Ticket.TicketPriority.CRITICAL).count(),
+                'completed_today': completed_today,
+                'waiting_parts': active_tickets.filter(estado=Ticket.TicketStatus.WAITING_PARTS).count(),
+                'testing_tickets': active_tickets.filter(estado=Ticket.TicketStatus.IN_TESTING).count(),
                 'my_active_tickets': active_count,
-                'my_urgent_tickets': my_active_tickets.filter(prioridad=Ticket.TicketPriority.CRITICAL).count(),
+                'my_urgent_tickets': active_tickets.filter(prioridad=Ticket.TicketPriority.CRITICAL).count(),
                 'my_completed_today': completed_today,
-                'my_waiting_parts': my_active_tickets.filter(estado=Ticket.TicketStatus.WAITING_PARTS).count(),
-                'my_testing_tickets': my_active_tickets.filter(estado=Ticket.TicketStatus.IN_TESTING).count(),
+                'my_waiting_parts': active_tickets.filter(estado=Ticket.TicketStatus.WAITING_PARTS).count(),
+                'my_testing_tickets': active_tickets.filter(estado=Ticket.TicketStatus.IN_TESTING).count(),
                 'progress_rate': progress_rate,
             },
             'charts': {
-                'status_distribution': {state: my_active_tickets.filter(estado=state).count() for state in technical_states},
+                'status_distribution': {state: active_tickets.filter(estado=state).count() for state in technical_states},
             },
             'actions': {
-                'diagnosis_queue': [self._serialize_ticket(ticket) for ticket in my_active_tickets.filter(estado=Ticket.TicketStatus.DIAGNOSTIC).order_by('created_at')[:4]],
-                'repair_queue': [self._serialize_ticket(ticket) for ticket in my_active_tickets.filter(estado=Ticket.TicketStatus.IN_REPAIR).order_by('created_at')[:4]],
-                'testing_queue': [self._serialize_ticket(ticket) for ticket in my_active_tickets.filter(estado=Ticket.TicketStatus.IN_TESTING).order_by('created_at')[:4]],
-                'waiting_parts': [self._serialize_ticket(ticket) for ticket in my_active_tickets.filter(estado=Ticket.TicketStatus.WAITING_PARTS).order_by('created_at')[:4]],
+                'diagnosis_queue': [self._serialize_ticket(ticket) for ticket in active_tickets.filter(estado=Ticket.TicketStatus.DIAGNOSTIC).order_by('created_at')[:4]],
+                'repair_queue': [self._serialize_ticket(ticket) for ticket in active_tickets.filter(estado=Ticket.TicketStatus.IN_REPAIR).order_by('created_at')[:4]],
+                'testing_queue': [self._serialize_ticket(ticket) for ticket in active_tickets.filter(estado=Ticket.TicketStatus.IN_TESTING).order_by('created_at')[:4]],
+                'waiting_parts': [self._serialize_ticket(ticket) for ticket in active_tickets.filter(estado=Ticket.TicketStatus.WAITING_PARTS).order_by('created_at')[:4]],
             },
         }
 

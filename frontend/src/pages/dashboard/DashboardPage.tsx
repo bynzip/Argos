@@ -47,6 +47,7 @@ const dashboardLabels: Record<DashboardKey, { label: string; icon: ElementType }
   technician: { label: "Tecnico", icon: Wrench },
   warehouse: { label: "Almacen", icon: Boxes },
 };
+const dashboardKeys = Object.keys(dashboardLabels) as DashboardKey[];
 
 const statusLabels: Record<string, string> = {
   INTAKE: "Ingreso",
@@ -85,6 +86,18 @@ const toneClasses: Record<MetricTone, string> = {
   neutral: "bg-[var(--gray-100)] text-[var(--gray-500)] border-[var(--gray-200)]",
 };
 
+const dashboardSessionKey = "argos.dashboard.active";
+
+const ticketStatusToneClasses: Record<string, string> = {
+  INTAKE: "border-[var(--color-info-border)] bg-[var(--color-info-bg)]",
+  DIAGNOSTIC: "border-[var(--color-info-border)] bg-[var(--color-info-bg)]",
+  QUOTED: "border-[var(--color-warning-border)] bg-[var(--color-warning-bg)]",
+  IN_REPAIR: "border-[#FFD3C2] bg-[#FFF7F3]",
+  IN_TESTING: "border-[#B8E5FF] bg-[#F0F9FF]",
+  READY: "border-[var(--color-success-border)] bg-[var(--color-success-bg)]",
+  STORAGE: "border-[var(--color-danger-border)] bg-[var(--color-danger-bg)]",
+};
+
 function formatMoney(value: unknown) {
   const amount = Number(value || 0);
   return `S/ ${amount.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -109,7 +122,7 @@ function DashboardTabs({
   onChange: (key: DashboardKey) => void;
 }) {
   return (
-    <div className="mb-6 overflow-x-auto">
+    <div className="overflow-x-auto">
       <div className="inline-flex rounded-[10px] border border-[var(--gray-200)] bg-white p-1 shadow-[var(--shadow-sm)]">
         {available.map((key) => {
           const Icon = dashboardLabels[key].icon;
@@ -168,15 +181,17 @@ function SectionCard({
   title,
   subtitle,
   action,
+  className,
   children,
 }: {
   title: string;
   subtitle?: string;
   action?: ReactNode;
+  className?: string;
   children: ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-xl border border-[var(--gray-200)] bg-white shadow-[var(--shadow-sm)]">
+    <section className={cn("overflow-hidden rounded-xl border border-[var(--gray-200)] bg-white shadow-[var(--shadow-sm)]", className)}>
       <header className="flex min-h-14 items-center justify-between gap-4 border-b border-[var(--gray-200)] px-5 py-4">
         <div>
           <h2 className="text-[15px] font-bold text-[var(--gray-800)]">{title}</h2>
@@ -284,10 +299,8 @@ function TicketFlowChart({ data }: { data: Record<string, number> }) {
           <div
             key={key}
             className={cn(
-              "relative min-h-[90px] rounded-lg border bg-white p-3 shadow-[var(--shadow-sm)]",
-              key === "IN_REPAIR" && "border-[#FFD3C2] bg-[#FFF7F3]",
-              key === "READY" && "border-[var(--color-success-border)] bg-[var(--color-success-bg)]",
-              key === "STORAGE" && "border-[var(--color-danger-border)] bg-[var(--color-danger-bg)]",
+              "relative min-h-[90px] rounded-lg border p-3 shadow-[var(--shadow-sm)]",
+              ticketStatusToneClasses[key] || "border-[var(--gray-200)] bg-[var(--gray-50)]",
             )}
           >
             {index < order.length - 1 && (
@@ -406,42 +419,17 @@ function TechnicianWorkChart({ section }: { section: DashboardSection }) {
   );
 }
 
-function StockHeatmap({ items }: { items: any[] }) {
-  if (!items?.length) {
-    return <p className="py-8 text-center text-sm font-medium text-[var(--gray-400)]">Sin productos bajo minimo.</p>;
-  }
-
-  const barData = items.slice(0, 5).reduce<Record<string, number>>((acc, item) => {
-    acc[item.nombre] = Number(item.stock_disponible || 0);
-    return acc;
-  }, {});
-
-  return (
-    <div className="rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] p-4">
-      <div className="mb-4 grid grid-cols-4 gap-2 max-lg:grid-cols-2">
-        {items.slice(0, 8).map((item) => {
-          const available = Number(item.stock_disponible || 0);
-          const min = Number(item.stock_minimo || 0);
-          const tone = available <= Math.max(1, min / 2) ? "border-[var(--color-danger-border)] bg-[var(--color-danger-bg)]" : "border-[var(--color-warning-border)] bg-[var(--color-warning-bg)]";
-          return (
-            <div key={item.id} className={cn("min-h-[74px] rounded-lg border p-3", tone)}>
-              <strong className="block text-[18px] leading-none text-[var(--gray-800)]">{available}</strong>
-              <span className="mt-2 block truncate text-[11px] font-black uppercase tracking-[0.04em] text-[var(--gray-600)]">
-                {item.nombre}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      <BarRows data={barData} colors={{}} />
-    </div>
-  );
-}
-
-function AdminDashboard({ section }: { section: DashboardSection }) {
+function AdminDashboard({ section, tabs }: { section: DashboardSection; tabs: ReactNode }) {
   const metrics = section.metrics;
   const actions = section.actions;
   const decisionItems: ActionItem[] = [
+    ...(actions.pending_digital_payments || []).map((item: any) => ({
+      id: `payment-${item.id}`,
+      title: `Confirmar pago ${item.folio}`,
+      meta: `${item.ticket_folio || "Sin ticket"} - ${formatMoney(item.amount)} via ${paymentLabels[item.method] || item.method}`,
+      badge: "Pago digital",
+      href: "/finance",
+    })),
     ...(actions.pending_discounts || []).map((item: any) => ({
       id: `discount-${item.id}`,
       title: `Descuento ${formatMoney(item.amount)}`,
@@ -463,13 +451,12 @@ function AdminDashboard({ section }: { section: DashboardSection }) {
       eyebrow="Administrador / Dueno"
       title="Cabina de control del negocio"
       subtitle="Finanzas, operacion, riesgos, aprobaciones, personal, inventario y auditoria."
-      primaryHref="/reports"
-      primaryLabel="Ver reportes"
+      headerAction={tabs}
     >
       <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Ingresos hoy" value={formatMoney(metrics.daily_revenue)} note="Recibos confirmados." icon={TrendingUp} tone="green" />
         <MetricCard label="Tickets activos" value={formatNumber(metrics.active_tickets)} note={`${formatNumber(metrics.ready_tickets)} listos o en cochera.`} icon={Ticket} href="/tickets" />
-        <MetricCard label="Aprobaciones" value={formatNumber(Number(metrics.pending_discounts || 0) + Number(metrics.pending_reversals || 0))} note="Descuentos y reversas pendientes." icon={ShieldCheck} tone="amber" href="/finance" />
+        <MetricCard label="Aprobaciones" value={formatNumber(Number(metrics.pending_discounts || 0) + Number(metrics.pending_reversals || 0) + Number(metrics.pending_digital_payments || 0))} note="Pagos, descuentos y reversas pendientes." icon={ShieldCheck} tone="amber" href="/finance" />
         <MetricCard label="Stock critico" value={formatNumber(metrics.low_stock_alerts)} note="Productos bajo minimo." icon={AlertTriangle} tone="red" href="/inventory" />
       </div>
 
@@ -492,10 +479,7 @@ function AdminDashboard({ section }: { section: DashboardSection }) {
             <MiniInfo title="Morosos" value={formatNumber(metrics.clientes_morosos)} />
           </div>
         </SectionCard>
-        <SectionCard title="Rendimiento tecnico" subtitle="Carga actual por tecnico.">
-          <TechnicianLoad items={section.charts.technician_load || []} />
-        </SectionCard>
-        <SectionCard title="Auditoria reciente" subtitle="Cambios sensibles del sistema.">
+        <SectionCard className="xl:col-span-2" title="Auditoria reciente" subtitle="Cambios sensibles del sistema.">
           <AuditList items={actions.audit_logs || []} />
         </SectionCard>
       </div>
@@ -503,7 +487,7 @@ function AdminDashboard({ section }: { section: DashboardSection }) {
   );
 }
 
-function ReceptionDashboard({ section }: { section: DashboardSection }) {
+function ReceptionDashboard({ section, tabs }: { section: DashboardSection; tabs: ReactNode }) {
   const metrics = section.metrics;
   const actions = section.actions;
   const workItems: ActionItem[] = [
@@ -528,8 +512,7 @@ function ReceptionDashboard({ section }: { section: DashboardSection }) {
       eyebrow="Recepcion / Caja"
       title="Mostrador, cobros y entregas"
       subtitle="Entrada de equipos, pagos, cotizaciones y entrega segura."
-      primaryHref="/tickets/new"
-      primaryLabel="Nuevo ticket"
+      headerAction={tabs}
     >
       <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Caja del turno" value={metrics.cash_open ? "Abierta" : "Cerrada"} note={`Esperado: ${formatMoney(metrics.cash_expected_amount)}`} icon={DollarSign} tone={metrics.cash_open ? "green" : "red"} href="/finance" />
@@ -559,9 +542,14 @@ function ReceptionDashboard({ section }: { section: DashboardSection }) {
   );
 }
 
-function TechnicianDashboard({ section }: { section: DashboardSection }) {
+function TechnicianDashboard({ section, tabs }: { section: DashboardSection; tabs: ReactNode }) {
   const metrics = section.metrics;
   const actions = section.actions;
+  const activeTickets = metrics.active_tickets ?? metrics.my_active_tickets;
+  const urgentTickets = metrics.urgent_tickets ?? metrics.my_urgent_tickets;
+  const completedToday = metrics.completed_today ?? metrics.my_completed_today;
+  const waitingParts = metrics.waiting_parts ?? metrics.my_waiting_parts;
+  const testingTickets = metrics.testing_tickets ?? metrics.my_testing_tickets;
   const workItems: ActionItem[] = [
     ...(actions.diagnosis_queue || []).map((ticket: any) => ({ id: `d-${ticket.id}`, title: `Diagnosticar ${ticket.folio}`, meta: `${ticket.customer} - ${ticket.device}`, href: `/tickets/${ticket.id}` })),
     ...(actions.repair_queue || []).map((ticket: any) => ({ id: `r-${ticket.id}`, title: `Reparar ${ticket.folio}`, meta: `${ticket.customer} - ${ticket.device}`, href: `/tickets/${ticket.id}` })),
@@ -572,24 +560,23 @@ function TechnicianDashboard({ section }: { section: DashboardSection }) {
   return (
     <DashboardShell
       eyebrow="Tecnico / Taller"
-      title="Cola de reparacion y control de calidad"
+      title="Carga general de taller"
       subtitle="Diagnostico, reparacion, reservas y checklist sin ruido financiero."
-      primaryHref="/tickets"
-      primaryLabel="Abrir mi cola"
+      headerAction={tabs}
     >
       <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <MetricCard label="Mis tickets" value={formatNumber(metrics.my_active_tickets)} note="Carga activa." icon={ClipboardCheck} />
-        <MetricCard label="Urgentes" value={formatNumber(metrics.my_urgent_tickets)} note="Prioridad critica." icon={AlertTriangle} tone="red" />
-        <MetricCard label="Listos hoy" value={formatNumber(metrics.my_completed_today)} note="Movidos a listo." icon={CheckCircle} tone="green" />
-        <MetricCard label="Espera repuesto" value={formatNumber(metrics.my_waiting_parts)} note="Bloqueados por stock." icon={Package} tone="amber" />
-        <MetricCard label="En pruebas" value={formatNumber(metrics.my_testing_tickets)} note="Checklist y QC." icon={Sparkles} tone="orange" />
+        <MetricCard label="Tickets activos" value={formatNumber(activeTickets)} note="Carga activa del taller." icon={ClipboardCheck} />
+        <MetricCard label="Urgentes" value={formatNumber(urgentTickets)} note="Prioridad critica." icon={AlertTriangle} tone="red" />
+        <MetricCard label="Listos hoy" value={formatNumber(completedToday)} note="Movidos a listo." icon={CheckCircle} tone="green" />
+        <MetricCard label="Espera repuesto" value={formatNumber(waitingParts)} note="Bloqueados por stock." icon={Package} tone="amber" />
+        <MetricCard label="En pruebas" value={formatNumber(testingTickets)} note="Checklist y QC." icon={Sparkles} tone="orange" />
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.2fr_.9fr]">
         <SectionCard title="Siguiente mejor accion" subtitle="Ordenado por prioridad, estado y antiguedad.">
           <ActionQueue items={workItems} emptyText="No hay trabajo tecnico pendiente." />
         </SectionCard>
-        <SectionCard title="Mi distribucion de trabajo" subtitle="Grafico corregido sin gauge circular.">
+        <SectionCard title="Distribucion general de trabajo" subtitle="Grafico corregido sin gauge circular.">
           <TechnicianWorkChart section={section} />
         </SectionCard>
       </div>
@@ -597,38 +584,22 @@ function TechnicianDashboard({ section }: { section: DashboardSection }) {
   );
 }
 
-function WarehouseDashboard({ section }: { section: DashboardSection }) {
+function WarehouseDashboard({ section, tabs }: { section: DashboardSection; tabs: ReactNode }) {
   const metrics = section.metrics;
   const actions = section.actions;
-  const reservationItems: ActionItem[] = (actions.reservations_to_deliver || []).map((reservation: any) => ({
-    id: reservation.id,
-    title: reservation.product,
-    meta: `${reservation.ticket_folio} - tecnico ${reservation.technician || "sin asignar"} - cant. ${reservation.cantidad}`,
-    href: "/inventory/reservations",
-  }));
 
   return (
     <DashboardShell
       eyebrow="Almacen / Logistica"
       title="Inventario, reservas y compras"
       subtitle="Stock disponible, reservas fisicas y ordenes de compra."
-      primaryHref="/suppliers/orders/new"
-      primaryLabel="Nueva orden"
+      headerAction={tabs}
     >
       <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Stock bajo" value={formatNumber(metrics.low_stock_alerts)} note="Productos bajo minimo." icon={AlertTriangle} tone="red" href="/inventory" />
         <MetricCard label="Reservas activas" value={formatNumber(metrics.active_reservations)} note={`${formatNumber(metrics.pending_delivery_reservations)} por entregar.`} icon={Package} tone="amber" href="/inventory/reservations" />
         <MetricCard label="OC abiertas" value={formatNumber(metrics.purchase_orders_open)} note={`${formatNumber(metrics.purchase_orders_partially_received)} parciales.`} icon={FileText} href="/suppliers/orders" />
         <MetricCard label="Valor inventario" value={formatMoney(metrics.inventory_value)} note="Segun precio de venta." icon={DollarSign} tone="green" />
-      </div>
-
-      <div className="mb-5 grid grid-cols-1 gap-5 xl:grid-cols-[1fr_1fr]">
-        <SectionCard title="Reservas por entregar" subtitle="Evita piezas separadas sin control.">
-          <ActionQueue items={reservationItems} emptyText="No hay reservas pendientes de entrega." />
-        </SectionCard>
-        <SectionCard title="Productos bajo minimo" subtitle="Disponible = fisico - reservado.">
-          <StockHeatmap items={section.charts.low_stock_products || []} />
-        </SectionCard>
       </div>
 
       <SectionCard title="Compras y recepciones" subtitle="Ordenes abiertas y mercaderia esperada." action={<ActionLink href="/suppliers/orders">Ver compras</ActionLink>}>
@@ -642,15 +613,13 @@ function DashboardShell({
   eyebrow,
   title,
   subtitle,
-  primaryHref,
-  primaryLabel,
+  headerAction,
   children,
 }: {
   eyebrow: string;
   title: string;
   subtitle: string;
-  primaryHref: string;
-  primaryLabel: string;
+  headerAction?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -661,12 +630,7 @@ function DashboardShell({
           <h1 className="text-[24px] font-bold leading-tight text-[var(--gray-800)]">{title}</h1>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[var(--gray-500)]">{subtitle}</p>
         </div>
-        <Link
-          to={primaryHref}
-          className="inline-flex h-[38px] items-center justify-center gap-2 rounded-lg bg-brand-gradient px-5 text-sm font-semibold text-white shadow-[0_2px_8px_rgba(35,71,165,0.20)] transition hover:opacity-90"
-        >
-          {primaryLabel}
-        </Link>
+        {headerAction}
       </div>
       {children}
     </div>
@@ -688,25 +652,6 @@ function QuickLink({ title, description, href }: { title: string; description: s
       <strong className="block text-[13px] text-[var(--gray-800)]">{title}</strong>
       <span className="mt-1 block text-[12px] leading-relaxed text-[var(--gray-500)]">{description}</span>
     </Link>
-  );
-}
-
-function TechnicianLoad({ items }: { items: any[] }) {
-  if (!items.length) {
-    return <p className="py-8 text-center text-sm font-medium text-[var(--gray-400)]">Sin tecnicos con carga activa.</p>;
-  }
-  return (
-    <div className="space-y-3">
-      {items.map((item) => (
-        <div key={item.id} className="rounded-lg border border-[var(--gray-200)] p-3">
-          <div className="mb-2 flex justify-between gap-3">
-            <strong className="text-[13px] text-[var(--gray-800)]">{item.nombre}</strong>
-            <span className="text-[12px] font-bold text-[var(--color-brand-blue)]">{item.active_tickets} activos</span>
-          </div>
-          <BarRows data={{ Listos: item.ready_today, Urgentes: item.urgent_tickets, Activos: item.active_tickets }} />
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -766,7 +711,11 @@ function PurchaseOrdersTable({ items }: { items: any[] }) {
 const DashboardPage = () => {
   const { data, isLoading } = useDashboard();
   const { user } = useAuthStore();
-  const [activeDashboard, setActiveDashboard] = useState<DashboardKey | null>(null);
+  const [activeDashboard, setActiveDashboard] = useState<DashboardKey | null>(() => {
+    if (typeof window === "undefined") return null;
+    const saved = window.sessionStorage.getItem(dashboardSessionKey) as DashboardKey | null;
+    return saved && dashboardKeys.includes(saved) ? saved : null;
+  });
 
   const availableDashboards = data?.available_dashboards || [];
   const defaultDashboard = data?.default_dashboard || null;
@@ -777,6 +726,18 @@ const DashboardPage = () => {
       setActiveDashboard(defaultDashboard);
     }
   }, [activeDashboard, availableDashboards, data, defaultDashboard]);
+
+  useEffect(() => {
+    if (!activeDashboard || !availableDashboards.includes(activeDashboard) || typeof window === "undefined") return;
+    window.sessionStorage.setItem(dashboardSessionKey, activeDashboard);
+  }, [activeDashboard, availableDashboards]);
+
+  const handleDashboardChange = (key: DashboardKey) => {
+    setActiveDashboard(key);
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(dashboardSessionKey, key);
+    }
+  };
 
   const activeSection = useMemo(() => {
     if (!data || !activeDashboard) return null;
@@ -795,9 +756,11 @@ const DashboardPage = () => {
     );
   }
 
+  const tabs = <DashboardTabs available={availableDashboards} active={activeDashboard} onChange={handleDashboardChange} />;
+
   return (
-    <div className="mx-auto max-w-[1440px] p-8 max-sm:p-5">
-      <div className="mb-6 rounded-xl border border-[var(--gray-200)] bg-white p-5 shadow-[var(--shadow-sm)]">
+    <div className="mx-auto max-w-[1440px] px-8 pb-8 pt-4 max-sm:p-4">
+      <div className="mb-4 rounded-xl border border-[var(--gray-200)] bg-white p-4 shadow-[var(--shadow-sm)]">
         <div className="flex items-start justify-between gap-5 max-lg:flex-col">
           <div>
             <p className="mb-1 text-[12px] font-black uppercase tracking-[0.08em] text-[var(--color-brand-blue)]">Dashboard Argos ERP</p>
@@ -812,12 +775,10 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      <DashboardTabs available={availableDashboards} active={activeDashboard} onChange={setActiveDashboard} />
-
-      {activeDashboard === "admin" && activeSection && <AdminDashboard section={activeSection} />}
-      {activeDashboard === "reception" && activeSection && <ReceptionDashboard section={activeSection} />}
-      {activeDashboard === "technician" && activeSection && <TechnicianDashboard section={activeSection} />}
-      {activeDashboard === "warehouse" && activeSection && <WarehouseDashboard section={activeSection} />}
+      {activeDashboard === "admin" && activeSection && <AdminDashboard section={activeSection} tabs={tabs} />}
+      {activeDashboard === "reception" && activeSection && <ReceptionDashboard section={activeSection} tabs={tabs} />}
+      {activeDashboard === "technician" && activeSection && <TechnicianDashboard section={activeSection} tabs={tabs} />}
+      {activeDashboard === "warehouse" && activeSection && <WarehouseDashboard section={activeSection} tabs={tabs} />}
     </div>
   );
 };
