@@ -77,6 +77,26 @@ const paymentColors: Record<string, string> = {
   CARD: "#7C3AED",
 };
 
+const auditActionLabels: Record<string, string> = {
+  CREATE: "Crear",
+  UPDATE: "Editar",
+  DELETE: "Eliminar",
+  STATUS_CHANGE: "Cambio de estado",
+  APPROVAL: "Aprobacion",
+  PAYMENT: "Pago",
+  SYSTEM: "Sistema",
+};
+
+const auditActionClasses: Record<string, string> = {
+  CREATE: "border-[var(--color-success-border)] bg-[var(--color-success-bg)] text-[var(--color-success)]",
+  UPDATE: "border-[var(--color-info-border)] bg-[var(--color-info-bg)] text-[var(--color-brand-blue)]",
+  DELETE: "border-[var(--color-danger-border)] bg-[var(--color-danger-bg)] text-[var(--color-danger)]",
+  STATUS_CHANGE: "border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] text-[var(--color-warning)]",
+  APPROVAL: "border-[#DDD6FE] bg-[#F5F3FF] text-[#6D28D9]",
+  PAYMENT: "border-[var(--color-success-border)] bg-[var(--color-success-bg)] text-[var(--color-success)]",
+  SYSTEM: "border-[var(--gray-200)] bg-[var(--gray-100)] text-[var(--gray-500)]",
+};
+
 const toneClasses: Record<MetricTone, string> = {
   blue: "bg-[var(--color-info-bg)] text-[var(--color-brand-blue)] border-[var(--color-info-border)]",
   green: "bg-[var(--color-success-bg)] text-[var(--color-success)] border-[var(--color-success-border)]",
@@ -105,6 +125,18 @@ function formatMoney(value: unknown) {
 
 function formatNumber(value: unknown) {
   return Number(value || 0).toLocaleString("es-PE");
+}
+
+function formatDateTime(value: unknown) {
+  if (!value) return "Sin fecha";
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return "Sin fecha";
+  return date.toLocaleString("es-PE", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function percentage(value: number, max: number) {
@@ -428,7 +460,7 @@ function AdminDashboard({ section, tabs }: { section: DashboardSection; tabs: Re
       title: `Confirmar pago ${item.folio}`,
       meta: `${item.ticket_folio || "Sin ticket"} - ${formatMoney(item.amount)} via ${paymentLabels[item.method] || item.method}`,
       badge: "Pago digital",
-      href: "/finance",
+      href: item.ticket_id ? `/tickets/${item.ticket_id}` : "/finance",
     })),
     ...(actions.pending_discounts || []).map((item: any) => ({
       id: `discount-${item.id}`,
@@ -448,7 +480,7 @@ function AdminDashboard({ section, tabs }: { section: DashboardSection; tabs: Re
 
   return (
     <DashboardShell
-      eyebrow="Administrador / Dueno"
+      eyebrow="Administrador / Gestion"
       title="Cabina de control del negocio"
       subtitle="Finanzas, operacion, riesgos, aprobaciones, personal, inventario y auditoria."
       headerAction={tabs}
@@ -503,7 +535,13 @@ function ReceptionDashboard({ section, tabs }: { section: DashboardSection; tabs
       title: `Cobrar ${ticket.folio}`,
       meta: `${ticket.customer} - saldo ${formatMoney(ticket.saldo_pendiente)}`,
       href: `/tickets/${ticket.id}`,
-      danger: true,
+    })),
+    ...(actions.pending_digital_payments || []).map((item: any) => ({
+      id: `payment-${item.id}`,
+      title: `Confirmar pago ${item.folio}`,
+      meta: `${item.ticket_folio || "Sin ticket"} - ${formatMoney(item.amount)} via ${paymentLabels[item.method] || item.method}`,
+      badge: "Pago digital",
+      href: item.ticket_id ? `/tickets/${item.ticket_id}` : "/finance",
     })),
   ].slice(0, 5);
 
@@ -624,13 +662,13 @@ function DashboardShell({
 }) {
   return (
     <div>
-      <div className="mb-6 flex items-start justify-between gap-5 max-lg:flex-col">
+      <div className="mx-1 mb-5 flex items-end justify-between gap-5 max-lg:flex-col max-lg:items-start">
         <div>
           <p className="mb-1 text-[12px] font-black uppercase tracking-[0.08em] text-[var(--color-brand-blue)]">{eyebrow}</p>
           <h1 className="text-[24px] font-bold leading-tight text-[var(--gray-800)]">{title}</h1>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[var(--gray-500)]">{subtitle}</p>
         </div>
-        {headerAction}
+        {headerAction && <div className="self-end pb-1 max-lg:self-start max-lg:pb-0">{headerAction}</div>}
       </div>
       {children}
     </div>
@@ -659,19 +697,63 @@ function AuditList({ items }: { items: any[] }) {
   if (!items.length) {
     return <p className="py-8 text-center text-sm font-medium text-[var(--gray-400)]">Sin actividad reciente.</p>;
   }
+
+  const modulesCount = new Set(items.map((item) => item.module).filter(Boolean)).size;
+  const usersCount = new Set(items.map((item) => item.user).filter(Boolean)).size;
+  const latest = items[0]?.created_at;
+
   return (
-    <div className="space-y-3">
-      {items.map((item) => (
-        <div key={item.id} className="grid grid-cols-[28px_1fr] gap-3">
-          <span className="grid h-7 w-7 place-items-center rounded-full border border-[var(--color-info-border)] bg-[var(--color-info-bg)] text-[11px] font-black text-[var(--color-brand-blue)]">
-            {item.action?.[0] || "A"}
-          </span>
-          <div>
-            <strong className="block text-[13px] text-[var(--gray-800)]">{item.object_repr || item.module}</strong>
-            <span className="block text-[12px] text-[var(--gray-500)]">{item.user} - {item.action}</span>
+    <div className="min-h-[210px] space-y-4">
+      <div className="grid grid-cols-3 gap-3 max-sm:grid-cols-1">
+        <MiniInfo title="Eventos" value={formatNumber(items.length)} />
+        <MiniInfo title="Modulos" value={formatNumber(modulesCount)} />
+        <MiniInfo title="Ultimo cambio" value={formatDateTime(latest)} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+        {items.map((item) => {
+          const actionLabel = item.action_label || auditActionLabels[item.action] || item.action || "Actividad";
+          const changedFields = Array.isArray(item.changed_fields) ? item.changed_fields : [];
+          return (
+            <div key={item.id} className="rounded-lg border border-[var(--gray-200)] bg-[var(--gray-50)] p-4">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="grid grid-cols-[32px_1fr] gap-3">
+                  <span className={cn("grid h-8 w-8 place-items-center rounded-full border text-[11px] font-black", auditActionClasses[item.action] || auditActionClasses.SYSTEM)}>
+                    {(item.user || "S").slice(0, 1)}
+                  </span>
+                  <div className="min-w-0">
+                    <strong className="block truncate text-[13px] text-[var(--gray-800)]">{item.object_repr || item.object_id || item.module}</strong>
+                    <span className="mt-1 block text-[12px] text-[var(--gray-500)]">{item.user || "Sistema"} - {formatDateTime(item.created_at)}</span>
+                  </div>
+                </div>
+                <span className={cn("shrink-0 rounded-full border px-2 py-1 text-[11px] font-bold", auditActionClasses[item.action] || auditActionClasses.SYSTEM)}>
+                  {actionLabel}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[12px] max-sm:grid-cols-1">
+                <MiniInfo title="Modulo" value={item.module || "Sistema"} />
+                <MiniInfo title="Modelo" value={item.model_name || "Registro"} />
+              </div>
+
+              {!!changedFields.length && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {changedFields.map((field: string) => (
+                    <span key={field} className="rounded-full border border-[var(--gray-200)] bg-white px-2 py-1 text-[11px] font-bold text-[var(--gray-500)]">
+                      {field}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {!!usersCount && (
+        <div className="rounded-lg border border-[var(--gray-200)] bg-white px-4 py-3 text-[12px] text-[var(--gray-500)]">
+          <strong className="text-[var(--gray-700)]">{formatNumber(usersCount)} usuarios</strong> generaron actividad reciente en los modulos sensibles.
           </div>
-        </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -759,9 +841,9 @@ const DashboardPage = () => {
   const tabs = <DashboardTabs available={availableDashboards} active={activeDashboard} onChange={handleDashboardChange} />;
 
   return (
-    <div className="mx-auto max-w-[1440px] px-8 pb-8 pt-4 max-sm:p-4">
-      <div className="mb-4 rounded-xl border border-[var(--gray-200)] bg-white p-4 shadow-[var(--shadow-sm)]">
-        <div className="flex items-start justify-between gap-5 max-lg:flex-col">
+    <div className="mx-auto max-w-[1440px] px-8 pb-8 pt-[10px] max-sm:px-4 max-sm:pb-4 max-sm:pt-[10px]">
+      <div className="mb-[10px] rounded-xl border border-[var(--gray-200)] bg-white p-4 shadow-[var(--shadow-sm)]">
+        <div className="flex items-center justify-between gap-5 max-lg:flex-col max-lg:items-start">
           <div>
             <p className="mb-1 text-[12px] font-black uppercase tracking-[0.08em] text-[var(--color-brand-blue)]">Dashboard Argos ERP</p>
             <h1 className="text-[24px] font-bold text-[var(--gray-800)]">Hola, {user?.nombre || "Usuario"}</h1>

@@ -191,6 +191,28 @@ class DashboardViewSet(viewsets.ViewSet):
             'created_at': reservation.created_at,
         }
 
+    def _serialize_audit_log(self, log):
+        before_data = log.before_data if isinstance(log.before_data, dict) else {}
+        after_data = log.after_data if isinstance(log.after_data, dict) else {}
+        changed_fields = [
+            key for key in sorted(set(before_data.keys()) | set(after_data.keys()))
+            if before_data.get(key) != after_data.get(key)
+        ][:5]
+
+        return {
+            'id': log.id,
+            'action': log.action,
+            'action_label': log.get_action_display(),
+            'module': log.module,
+            'model_name': log.model_name,
+            'object_id': log.object_id,
+            'object_repr': log.object_repr,
+            'user': log.user.nombre if log.user_id else 'Sistema',
+            'changed_fields': changed_fields,
+            'extra': log.extra or {},
+            'created_at': log.created_at,
+        }
+
     def _build_revenue_trend(self, today):
         start_date = today - timezone.timedelta(days=6)
         totals = {
@@ -281,6 +303,7 @@ class DashboardViewSet(viewsets.ViewSet):
                         'folio': receipt.folio,
                         'method': receipt.metodo_pago,
                         'amount': self._money(receipt.amount),
+                        'ticket_id': str(receipt.ticket_id) if receipt.ticket_id else '',
                         'ticket_folio': receipt.ticket.folio if receipt.ticket_id else '',
                         'created_at': receipt.created_at,
                     }
@@ -319,15 +342,8 @@ class DashboardViewSet(viewsets.ViewSet):
                 ],
                 'low_stock': [self._serialize_low_stock_product(product) for product in low_stock_products_qs[:5]],
                 'audit_logs': [
-                    {
-                        'id': log.id,
-                        'action': log.action,
-                        'module': log.module,
-                        'object_repr': log.object_repr,
-                        'user': log.user.nombre if log.user_id else 'Sistema',
-                        'created_at': log.created_at,
-                    }
-                    for log in AuditLog.objects.select_related('user').order_by('-created_at')[:5]
+                    self._serialize_audit_log(log)
+                    for log in AuditLog.objects.select_related('user').order_by('-created_at')[:8]
                 ],
             },
         }
@@ -366,6 +382,7 @@ class DashboardViewSet(viewsets.ViewSet):
                         'folio': receipt.folio,
                         'method': receipt.metodo_pago,
                         'amount': self._money(receipt.amount),
+                        'ticket_id': str(receipt.ticket_id) if receipt.ticket_id else '',
                         'ticket_folio': receipt.ticket.folio if receipt.ticket_id else '',
                         'created_at': receipt.created_at,
                     }
