@@ -396,8 +396,8 @@ function PaymentDonut({ data }: { data: Record<string, number> }) {
         style={{ background: `conic-gradient(${segments.join(", ")})` }}
       >
         <div className="relative text-center">
-          <strong className="block text-[23px] leading-none text-[var(--gray-800)]">{formatMoney(total)}</strong>
-          <span className="mt-1 block text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Turno</span>
+          <strong className="block max-w-[96px] text-[18px] leading-tight text-[var(--gray-800)]">{formatMoney(total)}</strong>
+          <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Turno</span>
         </div>
       </div>
       <div className="w-full space-y-3">
@@ -661,8 +661,8 @@ function DashboardShell({
   children: ReactNode;
 }) {
   return (
-    <div>
-      <div className="mx-1 mb-5 flex items-end justify-between gap-5 max-lg:flex-col max-lg:items-start">
+    <div className="px-1">
+      <div className="mb-5 flex items-end justify-between gap-5 max-lg:flex-col max-lg:items-start">
         <div>
           <p className="mb-1 text-[12px] font-black uppercase tracking-[0.08em] text-[var(--color-brand-blue)]">{eyebrow}</p>
           <h1 className="text-[24px] font-bold leading-tight text-[var(--gray-800)]">{title}</h1>
@@ -710,49 +710,66 @@ function AuditList({ items }: { items: any[] }) {
         <MiniInfo title="Ultimo cambio" value={formatDateTime(latest)} />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-        {items.map((item) => {
-          const actionLabel = item.action_label || auditActionLabels[item.action] || item.action || "Actividad";
-          const changedFields = Array.isArray(item.changed_fields) ? item.changed_fields : [];
-          return (
-            <div key={item.id} className="rounded-lg border border-[var(--gray-200)] bg-[var(--gray-50)] p-4">
-              <div className="mb-3 flex items-start justify-between gap-3">
-                <div className="grid grid-cols-[32px_1fr] gap-3">
-                  <span className={cn("grid h-8 w-8 place-items-center rounded-full border text-[11px] font-black", auditActionClasses[item.action] || auditActionClasses.SYSTEM)}>
-                    {(item.user || "S").slice(0, 1)}
-                  </span>
-                  <div className="min-w-0">
-                    <strong className="block truncate text-[13px] text-[var(--gray-800)]">{item.object_repr || item.object_id || item.module}</strong>
-                    <span className="mt-1 block text-[12px] text-[var(--gray-500)]">{item.user || "Sistema"} - {formatDateTime(item.created_at)}</span>
-                  </div>
-                </div>
-                <span className={cn("shrink-0 rounded-full border px-2 py-1 text-[11px] font-bold", auditActionClasses[item.action] || auditActionClasses.SYSTEM)}>
-                  {actionLabel}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-[12px] max-sm:grid-cols-1">
-                <MiniInfo title="Modulo" value={item.module || "Sistema"} />
-                <MiniInfo title="Modelo" value={item.model_name || "Registro"} />
-              </div>
-
-              {!!changedFields.length && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {changedFields.map((field: string) => (
-                    <span key={field} className="rounded-full border border-[var(--gray-200)] bg-white px-2 py-1 text-[11px] font-bold text-[var(--gray-500)]">
-                      {field}
+      <div className="overflow-x-auto rounded-lg border border-[var(--gray-200)]">
+        <table className="w-full min-w-[760px] border-collapse bg-white">
+          <thead>
+            <tr className="border-b border-[var(--gray-200)] bg-[var(--gray-50)]">
+              <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Registro</th>
+              <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Accion</th>
+              <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Modulo</th>
+              <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Usuario</th>
+              <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Cambios</th>
+              <th className="px-4 py-3 text-right text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Fecha</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => {
+              const actionLabel = item.action_label || auditActionLabels[item.action] || item.action || "Actividad";
+              const changedFields = Array.isArray(item.changed_fields) ? item.changed_fields : [];
+              return (
+                <tr key={item.id} className="border-b border-[var(--gray-100)] last:border-0">
+                  <td className="px-4 py-3">
+                    <div className="grid grid-cols-[30px_1fr] items-center gap-3">
+                      <span className={cn("grid h-7 w-7 place-items-center rounded-full border text-[11px] font-black", auditActionClasses[item.action] || auditActionClasses.SYSTEM)}>
+                        {(item.user || "S").slice(0, 1)}
+                      </span>
+                      <div className="min-w-0">
+                        <strong className="block truncate text-[13px] text-[var(--gray-800)]">{item.object_repr || item.object_id || item.module}</strong>
+                        <span className="mt-0.5 block truncate text-[11px] font-bold text-[var(--gray-400)]">{item.model_name || "Registro"} {item.object_id ? `#${item.object_id}` : ""}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={cn("inline-flex rounded-full border px-2 py-1 text-[11px] font-bold", auditActionClasses[item.action] || auditActionClasses.SYSTEM)}>
+                      {actionLabel}
                     </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
+                  </td>
+                  <td className="px-4 py-3 text-[12px] font-bold text-[var(--gray-600)]">{item.module || "Sistema"}</td>
+                  <td className="px-4 py-3 text-[12px] text-[var(--gray-600)]">{item.user || "Sistema"}</td>
+                  <td className="px-4 py-3">
+                    {changedFields.length ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {changedFields.slice(0, 3).map((field: string) => (
+                          <span key={field} className="rounded-full bg-[var(--gray-100)] px-2 py-0.5 text-[11px] font-bold text-[var(--gray-500)]">
+                            {field}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-[12px] text-[var(--gray-400)]">Sin detalle</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right text-[12px] font-bold text-[var(--gray-500)]">{formatDateTime(item.created_at)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
       {!!usersCount && (
         <div className="rounded-lg border border-[var(--gray-200)] bg-white px-4 py-3 text-[12px] text-[var(--gray-500)]">
           <strong className="text-[var(--gray-700)]">{formatNumber(usersCount)} usuarios</strong> generaron actividad reciente en los modulos sensibles.
-          </div>
+        </div>
       )}
     </div>
   );
@@ -841,8 +858,8 @@ const DashboardPage = () => {
   const tabs = <DashboardTabs available={availableDashboards} active={activeDashboard} onChange={handleDashboardChange} />;
 
   return (
-    <div className="mx-auto max-w-[1440px] px-8 pb-8 pt-[10px] max-sm:px-4 max-sm:pb-4 max-sm:pt-[10px]">
-      <div className="mb-[10px] rounded-xl border border-[var(--gray-200)] bg-white p-4 shadow-[var(--shadow-sm)]">
+    <div className="mx-auto max-w-[1440px] px-8 pb-8 pt-2 max-sm:px-4 max-sm:pb-4 max-sm:pt-2">
+      <div className="mb-6 rounded-xl border border-[var(--gray-200)] bg-white p-4 shadow-[var(--shadow-sm)]">
         <div className="flex items-center justify-between gap-5 max-lg:flex-col max-lg:items-start">
           <div>
             <p className="mb-1 text-[12px] font-black uppercase tracking-[0.08em] text-[var(--color-brand-blue)]">Dashboard Argos ERP</p>
