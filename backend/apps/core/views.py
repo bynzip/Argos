@@ -200,6 +200,9 @@ class DashboardViewSet(viewsets.ViewSet):
         }
 
     def _audit_related_url(self, log):
+        from apps.suppliers.models import PurchaseOrder, PurchaseOrderItem, PurchaseOrderStatusHistory
+        from apps.quotes.models import Quote, QuoteApproval, QuoteAttachment, QuoteLine
+
         related_data = {}
         for source in (log.extra, log.after_data, log.before_data):
             if isinstance(source, dict):
@@ -211,6 +214,12 @@ class DashboardViewSet(viewsets.ViewSet):
 
         if log.model_name == 'Ticket' and log.object_id:
             return f'/tickets/{log.object_id}'
+
+        if log.model_name == 'Quote' and log.object_id:
+            return f'/quotes/{log.object_id}'
+
+        if log.model_name == 'PurchaseOrder' and log.object_id:
+            return f'/suppliers/orders/{log.object_id}'
 
         ticket_models = {
             'TicketAccessory': TicketAccessory,
@@ -230,7 +239,75 @@ class DashboardViewSet(viewsets.ViewSet):
             if evidence and evidence.checklist_item_id:
                 return f'/tickets/{evidence.checklist_item.ticket_id}'
 
+        quote_models = {
+            'QuoteLine': QuoteLine,
+            'QuoteApproval': QuoteApproval,
+            'QuoteAttachment': QuoteAttachment,
+        }
+        quote_model = quote_models.get(log.model_name)
+        if quote_model and log.object_id:
+            obj = quote_model.objects.filter(pk=log.object_id).only('quote_id').first()
+            if obj and getattr(obj, 'quote_id', None):
+                return f'/quotes/{obj.quote_id}'
+
+        purchase_order_models = {
+            'PurchaseOrderItem': PurchaseOrderItem,
+            'PurchaseOrderStatusHistory': PurchaseOrderStatusHistory,
+        }
+        purchase_order_model = purchase_order_models.get(log.model_name)
+        if purchase_order_model and log.object_id:
+            obj = purchase_order_model.objects.filter(pk=log.object_id).only('purchase_order_id').first()
+            if obj and getattr(obj, 'purchase_order_id', None):
+                return f'/suppliers/orders/{obj.purchase_order_id}'
+
         return ''
+
+    def _audit_display_label(self, log):
+        from apps.suppliers.models import PurchaseOrderItem, PurchaseOrderStatusHistory
+        from apps.quotes.models import QuoteApproval, QuoteAttachment, QuoteLine
+
+        if log.model_name == 'TicketChecklistItem' and log.object_id:
+            item = TicketChecklistItem.objects.filter(pk=log.object_id).only('nombre').first()
+            if item:
+                return item.nombre
+
+        if log.model_name == 'TicketChecklistEvidence' and log.object_id:
+            evidence = TicketChecklistEvidence.objects.select_related('checklist_item').filter(pk=log.object_id).first()
+            if evidence and evidence.checklist_item_id:
+                return evidence.checklist_item.nombre
+
+        if log.model_name == 'TicketTransition' and log.object_id:
+            transition = TicketTransition.objects.select_related('ticket').filter(pk=log.object_id).first()
+            if transition and transition.ticket_id:
+                return transition.ticket.folio
+
+        if log.model_name == 'TicketSubareaMovement' and log.object_id:
+            movement = TicketSubareaMovement.objects.select_related('ticket').filter(pk=log.object_id).first()
+            if movement and movement.ticket_id:
+                return movement.ticket.folio
+
+        if log.model_name == 'PurchaseOrderItem' and log.object_id:
+            item = PurchaseOrderItem.objects.select_related('purchase_order').filter(pk=log.object_id).first()
+            if item and item.purchase_order_id:
+                return item.purchase_order.folio
+
+        if log.model_name == 'PurchaseOrderStatusHistory' and log.object_id:
+            history = PurchaseOrderStatusHistory.objects.select_related('purchase_order').filter(pk=log.object_id).first()
+            if history and history.purchase_order_id:
+                return history.purchase_order.folio
+
+        quote_models = {
+            'QuoteLine': QuoteLine,
+            'QuoteApproval': QuoteApproval,
+            'QuoteAttachment': QuoteAttachment,
+        }
+        quote_model = quote_models.get(log.model_name)
+        if quote_model and log.object_id:
+            obj = quote_model.objects.select_related('quote').filter(pk=log.object_id).first()
+            if obj and getattr(obj, 'quote_id', None):
+                return obj.quote.folio
+
+        return log.object_repr or log.object_id or log.module
 
     def _serialize_audit_log(self, log):
         before_data = log.before_data if isinstance(log.before_data, dict) else {}
@@ -248,6 +325,7 @@ class DashboardViewSet(viewsets.ViewSet):
             'model_name': log.model_name,
             'object_id': log.object_id,
             'object_repr': log.object_repr,
+            'display_label': self._audit_display_label(log),
             'user': log.user.nombre if log.user_id else 'Sistema',
             'changed_fields': changed_fields,
             'extra': log.extra or {},

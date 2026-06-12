@@ -97,6 +97,17 @@ const auditActionClasses: Record<string, string> = {
   SYSTEM: "border-[var(--gray-200)] bg-[var(--gray-100)] text-[var(--gray-500)]",
 };
 
+const moduleLabels: Record<string, string> = {
+  tickets: "Tickets",
+  suppliers: "Compras",
+  quotes: "Cotizaciones",
+  finance: "Finanzas",
+  products: "Inventario",
+  customers: "Clientes",
+  hr: "RR.HH.",
+  system: "Sistema",
+};
+
 const toneClasses: Record<MetricTone, string> = {
   blue: "bg-[var(--color-info-bg)] text-[var(--color-brand-blue)] border-[var(--color-info-border)]",
   green: "bg-[var(--color-success-bg)] text-[var(--color-success)] border-[var(--color-success-border)]",
@@ -315,7 +326,7 @@ function BarRows({ data, colors }: { data: Record<string, number>; colors?: Reco
               className="h-full rounded-full"
               style={{
                 width: `${percentage(value, max)}%`,
-                background: colors?.[key] || "linear-gradient(90deg, var(--color-brand-blue), #5A89E8)",
+                background: colors?.[key] || "linear-gradient(90deg, var(--color-brand-blue), #93C5FD)",
               }}
             />
           </div>
@@ -354,7 +365,13 @@ function TicketFlowChart({ data }: { data: Record<string, number> }) {
           </div>
         ))}
       </div>
-      <BarRows data={filtered} />
+      <BarRows
+        data={filtered}
+        colors={order.reduce<Record<string, string>>((acc, key) => {
+          acc[key] = "linear-gradient(90deg, var(--color-brand-blue), #93C5FD)";
+          return acc;
+        }, {})}
+      />
     </div>
   );
 }
@@ -723,7 +740,8 @@ function AuditList({ items }: { items: any[] }) {
           <tbody>
             {items.map((item) => {
               const actionLabel = item.action_label || auditActionLabels[item.action] || item.action || "Actividad";
-              const recordLabel = item.object_repr || item.object_id || item.module;
+              const recordLabel = item.display_label || item.object_repr || item.object_id || item.module;
+              const moduleLabel = moduleLabels[item.module] || item.module || "Sistema";
               return (
                 <tr key={item.id} className="border-b border-[var(--gray-100)] last:border-0">
                   <td className="px-4 py-3">
@@ -742,7 +760,7 @@ function AuditList({ items }: { items: any[] }) {
                       {actionLabel}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-[12px] font-bold text-[var(--gray-600)]">{item.module || "Sistema"}</td>
+                  <td className="px-4 py-3 text-[12px] font-bold text-[var(--gray-600)]">{moduleLabel}</td>
                   <td className="px-4 py-3 text-[12px] text-[var(--gray-600)]">{item.user || "Sistema"}</td>
                   <td className="px-4 py-3 text-right">
                     <span className="block text-[12px] font-bold text-[var(--gray-700)]">{formatAuditDate(item.created_at)}</span>

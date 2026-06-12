@@ -74,6 +74,24 @@ const money = (value: string | number | null | undefined) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const formatTimelineDate = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Sin fecha';
+  return date.toLocaleString('es-PE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+};
+
+const formatTransitionReason = (reason?: string | null) => {
+  if (!reason) return '';
+  return reason.replace(/hacia\s+([A-Z_]+)/g, (_, status: string) => `hacia ${statusLabels[status]?.toLowerCase() || status.toLowerCase()}`);
+};
+
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -618,8 +636,8 @@ export default function TicketDetailPage() {
                 {orderedTransitions.map((transition: any) => (
                   <div key={transition.id} className="rounded-xl border border-[var(--gray-100)] bg-[var(--gray-50)] p-3">
                     <div className="font-semibold text-[var(--gray-800)]">{statusLabels[transition.estado_nuevo] || transition.estado_nuevo}</div>
-                    <div className="text-[12px] text-[var(--gray-500)]">{transition.cambiado_por?.nombre || 'Sistema'} Â· {new Date(transition.created_at).toLocaleString()}</div>
-                    {transition.motivo && <div className="mt-1 text-[12px] text-[var(--gray-500)]">{transition.motivo}</div>}
+                    <div className="text-[12px] text-[var(--gray-500)]">{transition.cambiado_por?.nombre || 'Sistema'} - {formatTimelineDate(transition.created_at)}</div>
+                    {transition.motivo && <div className="mt-1 text-[12px] text-[var(--gray-500)]">{formatTransitionReason(transition.motivo)}</div>}
                   </div>
                 ))}
               </div>
