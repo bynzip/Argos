@@ -70,11 +70,11 @@ const paymentLabels: Record<string, string> = {
 };
 
 const paymentColors: Record<string, string> = {
-  CASH: "var(--color-success)",
-  YAPE: "var(--color-brand-blue)",
-  PLIN: "var(--color-brand-orange)",
-  TRANSFER: "var(--color-brand-gold)",
-  CARD: "#7C3AED",
+  CASH: "#86EFAC",
+  YAPE: "#93C5FD",
+  PLIN: "#FDBA74",
+  TRANSFER: "#FDE68A",
+  CARD: "#C4B5FD",
 };
 
 const auditActionLabels: Record<string, string> = {
@@ -146,12 +146,6 @@ function formatAuditTime(value: unknown) {
     minute: "2-digit",
     hour12: false,
   });
-}
-
-function auditRecordMeta(item: any, actionLabel: string) {
-  if (item.user) return `Modificado por ${item.user}`;
-  if (item.model_name) return `${actionLabel} en ${item.model_name}`;
-  return actionLabel;
 }
 
 function percentage(value: number, max: number) {
@@ -448,18 +442,18 @@ function TechnicianWorkChart({ section }: { section: DashboardSection }) {
           <strong className="text-[24px] leading-none text-[var(--gray-800)]">{progressRate}%</strong>
         </div>
         <div className="h-3 overflow-hidden rounded-full bg-[var(--gray-100)]">
-          <div className="h-full rounded-full bg-[linear-gradient(90deg,var(--color-brand-blue),var(--color-brand-orange),var(--color-brand-gold))]" style={{ width: `${progressRate}%` }} />
+          <div className="h-full rounded-full bg-[linear-gradient(90deg,var(--color-brand-blue),#93C5FD)]" style={{ width: `${progressRate}%` }} />
         </div>
         <p className="mt-2 text-[12px] text-[var(--gray-500)]">Calculado con tickets listos hoy frente a carga activa.</p>
       </div>
       <BarRows
         data={distribution}
         colors={{
-          DIAGNOSTIC: "linear-gradient(90deg, var(--color-brand-blue), #5A89E8)",
-          QUOTED: "linear-gradient(90deg, var(--color-brand-gold), #FDE68A)",
-          IN_REPAIR: "linear-gradient(90deg, var(--color-brand-orange), #FDBA74)",
-          IN_TESTING: "linear-gradient(90deg, var(--color-success), #86EFAC)",
-          WAITING_PARTS: "linear-gradient(90deg, var(--color-danger), #FCA5A5)",
+          DIAGNOSTIC: "linear-gradient(90deg, var(--color-brand-blue), #93C5FD)",
+          QUOTED: "linear-gradient(90deg, var(--color-brand-blue), #93C5FD)",
+          IN_REPAIR: "linear-gradient(90deg, var(--color-brand-blue), #93C5FD)",
+          IN_TESTING: "linear-gradient(90deg, var(--color-brand-blue), #93C5FD)",
+          WAITING_PARTS: "linear-gradient(90deg, var(--color-brand-blue), #93C5FD)",
         }}
       />
     </div>
@@ -716,21 +710,20 @@ function AuditList({ items }: { items: any[] }) {
   return (
     <div className="min-h-[210px]">
       <div className="overflow-x-auto rounded-lg border border-[var(--gray-200)]">
-        <table className="w-full min-w-[680px] border-collapse bg-white">
+        <table className="w-full min-w-[680px] table-fixed border-collapse bg-white">
           <thead>
             <tr className="border-b border-[var(--gray-200)] bg-[var(--gray-50)]">
-              <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Registro</th>
-              <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Accion</th>
-              <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Modulo</th>
-              <th className="px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Usuario</th>
-              <th className="px-4 py-3 text-right text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Fecha</th>
+              <th className="w-[34%] px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Registro</th>
+              <th className="w-[18%] px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Accion</th>
+              <th className="w-[16%] px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Modulo</th>
+              <th className="w-[20%] px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Usuario</th>
+              <th className="w-[12%] px-4 py-3 text-right text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Fecha</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item) => {
               const actionLabel = item.action_label || auditActionLabels[item.action] || item.action || "Actividad";
               const recordLabel = item.object_repr || item.object_id || item.module;
-              const recordMeta = auditRecordMeta(item, actionLabel);
               return (
                 <tr key={item.id} className="border-b border-[var(--gray-100)] last:border-0">
                   <td className="px-4 py-3">
@@ -742,7 +735,6 @@ function AuditList({ items }: { items: any[] }) {
                       ) : (
                         <strong className="block truncate text-[13px] text-[var(--gray-800)]">{recordLabel}</strong>
                       )}
-                      <span className="mt-0.5 block truncate text-[11px] font-bold text-[var(--gray-400)]">{recordMeta}</span>
                     </div>
                   </td>
                   <td className="px-4 py-3">
