@@ -267,14 +267,24 @@ class DashboardViewSet(viewsets.ViewSet):
         from apps.quotes.models import QuoteApproval, QuoteAttachment, QuoteLine
 
         if log.model_name == 'TicketChecklistItem' and log.object_id:
-            item = TicketChecklistItem.objects.filter(pk=log.object_id).only('nombre').first()
-            if item:
-                return item.nombre
+            item = TicketChecklistItem.objects.select_related('ticket').filter(pk=log.object_id).first()
+            if item and item.ticket_id:
+                return item.ticket.folio
 
         if log.model_name == 'TicketChecklistEvidence' and log.object_id:
             evidence = TicketChecklistEvidence.objects.select_related('checklist_item').filter(pk=log.object_id).first()
             if evidence and evidence.checklist_item_id:
-                return evidence.checklist_item.nombre
+                return evidence.checklist_item.ticket.folio
+
+        ticket_child_models = {
+            'TicketAccessory': TicketAccessory,
+            'TicketEvidence': TicketEvidence,
+        }
+        ticket_child_model = ticket_child_models.get(log.model_name)
+        if ticket_child_model and log.object_id:
+            obj = ticket_child_model.objects.select_related('ticket').filter(pk=log.object_id).first()
+            if obj and getattr(obj, 'ticket_id', None):
+                return obj.ticket.folio
 
         if log.model_name == 'TicketTransition' and log.object_id:
             transition = TicketTransition.objects.select_related('ticket').filter(pk=log.object_id).first()
