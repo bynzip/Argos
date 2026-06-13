@@ -727,14 +727,14 @@ function AuditList({ items }: { items: any[] }) {
   return (
     <div className="min-h-[210px]">
       <div className="overflow-x-auto rounded-lg border border-[var(--gray-200)]">
-        <table className="w-full min-w-[680px] table-fixed border-collapse bg-white">
+        <table className="w-full min-w-[640px] table-fixed border-collapse bg-white">
           <thead>
             <tr className="border-b border-[var(--gray-200)] bg-[var(--gray-50)]">
-              <th className="w-[34%] px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Registro</th>
-              <th className="w-[18%] px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Accion</th>
-              <th className="w-[16%] px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Modulo</th>
-              <th className="w-[20%] px-4 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Usuario</th>
-              <th className="w-[12%] px-4 py-3 text-right text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Fecha</th>
+              <th className="w-[24%] px-3 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Registro</th>
+              <th className="w-[23%] px-3 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Accion</th>
+              <th className="w-[17%] px-3 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Modulo</th>
+              <th className="w-[24%] px-3 py-3 text-left text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Usuario</th>
+              <th className="w-[12%] px-3 py-3 text-right text-[11px] font-black uppercase tracking-[0.06em] text-[var(--gray-500)]">Fecha</th>
             </tr>
           </thead>
           <tbody>
@@ -744,7 +744,7 @@ function AuditList({ items }: { items: any[] }) {
               const moduleLabel = moduleLabels[item.module] || item.module || "Sistema";
               return (
                 <tr key={item.id} className="border-b border-[var(--gray-100)] last:border-0">
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3">
                     <div className="min-w-0">
                       {item.related_url ? (
                         <Link to={item.related_url} className="inline-block max-w-full truncate text-[13px] font-bold text-[var(--gray-800)] hover:underline">
@@ -755,14 +755,14 @@ function AuditList({ items }: { items: any[] }) {
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3">
                     <span className={cn("inline-flex rounded-full border px-2 py-1 text-[11px] font-bold", auditActionClasses[item.action] || auditActionClasses.SYSTEM)}>
                       {actionLabel}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-[12px] font-bold text-[var(--gray-600)]">{moduleLabel}</td>
-                  <td className="px-4 py-3 text-[12px] text-[var(--gray-600)]">{item.user || "Sistema"}</td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-3 py-3 text-[12px] font-bold text-[var(--gray-600)]">{moduleLabel}</td>
+                  <td className="px-3 py-3 text-[12px] text-[var(--gray-600)]">{item.user || "Sistema"}</td>
+                  <td className="px-3 py-3 text-right">
                     <span className="block text-[12px] font-bold text-[var(--gray-700)]">{formatAuditDate(item.created_at)}</span>
                     <span className="mt-0.5 block text-[11px] font-bold text-[var(--gray-400)]">{formatAuditTime(item.created_at)}</span>
                   </td>
