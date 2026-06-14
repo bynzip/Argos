@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, UploadCloud } from 'lucide-react';
 
 interface Props {
@@ -10,29 +10,32 @@ export const MultiImageUpload: React.FC<Props> = ({ onFilesChange, maxFiles = 15
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
 
+  useEffect(() => {
+    return () => {
+      previews.forEach((preview) => URL.revokeObjectURL(preview));
+    };
+  }, [previews]);
+
+  const applySelectedFiles = (files: File[]) => {
+    setSelectedFiles(files);
+    onFilesChange(files);
+    setPreviews(files.map((file) => URL.createObjectURL(file)));
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
       const totalFiles = [...selectedFiles, ...newFiles].slice(0, maxFiles);
-      
-      setSelectedFiles(totalFiles);
-      onFilesChange(totalFiles);
-      
-      const newPreviews = totalFiles.map(file => URL.createObjectURL(file));
-      setPreviews(newPreviews);
+
+      applySelectedFiles(totalFiles);
+      e.target.value = '';
     }
   };
 
   const removeFile = (index: number) => {
     const newFiles = [...selectedFiles];
     newFiles.splice(index, 1);
-    setSelectedFiles(newFiles);
-    onFilesChange(newFiles);
-    
-    const newPreviews = [...previews];
-    URL.revokeObjectURL(newPreviews[index]);
-    newPreviews.splice(index, 1);
-    setPreviews(newPreviews);
+    applySelectedFiles(newFiles);
   };
 
   return (
